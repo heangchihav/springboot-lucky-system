@@ -1,0 +1,435 @@
+'use client';
+
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import {
+  MENU_SECTIONS,
+  type MenuSection,
+  type SubMenuItem,
+} from "./menuConfig";
+import { useAuth } from "../../../src/contexts/AuthContext";
+import { LocaleSwitcher } from "./LocaleSwitcher";
+import { useCurrentLocale, withLocaleQuery } from "../../../src/i18n/useLocale";
+
+type AppShellProps = {
+  children: ReactNode;
+};
+
+type TabItem = {
+  path: string;
+  label: string;
+  sectionId: string;
+};
+
+const deriveSectionId = (pathname: string | null): string => {
+  if (!pathname) {
+    return MENU_SECTIONS[0]?.id ?? "";
+  }
+  const found = MENU_SECTIONS.find((section) =>
+    pathname.startsWith(`/${section.id}`)
+  );
+  return found?.id ?? MENU_SECTIONS[0]?.id ?? "";
+};
+
+export function AppShell({ children }: AppShellProps) {
+  const pathname = usePathname();
+  const router = useRouter();
+  const { locale, dictionary, t } = useCurrentLocale();
+  const resolvedItems = useMemo(
+    () =>
+      MENU_SECTIONS.flatMap((section) =>
+        section.items.map((item) => ({
+          ...item,
+          sectionId: section.id,
+        }))
+      ),
+    []
+  );
+  const [activeSectionId, setActiveSectionId] = useState(() =>
+    deriveSectionId(pathname)
+  );
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [tabs, setTabs] = useState<TabItem[]>([]);
+  const [activeTabPath, setActiveTabPath] = useState(pathname ?? "");
+  const { user, logout, isAuthenticated } = useAuth();
+
+  const findItemByPath = useCallback(
+    (path: string | null) => {
+      if (!path) return undefined;
+      return resolvedItems.find((item) => path.startsWith(item.path));
+    },
+    [resolvedItems]
+  );
+
+  const upsertTabForPath = useCallback(
+    (path: string | null) => {
+      const match = findItemByPath(path);
+      if (!match) {
+        return;
+      }
+      setTabs((prev) => {
+        if (prev.some((tab) => tab.path === match.path)) {
+          return prev;
+        }
+        return [
+          ...prev,
+          { path: match.path, label: match.label, sectionId: match.sectionId },
+        ];
+      });
+    },
+    [findItemByPath]
+  );
+
+  useEffect(() => {
+    setActiveSectionId(deriveSectionId(pathname));
+    setMobileSidebarOpen(false);
+    setActiveTabPath(pathname ?? "");
+    upsertTabForPath(pathname ?? null);
+  }, [pathname, upsertTabForPath]);
+
+  const activeSection: MenuSection | undefined = useMemo(
+    () => MENU_SECTIONS.find((section) => section.id === activeSectionId),
+    [activeSectionId]
+  );
+
+  return (
+    <div className="flex min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-slate-100">
+      <MobileSidebar
+        open={mobileSidebarOpen}
+        onClose={() => setMobileSidebarOpen(false)}
+        sections={MENU_SECTIONS}
+        activeSectionId={activeSectionId}
+        activePathname={pathname ?? ""}
+        onSelectSection={setActiveSectionId}
+        onOpenItem={(item, sectionId) => {
+          setActiveTabPath(item.path);
+          setTabs((prev) => {
+            if (prev.some((tab) => tab.path === item.path)) {
+              return prev;
+            }
+            return [...prev, { path: item.path, label: item.label, sectionId }];
+          });
+          router.push(withLocaleQuery(item.path, locale));
+        }}
+      />
+      <Sidebar
+        sections={MENU_SECTIONS}
+        activeSectionId={activeSectionId}
+        onSelectSection={setActiveSectionId}
+        activePathname={pathname ?? ""}
+        onOpenItem={(item, sectionId) => {
+          setActiveTabPath(item.path);
+          setMobileSidebarOpen(false);
+          setTabs((prev) => {
+            if (prev.some((tab) => tab.path === item.path)) {
+              return prev;
+            }
+            return [...prev, { path: item.path, label: item.label, sectionId }];
+          });
+          router.push(withLocaleQuery(item.path, locale));
+        }}
+        className="hidden lg:flex lg:flex-col lg:gap-10"
+      />
+      <main className="flex-1 border-l border-white/10 bg-slate-950/70 p-4 sm:p-8 lg:p-10">
+        <div className="mx-auto max-w-6xl space-y-10">
+          <header className="flex flex-col gap-4 border-b border-white/10 pb-6">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setMobileSidebarOpen(true)}
+                  className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-white/10 bg-white/0 text-white transition-all duration-300 ease-out hover:border-orange-500/60 hover:bg-orange-500/10 lg:hidden"
+                  aria-label="Open navigation"
+                >
+                  <span className="space-y-1.5">
+                    <span className="block h-0.5 w-6 bg-white"></span>
+                    <span className="block h-0.5 w-6 bg-white"></span>
+                    <span className="block h-0.5 w-6 bg-white"></span>
+                  </span>
+                </button>
+                <div>
+                  <p className="text-xs uppercase tracking-[0.4em] text-amber-400">
+                    {t("luckySystem")}
+                  </p>
+                  <h1 className="text-3xl font-semibold text-white">
+                    {t("controlCenter")}
+                  </h1>
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-3">
+                <LocaleSwitcher label={t("localeLabel")} compact />
+                <AccountQuickAccess
+                  name={user?.fullName ?? user?.username ?? "Operator"}
+                  isAuthenticated={isAuthenticated}
+                  onLogout={logout}
+                />
+              </div>
+            </div>
+            <p className="text-sm text-slate-300">
+              {t("activeProgramsSubtitle")}
+            </p>
+          </header>
+          {tabs.length > 0 ? (
+            <nav className="flex flex-wrap items-center gap-2 rounded-3xl border border-white/10 bg-white/5 px-4 py-3">
+              {tabs.map((tab) => {
+                const isActive = activeTabPath.startsWith(tab.path);
+                return (
+                  <div
+                    key={tab.path}
+                    className={`flex items-center gap-2 rounded-2xl border px-2 py-1 ${
+                      isActive
+                        ? "border-orange-400/70 bg-orange-400/10 text-white"
+                        : "border-white/10 bg-white/0 text-slate-300"
+                    }`}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveTabPath(tab.path);
+                        router.push(withLocaleQuery(tab.path, locale));
+                      }}
+                      className="flex items-center gap-2 rounded-2xl px-3 py-1 text-sm font-semibold transition-all duration-300 ease-out focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-400"
+                    >
+                      {tab.label}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTabs((prev) => {
+                          const filtered = prev.filter(
+                            (existing) => existing.path !== tab.path
+                          );
+                          if (filtered.length === prev.length) {
+                            return prev;
+                          }
+                          if (activeTabPath === tab.path) {
+                            const fallbackPath =
+                              filtered.at(-1)?.path || resolvedItems[0]?.path || "/";
+                            setActiveTabPath(fallbackPath);
+                            router.push(withLocaleQuery(fallbackPath, locale));
+                          }
+                          return filtered;
+                        });
+                      }}
+                      aria-label={`Close ${tab.label}`}
+                      className="rounded-full border border-white/10 px-2 py-1 text-xs text-white/70 transition-all duration-300 ease-out hover:border-orange-400/60 hover:bg-orange-400/20"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                );
+              })}
+            </nav>
+          ) : null}
+          <section className="rounded-3xl border border-white/10 bg-slate-900/60 p-6 shadow-2xl shadow-orange-500/10 backdrop-blur">
+            {children}
+          </section>
+        </div>
+      </main>
+    </div>
+  );
+}
+
+type SidebarProps = {
+  sections: MenuSection[];
+  activeSectionId: string;
+  activePathname: string;
+  onSelectSection: (id: string) => void;
+  onOpenItem: (item: SubMenuItem, sectionId: string) => void;
+  className?: string;
+};
+
+function Sidebar({
+  sections,
+  activeSectionId,
+  onSelectSection,
+  activePathname,
+  onOpenItem,
+  className = "",
+}: SidebarProps) {
+  const activeSection = sections.find((section) => section.id === activeSectionId);
+
+  return (
+    <aside
+      className={`w-80 flex-shrink-0 border-r border-white/10 bg-slate-950/80 ${className}`}
+    >
+      <div className="px-6 py-8 flex h-full flex-col gap-10">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.4em] text-amber-400">
+            Services
+          </p>
+          <div className="mt-4 space-y-3">
+            {sections.map((section) => (
+              <button
+                key={section.id}
+                type="button"
+                onClick={() => onSelectSection(section.id)}
+                className={`w-full rounded-2xl border px-4 py-4 text-left transition-all duration-300 ease-out focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-400 ${
+                  section.id === activeSectionId
+                    ? "border-orange-400/70 bg-orange-400/10 text-white shadow-lg shadow-orange-500/20"
+                    : "border-white/10 bg-white/0 text-slate-300 hover:border-orange-400/40 hover:bg-white/5"
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-semibold">{section.label}</p>
+                    <p className="text-xs text-slate-400">{section.description}</p>
+                  </div>
+                  <span className="text-xs font-semibold uppercase tracking-[0.4em] text-amber-300/70">
+                    {section.items.length}
+                  </span>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="flex-1">
+          <div className="flex items-center justify-between">
+            <p className="text-xs uppercase tracking-[0.35em] text-amber-400">
+              {activeSection?.label ?? "Menu"}
+            </p>
+            <span className="text-[10px] uppercase tracking-[0.4em] text-slate-500">
+              Modules
+            </span>
+          </div>
+          <div className="mt-4 space-y-2">
+            {activeSection ? (
+              activeSection.items.map((item) => (
+                <SidebarItem
+                  key={item.id}
+                  item={item}
+                  active={activePathname.startsWith(item.path)}
+                  onOpen={() => onOpenItem(item, activeSectionId)}
+                />
+              ))
+            ) : (
+              <div className="rounded-2xl border border-dashed border-white/20 px-4 py-6 text-center text-sm text-slate-400">
+                Select a service to see its modules.
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </aside>
+  );
+}
+
+type SidebarItemProps = {
+  item: SubMenuItem;
+  active: boolean;
+  onOpen: () => void;
+};
+
+function SidebarItem({ item, active, onOpen }: SidebarItemProps) {
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className={`group flex w-full items-start gap-3 rounded-2xl border px-4 py-3 text-left transition-all duration-300 ease-out ${
+        active
+          ? "border-orange-400/70 bg-orange-400/10 text-white"
+          : "border-white/10 bg-white/0 text-slate-300 hover:border-orange-400/40 hover:bg-white/5"
+      }`}
+    >
+      <span className="mt-1 flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-xs font-semibold uppercase tracking-[0.3em] text-white/80">
+        {item.label.slice(0, 2)}
+      </span>
+      <div className="flex-1">
+        <p className="font-semibold text-white">{item.label}</p>
+        <p className="text-sm text-slate-400">{item.description}</p>
+        <p className="text-[10px] uppercase tracking-[0.4em] text-orange-300/60">
+          {item.path}
+        </p>
+      </div>
+    </button>
+  );
+}
+
+type MobileSidebarProps = SidebarProps & {
+  open: boolean;
+  onClose: () => void;
+};
+
+function MobileSidebar({ open, onClose, ...sidebarProps }: MobileSidebarProps) {
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-40 lg:hidden">
+      <button
+        type="button"
+        className="absolute inset-0 bg-black/60"
+        aria-label="Close navigation overlay"
+        onClick={onClose}
+      />
+      <div className="relative flex h-full w-80 flex-col border-r border-white/10 bg-slate-950/95 shadow-2xl shadow-black/70">
+        <div className="flex items-center justify-between border-b border-white/10 px-6 py-4">
+          <p className="text-sm font-semibold text-white">Navigation</p>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-full border border-white/10 px-3 py-1 text-sm text-white transition hover:border-orange-400/60 hover:bg-orange-400/10"
+          >
+            Close
+          </button>
+        </div>
+        <Sidebar
+          {...sidebarProps}
+          className="flex-1 overflow-y-auto"
+        />
+      </div>
+    </div>
+  );
+}
+
+type AccountQuickAccessProps = {
+  name: string;
+  isAuthenticated: boolean;
+  onLogout: () => Promise<void>;
+};
+
+function AccountQuickAccess({
+  name,
+  isAuthenticated,
+  onLogout,
+}: AccountQuickAccessProps) {
+  return (
+    <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white">
+      <div className="flex h-11 w-11 items-center justify-center rounded-full border border-orange-400/60 bg-gradient-to-br from-orange-500 to-amber-400 text-base font-semibold text-slate-950">
+        {name.slice(0, 2).toUpperCase()}
+      </div>
+      <div className="flex flex-col text-left">
+        <span className="text-xs uppercase tracking-[0.4em] text-amber-300/80">
+          Account
+        </span>
+        <span className="font-semibold">{name}</span>
+      </div>
+      <div className="ml-4 flex gap-2">
+        <Link
+          href="/account"
+          className="rounded-full border border-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-amber-200/80 transition hover:border-orange-400/60 hover:bg-orange-400/10"
+        >
+          Settings
+        </Link>
+        {isAuthenticated ? (
+          <button
+            onClick={onLogout}
+            className="rounded-full border border-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-amber-200/60 transition hover:border-red-500/70 hover:bg-red-500/10"
+          >
+            Logout
+          </button>
+        ) : (
+          <Fragment />
+        )}
+      </div>
+    </div>
+  );
+}
