@@ -9,8 +9,9 @@ resources:
   - configmap.yaml
   - postgres.yaml
   - redis.yaml
-  - app.yaml
-  - nginx-configmap.yaml
-  - nginx.yaml
+  - user-service.yaml
+  - call-service.yaml
+  - delivery-service.yaml
+  - gateway.yaml
   - cloudflared.yaml
   - ingress.yaml

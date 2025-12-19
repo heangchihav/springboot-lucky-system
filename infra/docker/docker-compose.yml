@@ -31,16 +31,35 @@ services:
       timeout: 5s
       retries: 10
 
-  app:
+  gateway:
     build:
       context: ../..
-      dockerfile: Dockerfile
-    container_name: demo-app
+      dockerfile: backend/Dockerfile
+      args:
+        MODULE: gateway
+    container_name: demo-gateway
     restart: unless-stopped
+    env_file:
+      - ./.env
     ports:
       - "8080:8080"
+    depends_on:
+      - user-service
+      - call-service
+      - delivery-service
+
+  user-service:
+    build:
+      context: ../..
+      dockerfile: backend/Dockerfile
+      args:
+        MODULE: user-service
+    container_name: demo-user-service
+    restart: unless-stopped
+    ports:
+      - "8081:8080"
     env_file:
-      - ../../.env
+      - ./.env
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/mydb
       SPRING_DATASOURCE_USERNAME: postgres
@@ -54,6 +73,28 @@ services:
       redis:
         condition: service_healthy
 
+  call-service:
+    build:
+      context: ../..
+      dockerfile: backend/Dockerfile
+      args:
+        MODULE: call-service
+    container_name: demo-call-service
+    restart: unless-stopped
+    env_file:
+      - ./.env
+
+  delivery-service:
+    build:
+      context: ../..
+      dockerfile: backend/Dockerfile
+      args:
+        MODULE: delivery-service
+    container_name: demo-delivery-service
+    restart: unless-stopped
+    env_file:
+      - ./.env
+
   nginx:
     image: nginx:alpine
     container_name: demo-proxy
@@ -65,7 +106,7 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
-      - db
+      - gateway
 
   cloudflared:
     image: cloudflare/cloudflared:latest
@@ -85,14 +126,14 @@ services:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus-data:/prometheus
     depends_on:
-      - app
+      - gateway
 
   grafana:
     image: grafana/grafana:11.3.0
     container_name: demo-grafana
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "3300:3000"
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}

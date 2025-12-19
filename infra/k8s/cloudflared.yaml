@@ -25,7 +25,7 @@ spec:
             - name: TUNNEL_TOKEN
               valueFrom:
                 secretKeyRef:
-                  name: demo-secrets
+                  name: cloudflared-secrets
                   key: CLOUDFLARED_TUNNEL_TOKEN
           resources:
             requests:

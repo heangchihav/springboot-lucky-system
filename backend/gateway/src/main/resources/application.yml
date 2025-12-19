@@ -1,0 +1,54 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: gateway
+  cloud:
+    gateway:
+      default-filters:
+        - DedupeResponseHeader=Access-Control-Allow-Credentials Access-Control-Allow-Origin, RETAIN_FIRST
+      server:
+        webflux:
+          globalcors:
+            add-to-simple-url-handler-mapping: true
+            corsConfigurations:
+              '[/**]':
+                allowedOriginPatterns: ${GATEWAY_CORS_ALLOWED_ORIGIN_PATTERNS:http://localhost:*}
+                allowedMethods:
+                  - GET
+                  - POST
+                  - PUT
+                  - PATCH
+                  - DELETE
+                  - OPTIONS
+                allowedHeaders: "*"
+                allowCredentials: true
+          routes:
+            - id: user-service
+              uri: ${USER_SERVICE_URL:http://user-service:8081}
+              filters:
+                - PreserveHostHeader
+              predicates:
+                - Path=/api/auth/**,/api/users/**
+            - id: call-service
+              uri: ${CALL_SERVICE_URL:http://call-service:8082}
+              filters:
+                - PreserveHostHeader
+              predicates:
+                - Path=/api/calls/**
+            - id: delivery-service
+              uri: ${DELIVERY_SERVICE_URL:http://delivery-service:8083}
+              filters:
+                - PreserveHostHeader
+              predicates:
+                - Path=/api/deliveries/**
+
+management:
+  endpoint:
+    gateway:
+      enabled: true
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus,gateway

@@ -1,9 +1,4 @@
 HELP.md
-target/
-.mvn/wrapper/maven-wrapper.jar
-!**/src/main/**/target/
-!**/src/test/**/target/
-
 ### STS ###
 .apt_generated
 .classpath
@@ -34,4 +29,14 @@ build/
 
 ### Environment ###
 .env
-!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+infra/docker/.env
+infra/docker/.env\ copy.example
+cookies.txt
+*.log
+*.tmp
+*.swp
+.DS_Store
+Thumbs.db

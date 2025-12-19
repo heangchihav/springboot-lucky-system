@@ -1,0 +1,14 @@
+target/
+.mvn/wrapper/maven-wrapper.jar
+
+# local env files
+.env
+.env.*
+!.env.example
+
+# IntelliJ / Eclipse / VSCode (if you open backend as a separate project)
+.idea/
+*.iml
+.classpath
+.project
+.settings/
