@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: demo-config
+  namespace: demo
+data:
+  # Spring Boot configuration
+  SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres-service:5432/mydb"
+  SPRING_DATASOURCE_DRIVER_CLASS_NAME: "org.postgresql.Driver"
+  SPRING_JPA_HIBERNATE_DDL_AUTO: "update"
+  SPRING_JPA_SHOW_SQL: "true"
+  REDIS_HOST: "redis-service"
+  REDIS_PORT: "6379"

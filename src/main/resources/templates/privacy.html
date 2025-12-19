@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Privacy Policy</title>
+    <link rel="stylesheet" th:href="@{/css/styles.css}" />
+</head>
+<body>
+<div class="page">
+    <div class="card">
+        <h1 class="card-title">Privacy Policy</h1>
+        <p class="card-subtitle">Last updated: <span th:text="${#dates.format(#dates.createNow(), 'yyyy-MM-dd')}"></span></p>
+        <div class="field" style="text-align:left">
+            <p>This application processes account information (username, password hash, and profile data) to provide authentication and user profile features.</p>
+            <p>We store security-related metadata to protect accounts, including login timestamps, token identifiers, and device security signals (e.g., user-agent hash and IP prefix) for fraud prevention.</p>
+            <p>We do not sell personal data. Access is restricted to authorized users and secured via encryption and security controls.</p>
+            <p>If you have questions, contact the system administrator.</p>
+        </div>
+        <div class="actions">
+            <a class="primary-button" th:href="@{/login}">Back to login</a>
+        </div>
+    </div>
+</div>
+</body>
+</html>
