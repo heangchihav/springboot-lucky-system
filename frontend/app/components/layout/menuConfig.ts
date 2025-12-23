@@ -19,23 +19,24 @@ export const MENU_SECTIONS: MenuSection[] = [
     description: "Queue health, escalations, live ops",
     items: [
       {
-        id: "call-overview",
-        label: "Overview",
-        description: "Command summary of the call center",
-        path: "/call-service/overview",
+        id: "call-dashboard",
+        label: "Dashboard",
+        description: "Overview of call service metrics",
+        path: "/call-service/dashboard",
+      },
+      
+      {
+        id: "call-reports",
+        label: "Reports",
+        description: "Detailed call reports and analytics",
+        path: "/call-service/reports",
       },
       {
-        id: "call-queue",
-        label: "Queue Health",
-        description: "Monitor wait times and SLAs",
-        path: "/call-service/queue-health",
-      },
-      {
-        id: "call-escalations",
-        label: "Escalations",
-        description: "Track open incidents and handoffs",
-        path: "/call-service/escalations",
-      },
+        id: "call-manage-user",
+        label: "Manage Users",
+        description: "Manage call center users and their permissions",
+        path: "/call-service/manage-user",
+      }
     ],
   },
   {
@@ -44,23 +45,23 @@ export const MENU_SECTIONS: MenuSection[] = [
     description: "Fleet coverage & density insights",
     items: [
       {
-        id: "delivery-overview",
-        label: "Overview",
-        description: "Live KPIs for the delivery network",
-        path: "/delivery-service/overview",
+        id: "delivery-dashboard",
+        label: "Dashboard",
+        description: "Overview of delivery service metrics",
+        path: "/delivery-service/dashboard",
       },
       {
-        id: "delivery-fleet",
-        label: "Fleet Tracking",
-        description: "Vehicle routes and progress",
-        path: "/delivery-service/fleet-tracking",
+        id: "delivery-reports",
+        label: "Reports",
+        description: "View detailed delivery reports and analytics",
+        path: "/delivery-service/reports",
       },
       {
-        id: "delivery-density",
-        label: "Drop Density",
-        description: "Heat-maps of fulfillment zones",
-        path: "/delivery-service/drop-density",
-      },
+        id: "delivery-manage-users",
+        label: "Manage Users",
+        description: "Manage delivery personnel and their assignments",
+        path: "/delivery-service/manage-users",
+      }
     ],
   },
   {
@@ -68,24 +69,24 @@ export const MENU_SECTIONS: MenuSection[] = [
     label: "User Service",
     description: "Directory, access, and audit trails",
     items: [
-      {
-        id: "user-directory",
-        label: "Directory",
-        description: "All operators and contact data",
-        path: "/user-service/directory",
-      },
-      {
-        id: "user-roles",
-        label: "Roles & Access",
-        description: "Permission matrices & journeys",
-        path: "/user-service/roles",
-      },
-      {
-        id: "user-audit",
-        label: "Audit Center",
-        description: "Session history & approvals",
-        path: "/user-service/audit",
-      },
+       {
+        id: "user-dashboard",
+        label: "Dashboard",
+        description: "Overview of user service metrics",
+        path: "/user-service/dashboard",
+       },
+       {
+        id: "user-services",
+        label: "Services",
+        description: "Manage services and their configurations",
+        path: "/user-service/services",
+       },
+       {
+        id: "user-manage-users",
+        label: "Manage Users",
+        description: "Manage user accounts and permissions",
+        path: "/user-service/manage-users",
+       }
     ],
   },
 ];

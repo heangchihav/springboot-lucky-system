@@ -1,9 +1,6 @@
 package com.example.demo.config;
 
-import com.example.demo.security.jwt.JwtAuthenticationFilter;
-import com.example.demo.security.web.OriginEnforcementFilter;
 import com.example.demo.security.web.SimpleWafFilter;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
@@ -36,28 +33,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 @EnableMethodSecurity
 public class SecurityConfig {
 
-    private final JwtAuthenticationFilter jwtAuthenticationFilter;
-
-    @Value("${security.origin-check.enabled:true}")
-    private boolean originCheckEnabled;
-
-    @Value("${security.origin-check.allowed-origins:}")
-    private String originCheckAllowedOrigins;
-
-    @Value("${security.waf.enabled:true}")
-    private boolean wafEnabled;
-
-    @Value("${security.waf.max-content-length-bytes:1048576}")
-    private long wafMaxContentLengthBytes;
-
-    @Value("${security.hsts.enabled:true}")
-    private boolean hstsEnabled;
-
-    @Value("${security.hsts.max-age-seconds:31536000}")
-    private long hstsMaxAgeSeconds;
-
-    public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter) {
-        this.jwtAuthenticationFilter = jwtAuthenticationFilter;
+    public SecurityConfig() {
     }
 
     @Bean
@@ -95,15 +71,8 @@ public class SecurityConfig {
             .headers(headers -> configureSecurityHeaders(headers))
             // Authorization
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/api/auth/**").permitAll()
-                .requestMatchers("/api/health").permitAll()
-                .anyRequest().authenticated()
-            )
-            .addFilterBefore(new SimpleWafFilter(wafEnabled, wafMaxContentLengthBytes), UsernamePasswordAuthenticationFilter.class)
-            // Enforce same-origin for state-changing cookie-authenticated requests
-            .addFilterBefore(new OriginEnforcementFilter(originCheckEnabled, originCheckAllowedOrigins), UsernamePasswordAuthenticationFilter.class)
-            // Add JWT filter
-            .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+                .anyRequest().permitAll()
+            );
 
         return http.build();
     }
@@ -148,7 +117,7 @@ public class SecurityConfig {
                 .deleteCookies("JSESSIONID", "access_token", "refresh_token")
             );
 
-        http.addFilterBefore(new SimpleWafFilter(wafEnabled, wafMaxContentLengthBytes), UsernamePasswordAuthenticationFilter.class);
+        http.addFilterBefore(new SimpleWafFilter(true, 1048576), UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
@@ -158,17 +127,6 @@ public class SecurityConfig {
      */
     private void configureSecurityHeaders(org.springframework.security.config.annotation.web.configurers.HeadersConfigurer<HttpSecurity> headers) {
         headers
-            // HSTS - Force HTTPS (TLS 1.3)
-            .httpStrictTransportSecurity(hsts -> {
-                if (hstsEnabled) {
-                    hsts
-                        .includeSubDomains(true)
-                        .preload(true)
-                        .maxAgeInSeconds(hstsMaxAgeSeconds);
-                } else {
-                    hsts.disable();
-                }
-            })
             // Prevent clickjacking
             .frameOptions(frame -> frame.deny())
             // Prevent MIME type sniffing

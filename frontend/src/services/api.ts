@@ -58,7 +58,7 @@ class ApiService {
       }
       
       throw new ApiError(
-        errorData.error || `HTTP ${response.status}`,
+        errorData.error || errorData.message || `HTTP ${response.status}`,
         response.status,
         errorData
       )
@@ -79,7 +79,8 @@ class ApiService {
       headers: this.getHeaders(),
       credentials: 'include',
       body: JSON.stringify({
-        ...data,
+        username: data.username,
+        password: data.password,
         deviceId
       })
     })

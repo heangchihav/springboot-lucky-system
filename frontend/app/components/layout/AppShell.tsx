@@ -401,6 +401,46 @@ function AccountQuickAccess({
   isAuthenticated,
   onLogout,
 }: AccountQuickAccessProps) {
+  const router = useRouter();
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  const handleLogout = async () => {
+    if (isLoggingOut) return; // Prevent multiple clicks
+    
+    setIsLoggingOut(true);
+    try {
+      await onLogout();
+      router.push('/auth/login');
+    } catch (error) {
+      console.error('Logout error:', error);
+      // Still redirect even if logout fails
+      router.push('/auth/login');
+    } finally {
+      setIsLoggingOut(false);
+    }
+  };
+
+  if (!isAuthenticated) {
+    return (
+      <Link
+        href="/auth/login"
+        className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-white transition hover:border-blue-400/60 hover:bg-blue-400/10"
+      >
+        <div className="flex h-11 w-11 items-center justify-center rounded-full border border-blue-400/60 bg-gradient-to-br from-blue-500 to-blue-400">
+          <svg className="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
+          </svg>
+        </div>
+        <div className="flex flex-col text-left">
+          <span className="text-xs uppercase tracking-[0.4em] text-blue-300/80">
+            Login
+          </span>
+          <span className="font-semibold">Sign In</span>
+        </div>
+      </Link>
+    );
+  }
+
   return (
     <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white">
       <div className="flex h-11 w-11 items-center justify-center rounded-full border border-orange-400/60 bg-gradient-to-br from-orange-500 to-amber-400 text-base font-semibold text-slate-950">
@@ -419,16 +459,27 @@ function AccountQuickAccess({
         >
           Settings
         </Link>
-        {isAuthenticated ? (
-          <button
-            onClick={onLogout}
-            className="rounded-full border border-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-amber-200/60 transition hover:border-red-500/70 hover:bg-red-500/10"
-          >
-            Logout
-          </button>
-        ) : (
-          <Fragment />
-        )}
+        <button
+          onClick={handleLogout}
+          disabled={isLoggingOut}
+          className={`rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-[0.3em] transition ${
+            isLoggingOut
+              ? 'border-gray-600 bg-gray-600/20 text-gray-400 cursor-not-allowed'
+              : 'border-white/10 text-amber-200/60 hover:border-red-500/70 hover:bg-red-500/10'
+          }`}
+        >
+          {isLoggingOut ? (
+            <span className="flex items-center gap-2">
+              <svg className="animate-spin h-3 w-3" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              Logging out...
+            </span>
+          ) : (
+            'Logout'
+          )}
+        </button>
       </div>
     </div>
   );

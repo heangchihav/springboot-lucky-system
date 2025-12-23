@@ -1,7 +1,9 @@
 package com.example.demo.user;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import java.time.Instant;
+import java.util.List;
 
 @Entity
 @Table(name = "users")
@@ -18,6 +20,8 @@ public class User {
     private String password;
 
     private String fullName;
+
+    private String phone;
 
     // ========== SECURITY FIELDS ==========
     
@@ -61,6 +65,12 @@ public class User {
     @Column(columnDefinition = "BOOLEAN DEFAULT TRUE")
     private boolean enabled = true;
 
+    // ========== SERVICE ASSIGNMENTS ==========
+
+    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @JsonIgnore
+    private List<UserXService> userServices;
+
     @PrePersist
     @PreUpdate
     private void ensureDefaults() {
@@ -71,6 +81,8 @@ public class User {
 
     public Long getId() { return id; }
 
+    public void setId(Long id) { this.id = id; }
+
     public String getUsername() { return username; }
     public void setUsername(String username) { this.username = username; }
 
@@ -79,6 +91,9 @@ public class User {
 
     public String getFullName() { return fullName; }
     public void setFullName(String fullName) { this.fullName = fullName; }
+
+    public String getPhone() { return phone; }
+    public void setPhone(String phone) { this.phone = phone; }
 
     public Long getTokenVersion() { return tokenVersion; }
     public void setTokenVersion(Long tokenVersion) { this.tokenVersion = tokenVersion; }
@@ -100,6 +115,9 @@ public class User {
 
     public boolean isEnabled() { return enabled; }
     public void setEnabled(boolean enabled) { this.enabled = enabled; }
+
+    public List<UserXService> getUserServices() { return userServices; }
+    public void setUserServices(List<UserXService> userServices) { this.userServices = userServices; }
 
     /**
      * Increment token version to invalidate all existing tokens
