@@ -17,10 +17,14 @@ import org.springframework.security.core.userdetails.User.UserBuilder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Service
 public class UserService implements UserDetailsService {
 
+    private static final Logger logger = LoggerFactory.getLogger(UserService.class);
+    
     private final UserRepository userRepository;
     private final UserXServiceRepository userXServiceRepository;
     private final com.example.demo.service.UserServiceManagementService userServiceManagementService;
@@ -168,11 +172,28 @@ public class UserService implements UserDetailsService {
         return save(user);
     }
 
+    @Transactional
     public void deleteUser(Long userId) {
         if (!userRepository.existsById(userId)) {
             throw new IllegalArgumentException("User not found with id: " + userId);
         }
-        userRepository.deleteById(userId);
+        
+        try {
+            com.example.demo.user.User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("User not found with id: " + userId));
+            
+            // Soft delete by deactivating the user instead of hard deletion
+            // This avoids foreign key constraint issues
+            user.setEnabled(false);
+            user.setAccountLocked(true);
+            userRepository.save(user);
+            
+            logger.info("Successfully soft-deleted user {} (deactivated and locked)", userId);
+            
+        } catch (Exception e) {
+            logger.error("Error deleting user {}: {}", userId, e.getMessage(), e);
+            throw new IllegalArgumentException("Failed to delete user: " + e.getMessage());
+        }
     }
 
     public User updateUser(Long userId, String fullName, String phone, List<Long> serviceIds) {

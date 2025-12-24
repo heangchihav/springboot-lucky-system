@@ -27,6 +27,13 @@ export interface Branch {
   updatedAt?: string;
 }
 
+export interface UserBranchAssignment {
+  id: number;
+  branchId: number;
+  branchName: string;
+  active: boolean;
+}
+
 export interface CreateAreaRequest {
   name: string;
   description?: string;
@@ -290,6 +297,47 @@ class AreaBranchService {
     });
     
     return this.handleResponse<Branch[]>(response);
+  }
+
+  async getUserBranchesByUser(userId: number): Promise<UserBranchAssignment[]> {
+    const response = await fetch(`${API_BASE}/calls/user-branches/user/${userId}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    const data = await this.handleResponse<any[]>(response);
+    return data.map((assignment) => ({
+      id: assignment.id,
+      branchId: assignment.branchId,
+      branchName: assignment.branchName,
+      active: assignment.active,
+    }));
+  }
+
+  async assignUserToBranch(userId: number, branchId: number): Promise<void> {
+    const response = await fetch(`${API_BASE}/calls/user-branches/assign`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ userId, branchId }),
+    });
+
+    await this.handleResponse(response);
+  }
+
+  async removeUserFromBranch(userId: number, branchId: number): Promise<void> {
+    const response = await fetch(`${API_BASE}/calls/user-branches/remove`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ userId, branchId }),
+    });
+
+    await this.handleResponse(response);
   }
 }
 

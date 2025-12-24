@@ -3,20 +3,21 @@
 import React, { useState, useEffect } from 'react'
 import { userService, User, CreateUserRequest } from '../../services/userService'
 import { serviceService } from '../../services/serviceService'
+import { areaBranchService, Branch } from '../services/areaBranchService'
 
 export default function ManageUserPage() {
   const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [callServiceId, setCallServiceId] = useState<number | null>(null)
-  
   const [formData, setFormData] = useState({
     fullName: '',
     username: '',
     password: '',
     phone: ''
   })
-  
+  const [branches, setBranches] = useState<Branch[]>([])
+  const [selectedBranchId, setSelectedBranchId] = useState<number | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
@@ -28,6 +29,8 @@ export default function ManageUserPage() {
     username: '',
     phone: ''
   })
+  const [editBranchId, setEditBranchId] = useState<number | null>(null)
+  const [editingUserBranchCurrentId, setEditingUserBranchCurrentId] = useState<number | null>(null)
 
   const filteredUsers = users.filter(user =>
     user.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -38,6 +41,7 @@ export default function ManageUserPage() {
   useEffect(() => {
     fetchUsers()
     fetchCallServiceId()
+    loadBranches()
   }, [])
 
   // Refetch users when callServiceId is available
@@ -124,13 +128,41 @@ export default function ManageUserPage() {
         password: '',
         phone: ''
       })
+      setSelectedBranchId(null)
       
+      if (selectedBranchId) {
+        await areaBranchService.assignUserToBranch(newUser.id, selectedBranchId)
+      }
+
       alert('User created successfully and assigned to Call Service!')
     } catch (error) {
       console.error('Error creating user:', error)
       alert(`Error creating user: ${error instanceof Error ? error.message : 'Unknown error'}`)
     } finally {
       setIsSubmitting(false)
+    }
+  }
+
+  const loadBranches = async () => {
+    try {
+      const data = await areaBranchService.getActiveBranches()
+      setBranches(data)
+    } catch (err) {
+      console.error('Error loading branches:', err)
+    }
+  }
+
+  const loadUserBranchAssignment = async (userId: number) => {
+    try {
+      const assignments = await areaBranchService.getUserBranchesByUser(userId)
+      const activeAssignment = assignments.find((assignment) => assignment.active)
+      const branchId = activeAssignment?.branchId ?? null
+      setEditBranchId(branchId)
+      setEditingUserBranchCurrentId(branchId)
+    } catch (error) {
+      console.error('Error loading user branch assignment:', error)
+      setEditBranchId(null)
+      setEditingUserBranchCurrentId(null)
     }
   }
 
@@ -179,6 +211,7 @@ export default function ManageUserPage() {
       username: user.username,
       phone: user.phone || ''
     })
+    loadUserBranchAssignment(user.id)
   }
 
   const cancelEdit = () => {
@@ -188,6 +221,8 @@ export default function ManageUserPage() {
       username: '',
       phone: ''
     })
+    setEditBranchId(null)
+    setEditingUserBranchCurrentId(null)
   }
 
   const handleUpdateUser = async (e: React.FormEvent) => {
@@ -201,8 +236,20 @@ export default function ManageUserPage() {
         // Note: Not updating serviceIds to keep user in current service
       })
 
+      const branchChanged = editBranchId !== editingUserBranchCurrentId
+      if (branchChanged) {
+        if (editingUserBranchCurrentId) {
+          await areaBranchService.removeUserFromBranch(editingUser.id, editingUserBranchCurrentId)
+        }
+        if (editBranchId) {
+          await areaBranchService.assignUserToBranch(editingUser.id, editBranchId)
+        }
+      }
+
       setUsers(prev => prev.map(u => u.id === editingUser.id ? updatedUser : u))
+      await fetchUsers()
       cancelEdit()
+      setEditingUserBranchCurrentId(editBranchId)
       alert('User updated successfully!')
     } catch (error) {
       console.error('Error updating user:', error)
@@ -269,6 +316,29 @@ export default function ManageUserPage() {
                 className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 placeholder="Enter phone number"
               />
+            </div>
+            
+            <div>
+              <label htmlFor="branch" className="block text-sm font-medium text-slate-300 mb-1">
+                Assigned Branch
+              </label>
+              <select
+                id="branch"
+                name="branch"
+                value={selectedBranchId ?? ''}
+                onChange={(e) => {
+                  const nextBranchId = e.target.value ? Number(e.target.value) : null
+                  setSelectedBranchId(nextBranchId)
+                }}
+                className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="">Select branch (optional)</option>
+                {branches.filter(branch => branch.active).map((branch) => (
+                  <option key={branch.id} value={branch.id}>
+                    {branch.name} ({branch.areaName})
+                  </option>
+                ))}
+              </select>
             </div>
             
             <div>
@@ -369,6 +439,29 @@ export default function ManageUserPage() {
                   className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   placeholder="Enter phone number"
                 />
+              </div>
+              
+              <div>
+                <label htmlFor="editBranch" className="block text-sm font-medium text-slate-300 mb-1">
+                  Assigned Branch
+                </label>
+                <select
+                  id="editBranch"
+                  name="editBranch"
+                  value={editBranchId ?? ''}
+                  onChange={(e) => {
+                    const branchId = e.target.value ? Number(e.target.value) : null
+                    setEditBranchId(branchId)
+                  }}
+                  className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="">Select branch (optional)</option>
+                  {branches.filter(branch => branch.active).map((branch) => (
+                    <option key={branch.id} value={branch.id}>
+                      {branch.name} ({branch.areaName})
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
             

@@ -24,7 +24,7 @@ public interface UserBranchRepository extends JpaRepository<UserBranch, Long> {
     
     Optional<UserBranch> findByUserIdAndBranchIdAndActive(Long userId, Long branchId, Boolean active);
     
-    @Query("SELECT ub FROM UserBranch ub WHERE ub.user.id = :userId AND ub.active = true")
+    @Query("SELECT ub FROM UserBranch ub WHERE ub.userId = :userId AND ub.active = true")
     List<UserBranch> findActiveUserBranchesByUserId(@Param("userId") Long userId);
     
     @Query("SELECT ub FROM UserBranch ub WHERE ub.branch.id = :branchId AND ub.active = true")
@@ -33,7 +33,7 @@ public interface UserBranchRepository extends JpaRepository<UserBranch, Long> {
     @Query("SELECT ub FROM UserBranch ub WHERE ub.branch.area.id = :areaId AND ub.active = true")
     List<UserBranch> findActiveUserBranchesByAreaId(@Param("areaId") Long areaId);
     
-    @Query("SELECT COUNT(ub) FROM UserBranch ub WHERE ub.user.id = :userId AND ub.active = true")
+    @Query("SELECT COUNT(ub) FROM UserBranch ub WHERE ub.userId = :userId AND ub.active = true")
     long countActiveBranchesForUser(@Param("userId") Long userId);
     
     @Query("SELECT COUNT(ub) FROM UserBranch ub WHERE ub.branch.id = :branchId AND ub.active = true")

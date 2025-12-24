@@ -44,6 +44,19 @@ class UserService {
     }
   }
 
+  private safeJsonParse(text: string | null): any | null {
+    if (!text) {
+      return null
+    }
+
+    try {
+      return JSON.parse(text)
+    } catch (error) {
+      console.warn('Received non-JSON response body', error, 'body snippet:', text?.slice(0, 256))
+      return null
+    }
+  }
+
   private mapUser(user: any): User {
     return {
       ...user,
@@ -53,6 +66,16 @@ class UserService {
 
   private mapUsers(users: any[]): User[] {
     return users.map((user) => this.mapUser(user))
+  }
+
+  private async parseJsonResponse<T>(response: Response, fallbackMessage: string): Promise<T> {
+    const text = await response.text()
+    const parsed = this.safeJsonParse(text)
+    if (parsed === null) {
+      throw new Error(fallbackMessage)
+    }
+
+    return parsed as T
   }
 
   async getAllUsers(): Promise<User[]> {
@@ -66,7 +89,7 @@ class UserService {
         throw new Error(`HTTP error! status: ${response.status}`)
       }
 
-      const users = await response.json()
+      const users = await this.parseJsonResponse<any[]>(response, 'Received unexpected response while fetching all users')
       return this.mapUsers(users)
     } catch (error) {
       console.error('Error fetching all users:', error)
@@ -85,7 +108,7 @@ class UserService {
         throw new Error(`HTTP error! status: ${response.status}`)
       }
 
-      const users = await response.json()
+      const users = await this.parseJsonResponse<any[]>(response, 'Received unexpected response while fetching active users')
       return this.mapUsers(users)
     } catch (error) {
       console.error('Error fetching active users:', error)
@@ -124,27 +147,19 @@ class UserService {
       })
 
       if (!response.ok) {
-        // Try to get error details, but handle cases where response might be empty
-        let errorMessage = `HTTP error! status: ${response.status}`
-        try {
-          const errorText = await response.text()
-          if (errorText) {
-            const errorData = JSON.parse(errorText)
-            errorMessage = errorData.message || errorData.error || errorMessage
-          }
-        } catch (e) {
-          console.warn('Could not parse error response:', e)
-        }
+        const errorText = await response.text()
+        const errorData = this.safeJsonParse(errorText)
+        const errorMessage =
+          (errorData && (errorData.message || errorData.error)) || `HTTP error! status: ${response.status}`
         throw new Error(errorMessage)
       }
 
-      // Handle successful response
       const responseText = await response.text()
-      if (!responseText) {
-        throw new Error('Empty response from server')
+      const parsed = this.safeJsonParse(responseText)
+      if (!parsed) {
+        throw new Error('Unexpected response format from user-service')
       }
-      
-      return JSON.parse(responseText)
+      return parsed
     } catch (error) {
       console.error('Error updating user with services:', error)
       throw error
@@ -161,11 +176,17 @@ class UserService {
       })
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.message || `HTTP error! status: ${response.status}`)
+        const errorText = await response.text()
+        const errorData = this.safeJsonParse(errorText)
+        throw new Error(errorData?.message || `HTTP error! status: ${response.status}`)
       }
 
-      return await response.json()
+      const responseText = await response.text()
+      const parsed = this.safeJsonParse(responseText)
+      if (!parsed) {
+        throw new Error('Received unexpected response format while updating user')
+      }
+      return parsed
     } catch (error) {
       console.error('Error updating user:', error)
       throw error

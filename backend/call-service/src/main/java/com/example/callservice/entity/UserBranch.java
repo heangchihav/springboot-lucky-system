@@ -12,10 +12,9 @@ public class UserBranch {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
     
-    @NotNull(message = "User is required")
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id", nullable = false)
-    private User user;
+    @NotNull(message = "User ID is required")
+    @Column(name = "user_id", nullable = false)
+    private Long userId;
     
     @NotNull(message = "Branch is required")
     @ManyToOne(fetch = FetchType.LAZY)
@@ -33,8 +32,8 @@ public class UserBranch {
     
     public UserBranch() {}
     
-    public UserBranch(User user, Branch branch) {
-        this.user = user;
+    public UserBranch(Long userId, Branch branch) {
+        this.userId = userId;
         this.branch = branch;
     }
     
@@ -58,12 +57,12 @@ public class UserBranch {
         this.id = id;
     }
     
-    public User getUser() {
-        return user;
+    public Long getUserId() {
+        return userId;
     }
     
-    public void setUser(User user) {
-        this.user = user;
+    public void setUserId(Long userId) {
+        this.userId = userId;
     }
     
     public Branch getBranch() {
@@ -102,7 +101,7 @@ public class UserBranch {
     public String toString() {
         return "UserBranch{" +
                 "id=" + id +
-                ", user=" + (user != null ? user.getUsername() : "null") +
+                ", userId=" + userId +
                 ", branch=" + (branch != null ? branch.getName() : "null") +
                 ", active=" + active +
                 '}';
