@@ -81,8 +81,22 @@ services:
         MODULE: call-service
     container_name: demo-call-service
     restart: unless-stopped
+    ports:
+      - "8082:8082"
     env_file:
       - ./.env
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/mydb
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      SPRING_CACHE_TYPE: redis
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
 
   delivery-service:
     build:
@@ -92,8 +106,22 @@ services:
         MODULE: delivery-service
     container_name: demo-delivery-service
     restart: unless-stopped
+    ports:
+      - "8083:8083"
     env_file:
       - ./.env
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/mydb
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      SPRING_CACHE_TYPE: redis
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
 
   nginx:
     image: nginx:alpine

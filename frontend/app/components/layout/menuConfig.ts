@@ -26,6 +26,12 @@ export const MENU_SECTIONS: MenuSection[] = [
       },
       
       {
+        id: "call-area-branch",
+        label: "Area & Branch",
+        description: "Manage areas and branches for call service",
+        path: "/call-service/area-branch",
+      },
+      {
         id: "call-reports",
         label: "Reports",
         description: "Detailed call reports and analytics",

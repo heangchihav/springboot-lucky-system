@@ -1,5 +1,6 @@
 package com.example.callservice.api;
 
+import com.example.callservice.dto.BranchDTO;
 import com.example.callservice.entity.Branch;
 import com.example.callservice.service.BranchService;
 import jakarta.validation.Valid;
@@ -10,6 +11,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/calls/branches")
@@ -18,65 +20,80 @@ public class BranchController {
     @Autowired
     private BranchService branchService;
     
+    private BranchDTO convertToDTO(Branch branch) {
+        BranchDTO dto = new BranchDTO();
+        dto.setId(branch.getId());
+        dto.setName(branch.getName());
+        dto.setDescription(branch.getDescription());
+        dto.setCode(branch.getCode());
+        dto.setAddress(branch.getAddress());
+        dto.setPhone(branch.getPhone());
+        dto.setEmail(branch.getEmail());
+        dto.setActive(branch.getActive());
+        if (branch.getArea() != null) {
+            dto.setAreaId(branch.getArea().getId());
+            dto.setAreaName(branch.getArea().getName());
+        }
+        return dto;
+    }
+    
     @GetMapping
-    public ResponseEntity<List<Branch>> getAllBranches() {
+    public ResponseEntity<List<BranchDTO>> getAllBranches() {
         List<Branch> branches = branchService.getAllBranches();
-        return ResponseEntity.ok(branches);
+        List<BranchDTO> branchDTOs = branches.stream().map(this::convertToDTO).collect(Collectors.toList());
+        return ResponseEntity.ok(branchDTOs);
     }
     
     @GetMapping("/active")
-    public ResponseEntity<List<Branch>> getActiveBranches() {
+    public ResponseEntity<List<BranchDTO>> getActiveBranches() {
         List<Branch> branches = branchService.getActiveBranchesOrderByName();
-        return ResponseEntity.ok(branches);
+        List<BranchDTO> branchDTOs = branches.stream().map(this::convertToDTO).collect(Collectors.toList());
+        return ResponseEntity.ok(branchDTOs);
     }
     
     @GetMapping("/area/{areaId}")
-    public ResponseEntity<List<Branch>> getBranchesByArea(@PathVariable Long areaId) {
+    public ResponseEntity<List<BranchDTO>> getBranchesByArea(@PathVariable Long areaId) {
         List<Branch> branches = branchService.getActiveBranchesByAreaOrderByName(areaId);
-        return ResponseEntity.ok(branches);
+        List<BranchDTO> branchDTOs = branches.stream().map(this::convertToDTO).collect(Collectors.toList());
+        return ResponseEntity.ok(branchDTOs);
     }
     
     @GetMapping("/{id}")
-    public ResponseEntity<Branch> getBranchById(@PathVariable Long id) {
+    public ResponseEntity<BranchDTO> getBranchById(@PathVariable Long id) {
         Optional<Branch> branch = branchService.getBranchById(id);
-        return branch.map(ResponseEntity::ok)
+        return branch.map(b -> ResponseEntity.ok(convertToDTO(b)))
                 .orElse(ResponseEntity.notFound().build());
     }
     
     @GetMapping("/code/{code}")
-    public ResponseEntity<Branch> getBranchByCode(@PathVariable String code) {
+    public ResponseEntity<BranchDTO> getBranchByCode(@PathVariable String code) {
         Optional<Branch> branch = branchService.getBranchByCode(code);
-        return branch.map(ResponseEntity::ok)
+        return branch.map(b -> ResponseEntity.ok(convertToDTO(b)))
                 .orElse(ResponseEntity.notFound().build());
     }
     
     @GetMapping("/search")
-    public ResponseEntity<List<Branch>> searchBranches(@RequestParam String name, 
-                                                      @RequestParam(required = false) Long areaId) {
-        List<Branch> branches;
-        if (areaId != null) {
-            branches = branchService.searchBranchesByAreaAndName(areaId, name);
-        } else {
-            branches = branchService.searchBranchesByName(name);
-        }
-        return ResponseEntity.ok(branches);
+    public ResponseEntity<List<BranchDTO>> searchBranchesByName(@RequestParam String name) {
+        List<Branch> branches = branchService.searchBranchesByName(name);
+        List<BranchDTO> branchDTOs = branches.stream().map(this::convertToDTO).collect(Collectors.toList());
+        return ResponseEntity.ok(branchDTOs);
     }
     
     @PostMapping
-    public ResponseEntity<Branch> createBranch(@Valid @RequestBody Branch branch) {
+    public ResponseEntity<BranchDTO> createBranch(@Valid @RequestBody Branch branch) {
         try {
             Branch createdBranch = branchService.createBranch(branch);
-            return ResponseEntity.status(HttpStatus.CREATED).body(createdBranch);
+            return ResponseEntity.status(HttpStatus.CREATED).body(convertToDTO(createdBranch));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().build();
         }
     }
     
     @PutMapping("/{id}")
-    public ResponseEntity<Branch> updateBranch(@PathVariable Long id, @Valid @RequestBody Branch branch) {
+    public ResponseEntity<BranchDTO> updateBranch(@PathVariable Long id, @Valid @RequestBody Branch branch) {
         try {
             Branch updatedBranch = branchService.updateBranch(id, branch);
-            return ResponseEntity.ok(updatedBranch);
+            return ResponseEntity.ok(convertToDTO(updatedBranch));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().build();
         }
@@ -93,20 +110,20 @@ public class BranchController {
     }
     
     @PutMapping("/{id}/deactivate")
-    public ResponseEntity<Branch> deactivateBranch(@PathVariable Long id) {
+    public ResponseEntity<BranchDTO> deactivateBranch(@PathVariable Long id) {
         try {
             Branch branch = branchService.deactivateBranch(id);
-            return ResponseEntity.ok(branch);
+            return ResponseEntity.ok(convertToDTO(branch));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.notFound().build();
         }
     }
     
     @PutMapping("/{id}/activate")
-    public ResponseEntity<Branch> activateBranch(@PathVariable Long id) {
+    public ResponseEntity<BranchDTO> activateBranch(@PathVariable Long id) {
         try {
             Branch branch = branchService.activateBranch(id);
-            return ResponseEntity.ok(branch);
+            return ResponseEntity.ok(convertToDTO(branch));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().build();
         }

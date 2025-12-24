@@ -1,5 +1,6 @@
 package com.example.callservice.api;
 
+import com.example.callservice.dto.AreaDTO;
 import com.example.callservice.entity.Area;
 import com.example.callservice.service.AreaService;
 import jakarta.validation.Valid;
@@ -10,6 +11,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/calls/areas")
@@ -18,53 +20,66 @@ public class AreaController {
     @Autowired
     private AreaService areaService;
     
+    private AreaDTO convertToDTO(Area area) {
+        AreaDTO dto = new AreaDTO();
+        dto.setId(area.getId());
+        dto.setName(area.getName());
+        dto.setDescription(area.getDescription());
+        dto.setCode(area.getCode());
+        dto.setActive(area.getActive());
+        return dto;
+    }
+    
     @GetMapping
-    public ResponseEntity<List<Area>> getAllAreas() {
+    public ResponseEntity<List<AreaDTO>> getAllAreas() {
         List<Area> areas = areaService.getAllAreas();
-        return ResponseEntity.ok(areas);
+        List<AreaDTO> areaDTOs = areas.stream().map(this::convertToDTO).collect(Collectors.toList());
+        return ResponseEntity.ok(areaDTOs);
     }
     
     @GetMapping("/active")
-    public ResponseEntity<List<Area>> getActiveAreas() {
+    public ResponseEntity<List<AreaDTO>> getActiveAreas() {
         List<Area> areas = areaService.getActiveAreasOrderByName();
-        return ResponseEntity.ok(areas);
+        List<AreaDTO> areaDTOs = areas.stream().map(this::convertToDTO).collect(Collectors.toList());
+        return ResponseEntity.ok(areaDTOs);
     }
     
     @GetMapping("/{id}")
-    public ResponseEntity<Area> getAreaById(@PathVariable Long id) {
+    public ResponseEntity<AreaDTO> getAreaById(@PathVariable Long id) {
         Optional<Area> area = areaService.getAreaById(id);
-        return area.map(ResponseEntity::ok)
+        return area.map(a -> ResponseEntity.ok(convertToDTO(a)))
                 .orElse(ResponseEntity.notFound().build());
     }
     
     @GetMapping("/code/{code}")
-    public ResponseEntity<Area> getAreaByCode(@PathVariable String code) {
+    public ResponseEntity<AreaDTO> getAreaByCode(@PathVariable String code) {
         Optional<Area> area = areaService.getAreaByCode(code);
-        return area.map(ResponseEntity::ok)
+        return area.map(a -> ResponseEntity.ok(convertToDTO(a)))
                 .orElse(ResponseEntity.notFound().build());
     }
     
     @GetMapping("/search")
-    public ResponseEntity<List<Area>> searchAreas(@RequestParam String name) {
+    public ResponseEntity<List<AreaDTO>> searchAreas(@RequestParam String name) {
         List<Area> areas = areaService.searchAreasByName(name);
-        return ResponseEntity.ok(areas);
+        List<AreaDTO> areaDTOs = areas.stream().map(this::convertToDTO).collect(Collectors.toList());
+        return ResponseEntity.ok(areaDTOs);
     }
     
     @PostMapping
-    public ResponseEntity<Area> createArea(@Valid @RequestBody Area area) {
+    public ResponseEntity<AreaDTO> createArea(@Valid @RequestBody Area area) {
         try {
             Area createdArea = areaService.createArea(area);
-            return ResponseEntity.status(HttpStatus.CREATED).body(createdArea);
+            return ResponseEntity.status(HttpStatus.CREATED).body(convertToDTO(createdArea));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().build();
         }
     }
     
     @PutMapping("/{id}")
-    public ResponseEntity<Area> updateArea(@PathVariable Long id, @Valid @RequestBody Area area) {
+    public ResponseEntity<AreaDTO> updateArea(@PathVariable Long id, @Valid @RequestBody Area area) {
         try {
             Area updatedArea = areaService.updateArea(id, area);
-            return ResponseEntity.ok(updatedArea);
+            return ResponseEntity.ok(convertToDTO(updatedArea));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().build();
         }
