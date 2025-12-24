@@ -354,7 +354,7 @@ function SidebarItem({ item, active, onOpen }: SidebarItemProps) {
       }`}
     >
       <span className="mt-1 flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-xs font-semibold uppercase tracking-[0.3em] text-white/80">
-        {item.label.slice(0, 2)}
+        {item.menuNumber || item.label.slice(0, 2)}
       </span>
       <div className="flex-1">
         <p className="font-semibold text-white">{item.label}</p>

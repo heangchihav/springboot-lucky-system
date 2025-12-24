@@ -1,5 +1,6 @@
 package com.example.callservice.api;
 
+import com.example.callservice.annotation.RequirePermission;
 import com.example.callservice.dto.BranchDTO;
 import com.example.callservice.entity.Branch;
 import com.example.callservice.service.BranchService;
@@ -9,13 +10,14 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/calls/branches")
-public class BranchController {
+public class BranchController extends BaseController {
     
     @Autowired
     private BranchService branchService;
@@ -38,13 +40,21 @@ public class BranchController {
     }
     
     @GetMapping
-    public ResponseEntity<List<BranchDTO>> getAllBranches() {
+    public ResponseEntity<List<BranchDTO>> getAllBranches(HttpServletRequest request) {
+        ResponseEntity<?> permissionCheck = checkPermission(request, "branch.view");
+        if (permissionCheck != null) {
+            @SuppressWarnings("unchecked")
+            ResponseEntity<List<BranchDTO>> errorResponse = (ResponseEntity<List<BranchDTO>>) permissionCheck;
+            return errorResponse;
+        }
+        
         List<Branch> branches = branchService.getAllBranches();
         List<BranchDTO> branchDTOs = branches.stream().map(this::convertToDTO).collect(Collectors.toList());
         return ResponseEntity.ok(branchDTOs);
     }
     
     @GetMapping("/active")
+    @RequirePermission("branch.view")
     public ResponseEntity<List<BranchDTO>> getActiveBranches() {
         List<Branch> branches = branchService.getActiveBranchesOrderByName();
         List<BranchDTO> branchDTOs = branches.stream().map(this::convertToDTO).collect(Collectors.toList());
@@ -52,6 +62,7 @@ public class BranchController {
     }
     
     @GetMapping("/area/{areaId}")
+    @RequirePermission("branch.view")
     public ResponseEntity<List<BranchDTO>> getBranchesByArea(@PathVariable Long areaId) {
         List<Branch> branches = branchService.getActiveBranchesByAreaOrderByName(areaId);
         List<BranchDTO> branchDTOs = branches.stream().map(this::convertToDTO).collect(Collectors.toList());

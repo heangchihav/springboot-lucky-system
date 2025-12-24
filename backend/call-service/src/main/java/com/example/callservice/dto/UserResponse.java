@@ -3,10 +3,19 @@ package com.example.callservice.dto;
 public class UserResponse {
     private Long id;
     private String username;
+    private String email;
     private String fullName;
-    private Boolean enabled;
+    private Boolean active;
     
     public UserResponse() {}
+    
+    public UserResponse(Long id, String username, String email, String fullName, Boolean active) {
+        this.id = id;
+        this.username = username;
+        this.email = email;
+        this.fullName = fullName;
+        this.active = active;
+    }
     
     // Getters and Setters
     public Long getId() {
@@ -25,6 +34,14 @@ public class UserResponse {
         this.username = username;
     }
     
+    public String getEmail() {
+        return email;
+    }
+    
+    public void setEmail(String email) {
+        this.email = email;
+    }
+    
     public String getFullName() {
         return fullName;
     }
@@ -33,11 +50,11 @@ public class UserResponse {
         this.fullName = fullName;
     }
     
-    public Boolean isEnabled() {
-        return enabled;
+    public Boolean getActive() {
+        return active;
     }
     
-    public void setEnabled(Boolean enabled) {
-        this.enabled = enabled;
+    public void setActive(Boolean active) {
+        this.active = active;
     }
 }
