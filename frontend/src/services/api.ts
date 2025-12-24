@@ -36,6 +36,16 @@ export interface UserRole {
   assignedBy: number
 }
 
+export interface UserServiceEntity {
+  id: number
+  code: string
+  name: string
+  description?: string
+  active: boolean
+  createdAt: string
+  updatedAt?: string
+}
+
 export class ApiError extends Error {
   constructor(
     message: string,
@@ -149,6 +159,16 @@ class ApiService {
     })
 
     return this.handleResponse<UserInfo>(response)
+  }
+
+  async getUserServices(userId: number): Promise<UserServiceEntity[]> {
+    const response = await fetch(`${API_BASE_URL}/api/users/${userId}/services`, {
+      method: 'GET',
+      headers: this.getHeaders(),
+      credentials: 'include'
+    })
+
+    return this.handleResponse<UserServiceEntity[]>(response)
   }
 
   async isAuthenticated(): Promise<boolean> {

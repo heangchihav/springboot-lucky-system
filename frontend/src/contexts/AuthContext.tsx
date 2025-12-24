@@ -42,7 +42,34 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const refreshUser = async () => {
     try {
       const userInfo = await apiService.getCurrentUser()
-      setUser(userInfo)
+      
+      // Fetch user services separately and add them to user info
+      if (userInfo.id) {
+        try {
+          const userServices = await apiService.getUserServices(userInfo.id)
+          // Transform backend services to frontend UserRole format
+          const userRoles = userServices.map(service => ({
+            id: service.id,
+            userId: userInfo.id,
+            roleId: service.id, // Using service.id as roleId for now
+            serviceKey: service.code.replace('-service', ''), // Convert "call-service" to "call"
+            active: service.active,
+            assignedAt: service.createdAt || new Date().toISOString(),
+            assignedBy: 0 // Default value as number (system user ID)
+          }))
+          
+          setUser({
+            ...userInfo,
+            userRoles
+          })
+        } catch (serviceError) {
+          console.error('Failed to fetch user services:', serviceError)
+          // Still set user info even if services fail
+          setUser(userInfo)
+        }
+      } else {
+        setUser(userInfo)
+      }
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
         setUser(null)
@@ -134,8 +161,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
     
     // Map service keys to menu section IDs
     const serviceKeyToSectionMap: Record<string, string> = {
-      'call-service': 'call-service',
-      'delivery-service': 'delivery-service',
+      'call': 'call-service',
+      'delivery': 'delivery-service',
       'user': 'user-service'
     }
     
@@ -157,8 +184,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
     
     // Map service keys to menu section IDs
     const serviceKeyToSectionMap: Record<string, string> = {
-      'call-service': 'call-service',
-      'delivery-service': 'delivery-service',
+      'call': 'call-service',
+      'delivery': 'delivery-service',
       'user': 'user-service'
     }
     
