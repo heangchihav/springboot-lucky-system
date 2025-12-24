@@ -23,6 +23,17 @@ export interface UserInfo {
   username: string
   fullName: string
   lastLoginAt?: string
+  userRoles?: UserRole[]
+}
+
+export interface UserRole {
+  id: number
+  userId: number
+  roleId: number
+  serviceKey: string
+  active: boolean
+  assignedAt: string
+  assignedBy: number
 }
 
 export class ApiError extends Error {

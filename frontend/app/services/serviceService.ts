@@ -23,17 +23,16 @@ export interface UpdateServiceRequest {
 
 class ServiceService {
   private getAuthHeaders() {
-    const token = localStorage.getItem('authToken')
     return {
       'Content-Type': 'application/json',
-      ...(token && { Authorization: `Bearer ${token}` })
     }
   }
 
   async getAllServices(): Promise<Service[]> {
     try {
       const response = await fetch(`${API_BASE_URL}/api/services`, {
-        headers: this.getAuthHeaders()
+        headers: this.getAuthHeaders(),
+        credentials: 'include'
       })
 
       if (!response.ok) {
@@ -50,7 +49,8 @@ class ServiceService {
   async getActiveServices(): Promise<Service[]> {
     try {
       const response = await fetch(`${API_BASE_URL}/api/services/active`, {
-        headers: this.getAuthHeaders()
+        headers: this.getAuthHeaders(),
+        credentials: 'include'
       })
 
       if (!response.ok) {
@@ -67,7 +67,8 @@ class ServiceService {
   async getServiceByCode(code: string): Promise<Service> {
     try {
       const response = await fetch(`${API_BASE_URL}/api/services/code/${code}`, {
-        headers: this.getAuthHeaders()
+        headers: this.getAuthHeaders(),
+        credentials: 'include'
       })
 
       if (!response.ok) {
@@ -86,6 +87,7 @@ class ServiceService {
       const response = await fetch(`${API_BASE_URL}/api/services`, {
         method: 'POST',
         headers: this.getAuthHeaders(),
+        credentials: 'include',
         body: JSON.stringify(serviceData)
       })
 
@@ -105,6 +107,7 @@ class ServiceService {
       const response = await fetch(`${API_BASE_URL}/api/services/${id}`, {
         method: 'PUT',
         headers: this.getAuthHeaders(),
+        credentials: 'include',
         body: JSON.stringify(serviceData)
       })
 
@@ -155,7 +158,8 @@ class ServiceService {
     try {
       const response = await fetch(`${API_BASE_URL}/api/services/${id}`, {
         method: 'DELETE',
-        headers: this.getAuthHeaders()
+        headers: this.getAuthHeaders(),
+        credentials: 'include'
       })
 
       if (!response.ok) {

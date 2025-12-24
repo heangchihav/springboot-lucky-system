@@ -26,19 +26,19 @@ spring:
                 allowCredentials: true
           routes:
             - id: user-service
-              uri: ${USER_SERVICE_URL:http://user-service:8081}
+              uri: ${USER_SERVICE_URL:http://demo-user-service:8081}
               filters:
                 - PreserveHostHeader
               predicates:
                 - Path=/api/auth/**,/api/users/**,/api/services/**
             - id: call-service
-              uri: ${CALL_SERVICE_URL:http://call-service:8082}
+              uri: ${CALL_SERVICE_URL:http://demo-call-service:8082}
               filters:
                 - PreserveHostHeader
               predicates:
                 - Path=/api/calls/**
             - id: delivery-service
-              uri: ${DELIVERY_SERVICE_URL:http://delivery-service:8083}
+              uri: ${DELIVERY_SERVICE_URL:http://demo-delivery-service:8083}
               filters:
                 - PreserveHostHeader
               predicates:

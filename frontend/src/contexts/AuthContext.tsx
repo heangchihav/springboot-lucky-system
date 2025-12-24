@@ -14,6 +14,8 @@ interface AuthContextType {
   refreshUser: () => Promise<void>
   error: string | null
   clearError: () => void
+  hasServiceAccess: (serviceKey: string) => boolean
+  getAccessibleServices: () => string[]
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -121,6 +123,51 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   }
 
+  // Service access methods
+  const hasServiceAccess = (serviceKey: string): boolean => {
+    // Root user has access to all services
+    if (user?.username === 'root') {
+      return true
+    }
+    
+    if (!user?.userRoles) return false
+    
+    // Map service keys to menu section IDs
+    const serviceKeyToSectionMap: Record<string, string> = {
+      'call-service': 'call-service',
+      'delivery-service': 'delivery-service',
+      'user': 'user-service'
+    }
+    
+    const sectionId = serviceKeyToSectionMap[serviceKey]
+    if (!sectionId) return false
+    
+    return user.userRoles.some(role => 
+      role.serviceKey === serviceKey && role.active
+    )
+  }
+
+  const getAccessibleServices = (): string[] => {
+    // Root user has access to all services
+    if (user?.username === 'root') {
+      return ['call-service', 'delivery-service', 'user-service']
+    }
+    
+    if (!user?.userRoles) return []
+    
+    // Map service keys to menu section IDs
+    const serviceKeyToSectionMap: Record<string, string> = {
+      'call-service': 'call-service',
+      'delivery-service': 'delivery-service',
+      'user': 'user-service'
+    }
+    
+    return user.userRoles
+      .filter(role => role.active)
+      .map(role => serviceKeyToSectionMap[role.serviceKey])
+      .filter(Boolean)
+  }
+
   useEffect(() => {
     const initializeAuth = async () => {
       try {
@@ -151,7 +198,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
     logoutAll,
     refreshUser,
     error,
-    clearError
+    clearError,
+    hasServiceAccess,
+    getAccessibleServices
   }
 
   return (

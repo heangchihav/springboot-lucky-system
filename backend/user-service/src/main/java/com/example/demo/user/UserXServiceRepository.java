@@ -2,6 +2,7 @@ package com.example.demo.user;
 
 import com.example.demo.service.UserServiceEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -20,14 +21,18 @@ public interface UserXServiceRepository extends JpaRepository<UserXService, Long
 
     Optional<UserXService> findByUserIdAndServiceIdAndActiveTrue(Long userId, Long serviceId);
 
+    Optional<UserXService> findByUserIdAndServiceId(Long userId, Long serviceId);
+
     @Query("SELECT uxs.service FROM UserXService uxs WHERE uxs.user.id = :userId AND uxs.active = true")
     List<UserServiceEntity> findActiveServicesByUserId(@Param("userId") Long userId);
 
     @Query("SELECT uxs.user FROM UserXService uxs WHERE uxs.service.id = :serviceId AND uxs.active = true")
     List<User> findActiveUsersByServiceId(@Param("serviceId") Long serviceId);
 
+    @Modifying
     void deleteByUserIdAndServiceId(Long userId, Long serviceId);
 
+    @Modifying
     @Query("DELETE FROM UserXService uxs WHERE uxs.user.id = :userId")
     void deleteAllByUserId(@Param("userId") Long userId);
 }

@@ -1,6 +1,7 @@
 package com.example.demo.user;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -13,6 +14,12 @@ public class UserController {
 
     public UserController(UserService userService) {
         this.userService = userService;
+    }
+
+    @GetMapping
+    public ResponseEntity<List<User>> getAllUsers() {
+        List<User> allUsers = userService.getAllUsers();
+        return ResponseEntity.ok(allUsers);
     }
 
     @GetMapping("/active")
@@ -34,6 +41,7 @@ public class UserController {
     }
 
     @PutMapping("/{id}")
+    @Transactional
     public ResponseEntity<User> updateUser(@PathVariable Long id, @RequestBody UpdateUserRequest request) {
         User updatedUser = userService.updateUser(
             id,
@@ -63,8 +71,26 @@ public class UserController {
     }
 
     @PostMapping("/{userId}/services")
-    public ResponseEntity<Void> assignServices(@PathVariable Long userId, @RequestBody AssignServicesRequest request) {
-        userService.assignServicesToUser(userId, request.getServiceIds());
+    public ResponseEntity<Void> assignServices(@PathVariable Long userId, @RequestBody java.util.Map<String, Object> request) {
+        @SuppressWarnings("unchecked")
+        List<Long> serviceIds = (List<Long>) request.get("serviceIds");
+        userService.replaceServicesForUser(userId, serviceIds);
+        return ResponseEntity.ok().build();
+    }
+
+    @PutMapping("/{userId}/services")
+    public ResponseEntity<Void> replaceServices(@PathVariable Long userId, @RequestBody java.util.Map<String, Object> request) {
+        @SuppressWarnings("unchecked")
+        List<Long> serviceIds = (List<Long>) request.get("serviceIds");
+        userService.replaceServicesForUser(userId, serviceIds);
+        return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/{userId}/services/replace")
+    public ResponseEntity<Void> replaceServicesPost(@PathVariable Long userId, @RequestBody java.util.Map<String, Object> request) {
+        @SuppressWarnings("unchecked")
+        List<Long> serviceIds = (List<Long>) request.get("serviceIds");
+        userService.replaceServicesForUser(userId, serviceIds);
         return ResponseEntity.ok().build();
     }
 

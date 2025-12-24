@@ -2,8 +2,10 @@ package com.example.demo.user;
 
 import com.example.demo.service.UserServiceEntity;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.cache.annotation.CacheEvict;
@@ -68,17 +70,70 @@ public class UserService implements UserDetailsService {
     @Transactional
     public void assignServicesToUser(Long userId, List<Long> serviceIds) {
         com.example.demo.user.User user = userRepository.findById(userId)
-            .orElseThrow(() -> new RuntimeException("User not found"));
+            .orElseThrow(() -> new IllegalArgumentException("User not found"));
         
         for (Long serviceId : serviceIds) {
             // Check if already assigned
             if (!userXServiceRepository.findByUserIdAndServiceIdAndActiveTrue(userId, serviceId).isPresent()) {
                 com.example.demo.service.UserServiceEntity service = userServiceManagementService.getServiceById(serviceId)
-                    .orElseThrow(() -> new RuntimeException("Service not found: " + serviceId));
+                    .orElseThrow(() -> new IllegalArgumentException("Service not found: " + serviceId));
                 
                 UserXService userXService = new UserXService(user, service, "system");
                 userXServiceRepository.save(userXService);
             }
+        }
+    }
+
+    @Transactional
+    public void replaceServicesForUser(Long userId, List<Long> serviceIds) {
+        com.example.demo.user.User user = userRepository.findById(userId)
+            .orElseThrow(() -> new IllegalArgumentException("User not found"));
+        
+        // Get all current service assignments
+        List<UserXService> currentAssignments = userXServiceRepository.findByUserId(userId);
+        
+        // Create a set of new service IDs for efficient lookup
+        Set<Long> newServiceIds = new HashSet<>();
+        if (serviceIds != null) {
+            newServiceIds.addAll(serviceIds);
+        }
+        
+        // Process existing assignments
+        Set<Long> currentServiceIds = new HashSet<>();
+        for (UserXService assignment : currentAssignments) {
+            Long serviceId = assignment.getService().getId();
+            currentServiceIds.add(serviceId);
+            
+            if (newServiceIds.contains(serviceId)) {
+                // Keep this assignment active
+                assignment.setActive(true);
+                assignment.setAssignedBy("system");
+                userXServiceRepository.save(assignment);
+            } else {
+                // Deactivate this assignment
+                assignment.setActive(false);
+                userXServiceRepository.save(assignment);
+            }
+        }
+        
+        // Add new assignments that didn't exist before
+        for (Long serviceId : newServiceIds) {
+            if (!currentServiceIds.contains(serviceId)) {
+                com.example.demo.service.UserServiceEntity service = userServiceManagementService.getServiceById(serviceId)
+                    .orElseThrow(() -> new IllegalArgumentException("Service not found: " + serviceId));
+                
+                UserXService userXService = new UserXService(user, service, "system");
+                userXServiceRepository.save(userXService);
+            }
+        }
+    }
+
+    @Transactional
+    public void updateServicesForUser(Long userId, List<Long> serviceIds, boolean replace) {
+        if (replace) {
+            replaceServicesForUser(userId, serviceIds);
+        } else {
+            assignServicesToUser(userId, serviceIds);
         }
     }
 
@@ -95,16 +150,20 @@ public class UserService implements UserDetailsService {
         return userRepository.findByEnabledTrue();
     }
 
+    public List<com.example.demo.user.User> getAllUsers() {
+        return userRepository.findAll();
+    }
+
     public com.example.demo.user.User activateUser(Long userId) {
         com.example.demo.user.User user = userRepository.findById(userId)
-            .orElseThrow(() -> new RuntimeException("User not found"));
+            .orElseThrow(() -> new IllegalArgumentException("User not found"));
         user.setEnabled(true);
         return save(user);
     }
 
     public com.example.demo.user.User deactivateUser(Long userId) {
         com.example.demo.user.User user = userRepository.findById(userId)
-            .orElseThrow(() -> new RuntimeException("User not found"));
+            .orElseThrow(() -> new IllegalArgumentException("User not found"));
         user.setEnabled(false);
         return save(user);
     }
@@ -126,14 +185,40 @@ public class UserService implements UserDetailsService {
             user.setPhone(phone);
         }
 
-        // Update service assignments
+        // Handle service assignments inline to avoid transaction issues
         if (serviceIds != null) {
-            // Remove existing service assignments
-            userXServiceRepository.deleteAllByUserId(userId);
+            // Get current assignments
+            List<UserXService> currentAssignments = userXServiceRepository.findByUserId(userId);
             
-            // Add new service assignments
-            if (!serviceIds.isEmpty()) {
-                assignServicesToUser(userId, serviceIds);
+            // Create sets for comparison
+            Set<Long> newServiceIds = new HashSet<>(serviceIds);
+            Set<Long> currentServiceIds = new HashSet<>();
+            
+            // Deactivate assignments not in the new list
+            for (UserXService assignment : currentAssignments) {
+                Long serviceId = assignment.getService().getId();
+                currentServiceIds.add(serviceId);
+                
+                if (!newServiceIds.contains(serviceId)) {
+                    assignment.setActive(false);
+                    userXServiceRepository.save(assignment);
+                } else {
+                    // Keep active
+                    assignment.setActive(true);
+                    assignment.setAssignedBy("system");
+                    userXServiceRepository.save(assignment);
+                }
+            }
+            
+            // Add new assignments
+            for (Long serviceId : newServiceIds) {
+                if (!currentServiceIds.contains(serviceId)) {
+                    com.example.demo.service.UserServiceEntity service = userServiceManagementService.getServiceById(serviceId)
+                        .orElseThrow(() -> new IllegalArgumentException("Service not found: " + serviceId));
+                    
+                    UserXService userXService = new UserXService(user, service, "system");
+                    userXServiceRepository.save(userXService);
+                }
             }
         }
 

@@ -2,11 +2,13 @@
 
 import React, { useState, useEffect } from 'react'
 import { userService, User, CreateUserRequest } from '../../services/userService'
+import { serviceService } from '../../services/serviceService'
 
 export default function ManageUserPage() {
   const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [deliveryServiceId, setDeliveryServiceId] = useState<number | null>(null)
   
   const [formData, setFormData] = useState({
     fullName: '',
@@ -18,6 +20,14 @@ export default function ManageUserPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
+  
+  // Edit user state
+  const [editingUser, setEditingUser] = useState<User | null>(null)
+  const [editFormData, setEditFormData] = useState({
+    fullName: '',
+    username: '',
+    phone: ''
+  })
 
   const filteredUsers = users.filter(user =>
     user.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -27,13 +37,55 @@ export default function ManageUserPage() {
   // Fetch users on component mount
   useEffect(() => {
     fetchUsers()
+    fetchDeliveryServiceId()
   }, [])
+
+  // Refetch users when deliveryServiceId is available
+  useEffect(() => {
+    if (deliveryServiceId) {
+      fetchUsers()
+    }
+  }, [deliveryServiceId])
+
+  const fetchDeliveryServiceId = async () => {
+    try {
+      const deliveryService = await serviceService.getServiceByCode('delivery-service')
+      setDeliveryServiceId(deliveryService.id)
+    } catch (error) {
+      console.error('Error fetching delivery service:', error)
+      // Continue without service assignment if service not found
+    }
+  }
 
   const fetchUsers = async () => {
     try {
       setLoading(true)
       setError(null)
-      const usersData = await userService.getActiveUsers()
+      let usersData: User[]
+      
+      if (deliveryServiceId) {
+        // Fetch all users and filter by service assignment
+        const allUsers = await userService.getActiveUsers()
+        usersData = []
+        
+        // Check each user's service assignments
+        for (const user of allUsers) {
+          try {
+            const userServices = await userService.getUserServices(user.id)
+            const hasDeliveryService = userServices.some(service => service.id === deliveryServiceId)
+            if (hasDeliveryService) {
+              usersData.push(user)
+            }
+          } catch (serviceError) {
+            // If we can't fetch services for a user, skip them
+            console.warn(`Could not fetch services for user ${user.id}:`, serviceError)
+          }
+        }
+      } else {
+        // Fallback to all users if service ID not available yet
+        usersData = await userService.getActiveUsers()
+      }
+      
       setUsers(usersData)
     } catch (err) {
       setError('Failed to fetch users. Please try again.')
@@ -60,7 +112,8 @@ export default function ManageUserPage() {
         fullName: formData.fullName,
         username: formData.username,
         password: formData.password,
-        phone: formData.phone || undefined
+        phone: formData.phone || undefined,
+        serviceIds: deliveryServiceId ? [deliveryServiceId] : undefined // Auto-assign delivery-service
       }
 
       const newUser = await userService.createUser(userData)
@@ -72,7 +125,7 @@ export default function ManageUserPage() {
         phone: ''
       })
       
-      alert('User created successfully!')
+      alert('User created successfully and assigned to Delivery Service!')
     } catch (error) {
       console.error('Error creating user:', error)
       alert(`Error creating user: ${error instanceof Error ? error.message : 'Unknown error'}`)
@@ -107,6 +160,53 @@ export default function ManageUserPage() {
         console.error('Error deleting user:', error)
         alert(`Error deleting user: ${error instanceof Error ? error.message : 'Unknown error'}`)
       }
+    }
+  }
+
+  // Edit user handlers
+  const handleEditInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target
+    setEditFormData(prev => ({
+      ...prev,
+      [name]: value
+    }))
+  }
+
+  const startEditUser = (user: User) => {
+    setEditingUser(user)
+    setEditFormData({
+      fullName: user.fullName,
+      username: user.username,
+      phone: user.phone || ''
+    })
+  }
+
+  const cancelEdit = () => {
+    setEditingUser(null)
+    setEditFormData({
+      fullName: '',
+      username: '',
+      phone: ''
+    })
+  }
+
+  const handleUpdateUser = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!editingUser) return
+
+    try {
+      const updatedUser = await userService.updateUser(editingUser.id, {
+        fullName: editFormData.fullName,
+        phone: editFormData.phone || undefined
+        // Note: Not updating serviceIds to keep user in current service
+      })
+
+      setUsers(prev => prev.map(u => u.id === editingUser.id ? updatedUser : u))
+      cancelEdit()
+      alert('User updated successfully!')
+    } catch (error) {
+      console.error('Error updating user:', error)
+      alert(`Error updating user: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }
 
@@ -218,6 +318,80 @@ export default function ManageUserPage() {
         </form>
       </div>
 
+      {/* Edit User Form */}
+      {editingUser && (
+        <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
+          <h3 className="text-lg font-medium text-white mb-4">Edit User</h3>
+          <form onSubmit={handleUpdateUser} className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label htmlFor="editFullName" className="block text-sm font-medium text-slate-300 mb-1">
+                  Full Name
+                </label>
+                <input
+                  type="text"
+                  id="editFullName"
+                  name="fullName"
+                  value={editFormData.fullName}
+                  onChange={handleEditInputChange}
+                  required
+                  className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="Enter full name"
+                />
+              </div>
+              
+              <div>
+                <label htmlFor="editUsername" className="block text-sm font-medium text-slate-300 mb-1">
+                  Username
+                </label>
+                <input
+                  type="text"
+                  id="editUsername"
+                  name="username"
+                  value={editFormData.username}
+                  disabled
+                  className="w-full px-3 py-2 bg-slate-600 border border-slate-500 rounded-md text-slate-400 placeholder-slate-500 cursor-not-allowed"
+                  placeholder="Username cannot be changed"
+                />
+                <p className="text-xs text-slate-400 mt-1">Username cannot be changed</p>
+              </div>
+              
+              <div>
+                <label htmlFor="editPhone" className="block text-sm font-medium text-slate-300 mb-1">
+                  Phone (Optional)
+                </label>
+                <input
+                  type="tel"
+                  id="editPhone"
+                  name="phone"
+                  value={editFormData.phone}
+                  onChange={handleEditInputChange}
+                  className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="Enter phone number"
+                />
+              </div>
+            </div>
+            
+            <div className="flex justify-end space-x-3">
+              <button
+                type="button"
+                onClick={cancelEdit}
+                className="px-4 py-2 bg-slate-600 text-white rounded-md hover:bg-slate-500 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isSubmitting ? 'Updating...' : 'Update User'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
       {/* Search and User List */}
       <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
         <div className="flex justify-between items-center mb-4">
@@ -324,6 +498,12 @@ export default function ManageUserPage() {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                         <div className="flex space-x-2">
+                          <button
+                            onClick={() => startEditUser(user)}
+                            className="px-3 py-1 bg-blue-100 text-blue-800 rounded text-xs font-medium hover:bg-blue-200 transition-colors"
+                          >
+                            Edit
+                          </button>
                           <button
                             onClick={() => toggleUserStatus(user.id)}
                             className={`px-3 py-1 rounded text-xs font-medium transition-colors ${

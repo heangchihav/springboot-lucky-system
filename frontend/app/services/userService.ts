@@ -17,6 +17,8 @@ export interface User {
   fullName: string
   phone?: string
   active: boolean
+  enabled: boolean
+  accountLocked: boolean
   createdAt: string
   updatedAt?: string
 }
@@ -29,28 +31,45 @@ export interface CreateUserRequest {
   serviceIds?: number[]
 }
 
+export interface UpdateUserRequest {
+  fullName: string
+  phone?: string
+  serviceIds?: number[]
+}
+
 class UserService {
   private getAuthHeaders() {
-    const token = localStorage.getItem('authToken')
     return {
       'Content-Type': 'application/json',
-      ...(token && { Authorization: `Bearer ${token}` })
     }
+  }
+
+  private mapUser(user: any): User {
+    return {
+      ...user,
+      active: user.enabled,
+    }
+  }
+
+  private mapUsers(users: any[]): User[] {
+    return users.map((user) => this.mapUser(user))
   }
 
   async getAllUsers(): Promise<User[]> {
     try {
       const response = await fetch(`${API_BASE_URL}/api/users`, {
-        headers: this.getAuthHeaders()
+        headers: this.getAuthHeaders(),
+        credentials: 'include'
       })
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`)
       }
 
-      return await response.json()
+      const users = await response.json()
+      return this.mapUsers(users)
     } catch (error) {
-      console.error('Error fetching users:', error)
+      console.error('Error fetching all users:', error)
       throw error
     }
   }
@@ -58,14 +77,16 @@ class UserService {
   async getActiveUsers(): Promise<User[]> {
     try {
       const response = await fetch(`${API_BASE_URL}/api/users/active`, {
-        headers: this.getAuthHeaders()
+        headers: this.getAuthHeaders(),
+        credentials: 'include'
       })
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`)
       }
 
-      return await response.json()
+      const users = await response.json()
+      return this.mapUsers(users)
     } catch (error) {
       console.error('Error fetching active users:', error)
       throw error
@@ -77,6 +98,7 @@ class UserService {
       const response = await fetch(`${API_BASE_URL}/api/users`, {
         method: 'POST',
         headers: this.getAuthHeaders(),
+        credentials: 'include',
         body: JSON.stringify(userData)
       })
 
@@ -92,11 +114,49 @@ class UserService {
     }
   }
 
+  async updateUserWithServices(id: number, userData: UpdateUserRequest): Promise<User> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/users/${id}`, {
+        method: 'PUT',
+        headers: this.getAuthHeaders(),
+        credentials: 'include',
+        body: JSON.stringify(userData)
+      })
+
+      if (!response.ok) {
+        // Try to get error details, but handle cases where response might be empty
+        let errorMessage = `HTTP error! status: ${response.status}`
+        try {
+          const errorText = await response.text()
+          if (errorText) {
+            const errorData = JSON.parse(errorText)
+            errorMessage = errorData.message || errorData.error || errorMessage
+          }
+        } catch (e) {
+          console.warn('Could not parse error response:', e)
+        }
+        throw new Error(errorMessage)
+      }
+
+      // Handle successful response
+      const responseText = await response.text()
+      if (!responseText) {
+        throw new Error('Empty response from server')
+      }
+      
+      return JSON.parse(responseText)
+    } catch (error) {
+      console.error('Error updating user with services:', error)
+      throw error
+    }
+  }
+
   async updateUser(id: number, userData: Partial<User>): Promise<User> {
     try {
       const response = await fetch(`${API_BASE_URL}/api/users/${id}`, {
         method: 'PUT',
         headers: this.getAuthHeaders(),
+        credentials: 'include',
         body: JSON.stringify(userData)
       })
 
@@ -112,47 +172,12 @@ class UserService {
     }
   }
 
-  async activateUser(id: number): Promise<User> {
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/users/${id}/activate`, {
-        method: 'PUT',
-        headers: this.getAuthHeaders()
-      })
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
-      }
-
-      return await response.json()
-    } catch (error) {
-      console.error('Error activating user:', error)
-      throw error
-    }
-  }
-
-  async deactivateUser(id: number): Promise<User> {
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/users/${id}/deactivate`, {
-        method: 'PUT',
-        headers: this.getAuthHeaders()
-      })
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
-      }
-
-      return await response.json()
-    } catch (error) {
-      console.error('Error deactivating user:', error)
-      throw error
-    }
-  }
-
   async deleteUser(id: number): Promise<void> {
     try {
       const response = await fetch(`${API_BASE_URL}/api/users/${id}`, {
         method: 'DELETE',
-        headers: this.getAuthHeaders()
+        headers: this.getAuthHeaders(),
+        credentials: 'include'
       })
 
       if (!response.ok) {
@@ -167,7 +192,8 @@ class UserService {
   async getUserServices(userId: number): Promise<Service[]> {
     try {
       const response = await fetch(`${API_BASE_URL}/api/users/${userId}/services`, {
-        headers: this.getAuthHeaders()
+        headers: this.getAuthHeaders(),
+        credentials: 'include'
       })
 
       if (!response.ok) {
@@ -181,6 +207,24 @@ class UserService {
     }
   }
 
+  async getUsersByService(serviceId: number): Promise<User[]> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/services/${serviceId}/users`, {
+        headers: this.getAuthHeaders(),
+        credentials: 'include'
+      })
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+
+      return await response.json()
+    } catch (error) {
+      console.error('Error fetching users by service:', error)
+      throw error
+    }
+  }
+
   async searchUsers(query: string, type?: string): Promise<User[]> {
     try {
       const url = new URL(`${API_BASE_URL}/api/users/search`)
@@ -190,7 +234,8 @@ class UserService {
       }
 
       const response = await fetch(url.toString(), {
-        headers: this.getAuthHeaders()
+        headers: this.getAuthHeaders(),
+        credentials: 'include'
       })
 
       if (!response.ok) {
@@ -200,6 +245,94 @@ class UserService {
       return await response.json()
     } catch (error) {
       console.error('Error searching users:', error)
+      throw error
+    }
+  }
+
+  async assignServicesToUser(userId: number, serviceIds: number[]): Promise<void> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/users/${userId}/services`, {
+        method: 'POST',
+        headers: this.getAuthHeaders(),
+        credentials: 'include',
+        body: JSON.stringify({ serviceIds })
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.message || `HTTP error! status: ${response.status}`)
+      }
+    } catch (error) {
+      console.error('Error assigning services to user:', error)
+      throw error
+    }
+  }
+
+  async replaceServicesForUser(userId: number, serviceIds: number[]): Promise<void> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/users/${userId}/services/replace`, {
+        method: 'POST',
+        headers: this.getAuthHeaders(),
+        credentials: 'include',
+        body: JSON.stringify({ serviceIds })
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.message || `HTTP error! status: ${response.status}`)
+      }
+    } catch (error) {
+      console.error('Error replacing services for user:', error)
+      throw error
+    }
+  }
+
+  async activateUser(userId: number): Promise<User> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/users/${userId}/activate`, {
+        method: 'PUT',
+        headers: this.getAuthHeaders(),
+        credentials: 'include'
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.message || `HTTP error! status: ${response.status}`)
+      }
+
+      const user = await response.json()
+      // Map backend 'enabled' field to frontend 'active' field
+      return {
+        ...user,
+        active: user.enabled
+      }
+    } catch (error) {
+      console.error('Error activating user:', error)
+      throw error
+    }
+  }
+
+  async deactivateUser(userId: number): Promise<User> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/users/${userId}/deactivate`, {
+        method: 'PUT',
+        headers: this.getAuthHeaders(),
+        credentials: 'include'
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.message || `HTTP error! status: ${response.status}`)
+      }
+
+      const user = await response.json()
+      // Map backend 'enabled' field to frontend 'active' field
+      return {
+        ...user,
+        active: user.enabled
+      }
+    } catch (error) {
+      console.error('Error deactivating user:', error)
       throw error
     }
   }

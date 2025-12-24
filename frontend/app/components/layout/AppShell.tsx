@@ -29,37 +29,50 @@ type TabItem = {
   sectionId: string;
 };
 
-const deriveSectionId = (pathname: string | null): string => {
+const deriveSectionId = (pathname: string | null, accessibleSections: MenuSection[]): string => {
   if (!pathname) {
-    return MENU_SECTIONS[0]?.id ?? "";
+    return accessibleSections[0]?.id ?? "";
   }
-  const found = MENU_SECTIONS.find((section) =>
+  const found = accessibleSections.find((section) =>
     pathname.startsWith(`/${section.id}`)
   );
-  return found?.id ?? MENU_SECTIONS[0]?.id ?? "";
+  return found?.id ?? accessibleSections[0]?.id ?? "";
 };
 
 export function AppShell({ children }: AppShellProps) {
   const pathname = usePathname();
   const router = useRouter();
   const { locale, dictionary, t } = useCurrentLocale();
+  const { user, logout, isAuthenticated, getAccessibleServices } = useAuth();
+  
+  // Filter menu sections based on user's service access
+  const accessibleSections = useMemo(() => {
+    if (!isAuthenticated || !user) {
+      return MENU_SECTIONS; // Show all sections if not authenticated (for login page)
+    }
+    
+    const accessibleServiceIds = getAccessibleServices();
+    return MENU_SECTIONS.filter(section => 
+      accessibleServiceIds.includes(section.id)
+    );
+  }, [isAuthenticated, user, getAccessibleServices]);
+  
   const resolvedItems = useMemo(
     () =>
-      MENU_SECTIONS.flatMap((section) =>
+      accessibleSections.flatMap((section) =>
         section.items.map((item) => ({
           ...item,
           sectionId: section.id,
         }))
       ),
-    []
+    [accessibleSections]
   );
   const [activeSectionId, setActiveSectionId] = useState(() =>
-    deriveSectionId(pathname)
+    deriveSectionId(pathname, accessibleSections)
   );
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [tabs, setTabs] = useState<TabItem[]>([]);
   const [activeTabPath, setActiveTabPath] = useState(pathname ?? "");
-  const { user, logout, isAuthenticated } = useAuth();
 
   const findItemByPath = useCallback(
     (path: string | null) => {
@@ -89,15 +102,15 @@ export function AppShell({ children }: AppShellProps) {
   );
 
   useEffect(() => {
-    setActiveSectionId(deriveSectionId(pathname));
+    setActiveSectionId(deriveSectionId(pathname, accessibleSections));
     setMobileSidebarOpen(false);
     setActiveTabPath(pathname ?? "");
     upsertTabForPath(pathname ?? null);
-  }, [pathname, upsertTabForPath]);
+  }, [pathname, accessibleSections, upsertTabForPath]);
 
   const activeSection: MenuSection | undefined = useMemo(
-    () => MENU_SECTIONS.find((section) => section.id === activeSectionId),
-    [activeSectionId]
+    () => accessibleSections.find((section) => section.id === activeSectionId),
+    [activeSectionId, accessibleSections]
   );
 
   return (
@@ -105,7 +118,7 @@ export function AppShell({ children }: AppShellProps) {
       <MobileSidebar
         open={mobileSidebarOpen}
         onClose={() => setMobileSidebarOpen(false)}
-        sections={MENU_SECTIONS}
+        sections={accessibleSections}
         activeSectionId={activeSectionId}
         activePathname={pathname ?? ""}
         onSelectSection={setActiveSectionId}
@@ -121,7 +134,7 @@ export function AppShell({ children }: AppShellProps) {
         }}
       />
       <Sidebar
-        sections={MENU_SECTIONS}
+        sections={accessibleSections}
         activeSectionId={activeSectionId}
         onSelectSection={setActiveSectionId}
         activePathname={pathname ?? ""}

@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import { userService, User, CreateUserRequest } from '../../services/userService'
+import { userService, User, CreateUserRequest, UpdateUserRequest } from '../../services/userService'
 import { serviceService, Service } from '../../services/serviceService'
 
 export default function ManageUserPage() {
@@ -54,7 +54,7 @@ export default function ManageUserPage() {
     try {
       setLoading(true)
       setError(null)
-      const usersData = await userService.getActiveUsers()
+      const usersData = await userService.getAllUsers()
       setUsers(usersData)
     } catch (err) {
       setError('Failed to fetch users. Please try again.')
@@ -72,20 +72,48 @@ export default function ManageUserPage() {
     }))
   }
 
-  const handleServiceChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const selectedOptions = Array.from(e.target.selectedOptions, option => option.value)
-    setFormData(prev => ({
-      ...prev,
-      serviceIds: selectedOptions
-    }))
+  const handleServiceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { value, checked } = e.target
+    
+    setFormData(prev => {
+      const currentServiceIds = prev.serviceIds || []
+      
+      if (checked) {
+        // Add the service if checked
+        return {
+          ...prev,
+          serviceIds: [...currentServiceIds, value]
+        }
+      } else {
+        // Remove the service if unchecked
+        return {
+          ...prev,
+          serviceIds: currentServiceIds.filter(id => id !== value)
+        }
+      }
+    })
   }
 
-  const handleEditServiceChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const selectedOptions = Array.from(e.target.selectedOptions, option => option.value)
-    setEditFormData(prev => ({
-      ...prev,
-      serviceIds: selectedOptions
-    }))
+  const handleEditServiceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { value, checked } = e.target
+    
+    setEditFormData(prev => {
+      const currentServiceIds = prev.serviceIds || []
+      
+      let newServiceIds
+      if (checked) {
+        // Add the service if checked
+        newServiceIds = [...currentServiceIds, value]
+      } else {
+        // Remove the service if unchecked
+        newServiceIds = currentServiceIds.filter(id => id !== value)
+      }
+      
+      return {
+        ...prev,
+        serviceIds: newServiceIds
+      }
+    })
   }
 
   const handleEditInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -98,11 +126,13 @@ export default function ManageUserPage() {
 
   const startEditUser = (user: User) => {
     setEditingUser(user)
+    
+    // Initialize form data with user details
     setEditFormData({
       fullName: user.fullName,
       username: user.username,
       phone: user.phone || '',
-      serviceIds: [] // Will be populated when we fetch user services
+      serviceIds: []
     })
     
     // Fetch user's current services
@@ -127,14 +157,15 @@ export default function ManageUserPage() {
     if (!editingUser) return
 
     try {
-      const updateData = {
+      const updateData: UpdateUserRequest = {
         fullName: editFormData.fullName,
-        username: editFormData.username,
         phone: editFormData.phone || undefined,
         serviceIds: editFormData.serviceIds.length > 0 ? editFormData.serviceIds.map(id => parseInt(id)) : undefined
       }
 
-      const updatedUser = await userService.updateUser(editingUser.id, updateData)
+      // Update user details and services in one call
+      const updatedUser = await userService.updateUserWithServices(editingUser.id, updateData)
+      
       setUsers(prev => prev.map(u => u.id === editingUser.id ? updatedUser : u))
       setEditingUser(null)
       setEditFormData({
@@ -194,15 +225,24 @@ export default function ManageUserPage() {
   }
 
   const toggleUserStatus = async (userId: number) => {
+    console.log('Toggle user status clicked for userId:', userId)
     try {
       const user = users.find(u => u.id === userId)
-      if (!user) return
+      if (!user) {
+        console.error('User not found:', userId)
+        return
+      }
 
+      console.log('Current user status:', user.active)
       const updatedUser = user.active 
         ? await userService.deactivateUser(userId)
         : await userService.activateUser(userId)
 
+      console.log('Updated user from API:', updatedUser)
+      
       setUsers(prev => prev.map(u => u.id === userId ? updatedUser : u))
+      
+      alert(`User ${updatedUser.active ? 'activated' : 'deactivated'} successfully!`)
     } catch (error) {
       console.error('Error toggling user status:', error)
       alert(`Error updating user status: ${error instanceof Error ? error.message : 'Unknown error'}`)
@@ -284,26 +324,32 @@ export default function ManageUserPage() {
             </div>
             
             <div>
-              <label htmlFor="serviceIds" className="block text-sm font-medium text-slate-300 mb-1">
+              <label className="block text-sm font-medium text-slate-300 mb-1">
                 Service Assignment (Optional)
               </label>
-              <select
-                id="serviceIds"
-                name="serviceIds"
-                multiple
-                value={formData.serviceIds}
-                onChange={handleServiceChange}
-                className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                size={4}
-              >
+              <div className="space-y-2">
                 {services.map(service => (
-                  <option key={service.id} value={service.id.toString()}>
-                    {service.name} ({service.code})
-                  </option>
+                  <div key={`create-service-${service.id}`} className="flex items-center">
+                    <input
+                      type="checkbox"
+                      id={`create-service-${service.id}`}
+                      name={`create-service-${service.id}`}
+                      value={service.id.toString()}
+                      checked={formData.serviceIds.includes(service.id.toString())}
+                      onChange={handleServiceChange}
+                      className="w-4 h-4 text-blue-600 bg-slate-700 border-slate-600 rounded focus:ring-blue-500 focus:ring-2"
+                    />
+                    <label 
+                      htmlFor={`create-service-${service.id}`} 
+                      className="ml-2 text-sm font-medium text-slate-300 cursor-pointer"
+                    >
+                      {service.name} ({service.code})
+                    </label>
+                  </div>
                 ))}
-              </select>
+              </div>
               <p className="text-xs text-slate-400 mt-1">
-                Hold Ctrl/Cmd to select multiple services
+                Select multiple services by checking the boxes
               </p>
             </div>
             
@@ -409,26 +455,32 @@ export default function ManageUserPage() {
               </div>
               
               <div>
-                <label htmlFor="editServiceIds" className="block text-sm font-medium text-slate-300 mb-1">
+                <label className="block text-sm font-medium text-slate-300 mb-1">
                   Service Assignment (Optional)
                 </label>
-                <select
-                  id="editServiceIds"
-                  name="serviceIds"
-                  multiple
-                  value={editFormData.serviceIds}
-                  onChange={handleEditServiceChange}
-                  className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  size={4}
-                >
+                <div className="space-y-2">
                   {services.map(service => (
-                    <option key={service.id} value={service.id.toString()}>
-                      {service.name} ({service.code})
-                    </option>
+                    <div key={`edit-service-${service.id}-${editingUser?.id}`} className="flex items-center">
+                      <input
+                        type="checkbox"
+                        id={`edit-service-${service.id}`}
+                        name={`service-${service.id}`}
+                        value={service.id.toString()}
+                        checked={editFormData.serviceIds.includes(service.id.toString())}
+                        onChange={handleEditServiceChange}
+                        className="w-4 h-4 text-blue-600 bg-slate-700 border-slate-600 rounded focus:ring-blue-500 focus:ring-2"
+                      />
+                      <label 
+                        htmlFor={`edit-service-${service.id}`} 
+                        className="ml-2 text-sm font-medium text-slate-300 cursor-pointer"
+                      >
+                        {service.name} ({service.code})
+                      </label>
+                    </div>
                   ))}
-                </select>
+                </div>
                 <p className="text-xs text-slate-400 mt-1">
-                  Hold Ctrl/Cmd to select multiple services
+                  Select multiple services by checking the boxes
                 </p>
               </div>
             </div>
