@@ -4,13 +4,13 @@ import com.example.callservice.annotation.RequirePermission;
 import com.example.callservice.dto.BranchDTO;
 import com.example.callservice.entity.Branch;
 import com.example.callservice.service.BranchService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -40,12 +40,11 @@ public class BranchController extends BaseController {
     }
     
     @GetMapping
+    @RequirePermission("branch.view")
     public ResponseEntity<List<BranchDTO>> getAllBranches(HttpServletRequest request) {
-        ResponseEntity<?> permissionCheck = checkPermission(request, "branch.view");
+        ResponseEntity<List<BranchDTO>> permissionCheck = checkPermissionAndReturn(request, "branch.view");
         if (permissionCheck != null) {
-            @SuppressWarnings("unchecked")
-            ResponseEntity<List<BranchDTO>> errorResponse = (ResponseEntity<List<BranchDTO>>) permissionCheck;
-            return errorResponse;
+            return permissionCheck;
         }
         
         List<Branch> branches = branchService.getAllBranches();
@@ -55,7 +54,12 @@ public class BranchController extends BaseController {
     
     @GetMapping("/active")
     @RequirePermission("branch.view")
-    public ResponseEntity<List<BranchDTO>> getActiveBranches() {
+    public ResponseEntity<List<BranchDTO>> getActiveBranches(HttpServletRequest request) {
+        ResponseEntity<List<BranchDTO>> permissionCheck = checkPermissionAndReturn(request, "branch.view");
+        if (permissionCheck != null) {
+            return permissionCheck;
+        }
+        
         List<Branch> branches = branchService.getActiveBranchesOrderByName();
         List<BranchDTO> branchDTOs = branches.stream().map(this::convertToDTO).collect(Collectors.toList());
         return ResponseEntity.ok(branchDTOs);
@@ -63,14 +67,24 @@ public class BranchController extends BaseController {
     
     @GetMapping("/area/{areaId}")
     @RequirePermission("branch.view")
-    public ResponseEntity<List<BranchDTO>> getBranchesByArea(@PathVariable Long areaId) {
+    public ResponseEntity<List<BranchDTO>> getBranchesByArea(@PathVariable Long areaId, HttpServletRequest request) {
+        ResponseEntity<List<BranchDTO>> permissionCheck = checkPermissionAndReturn(request, "branch.view");
+        if (permissionCheck != null) {
+            return permissionCheck;
+        }
+        
         List<Branch> branches = branchService.getActiveBranchesByAreaOrderByName(areaId);
         List<BranchDTO> branchDTOs = branches.stream().map(this::convertToDTO).collect(Collectors.toList());
         return ResponseEntity.ok(branchDTOs);
     }
     
     @GetMapping("/{id}")
-    public ResponseEntity<BranchDTO> getBranchById(@PathVariable Long id) {
+    public ResponseEntity<BranchDTO> getBranchById(@PathVariable Long id, HttpServletRequest request) {
+        ResponseEntity<BranchDTO> permissionCheck = checkPermissionAndReturn(request, "branch.view");
+        if (permissionCheck != null) {
+            return permissionCheck;
+        }
+        
         Optional<Branch> branch = branchService.getBranchById(id);
         return branch.map(b -> ResponseEntity.ok(convertToDTO(b)))
                 .orElse(ResponseEntity.notFound().build());
@@ -91,7 +105,13 @@ public class BranchController extends BaseController {
     }
     
     @PostMapping
-    public ResponseEntity<BranchDTO> createBranch(@Valid @RequestBody Branch branch) {
+    @RequirePermission("branch.create")
+    public ResponseEntity<BranchDTO> createBranch(@Valid @RequestBody Branch branch, HttpServletRequest request) {
+        ResponseEntity<BranchDTO> permissionCheck = checkPermissionAndReturn(request, "branch.create");
+        if (permissionCheck != null) {
+            return permissionCheck;
+        }
+        
         try {
             Branch createdBranch = branchService.createBranch(branch);
             return ResponseEntity.status(HttpStatus.CREATED).body(convertToDTO(createdBranch));
@@ -101,7 +121,12 @@ public class BranchController extends BaseController {
     }
     
     @PutMapping("/{id}")
-    public ResponseEntity<BranchDTO> updateBranch(@PathVariable Long id, @Valid @RequestBody Branch branch) {
+    public ResponseEntity<BranchDTO> updateBranch(@PathVariable Long id, @Valid @RequestBody Branch branch, HttpServletRequest request) {
+        ResponseEntity<BranchDTO> permissionCheck = checkPermissionAndReturn(request, "branch.update");
+        if (permissionCheck != null) {
+            return permissionCheck;
+        }
+        
         try {
             Branch updatedBranch = branchService.updateBranch(id, branch);
             return ResponseEntity.ok(convertToDTO(updatedBranch));
@@ -111,7 +136,12 @@ public class BranchController extends BaseController {
     }
     
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteBranch(@PathVariable Long id) {
+    public ResponseEntity<Void> deleteBranch(@PathVariable Long id, HttpServletRequest request) {
+        ResponseEntity<Void> permissionCheck = checkPermissionAndReturn(request, "branch.delete");
+        if (permissionCheck != null) {
+            return permissionCheck;
+        }
+        
         try {
             branchService.deleteBranch(id);
             return ResponseEntity.noContent().build();
@@ -121,7 +151,12 @@ public class BranchController extends BaseController {
     }
     
     @PutMapping("/{id}/deactivate")
-    public ResponseEntity<BranchDTO> deactivateBranch(@PathVariable Long id) {
+    public ResponseEntity<BranchDTO> deactivateBranch(@PathVariable Long id, HttpServletRequest request) {
+        ResponseEntity<BranchDTO> permissionCheck = checkPermissionAndReturn(request, "branch.update");
+        if (permissionCheck != null) {
+            return permissionCheck;
+        }
+        
         try {
             Branch branch = branchService.deactivateBranch(id);
             return ResponseEntity.ok(convertToDTO(branch));
@@ -131,7 +166,12 @@ public class BranchController extends BaseController {
     }
     
     @PutMapping("/{id}/activate")
-    public ResponseEntity<BranchDTO> activateBranch(@PathVariable Long id) {
+    public ResponseEntity<BranchDTO> activateBranch(@PathVariable Long id, HttpServletRequest request) {
+        ResponseEntity<BranchDTO> permissionCheck = checkPermissionAndReturn(request, "branch.update");
+        if (permissionCheck != null) {
+            return permissionCheck;
+        }
+        
         try {
             Branch branch = branchService.activateBranch(id);
             return ResponseEntity.ok(convertToDTO(branch));

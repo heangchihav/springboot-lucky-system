@@ -44,6 +44,11 @@ spring:
               predicates:
                 - Path=/api/deliveries/**
 
+# JWT Configuration
+security:
+  jwt:
+    secret: ${JWT_SECRET:your-256-bit-secret-key-change-in-production-minimum-32-chars}
+
 management:
   endpoint:
     gateway:

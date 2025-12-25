@@ -254,6 +254,10 @@ public class UserService implements UserDetailsService {
     public Optional<com.example.demo.user.User> findUserByUsername(String username) {
         return Optional.ofNullable(selfProvider.getObject().getUserByUsername(username));
     }
+    
+    public com.example.demo.user.User getUserById(Long id) {
+        return userRepository.findById(id).orElse(null);
+    }
 
     @CacheEvict(cacheNames = "usersByUsername", key = "#user.username")
     public com.example.demo.user.User save(com.example.demo.user.User user) {

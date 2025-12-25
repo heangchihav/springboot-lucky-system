@@ -2,6 +2,16 @@
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api';
 
+// Helper function to get auth headers
+const getAuthHeaders = () => {
+  // The authentication is handled by HTTP-only cookies
+  // We need to get the user ID from the AuthContext or make a request to get current user
+  // For now, let's make it work with cookies by including credentials
+  return {
+    'Content-Type': 'application/json',
+  };
+};
+
 export interface Area {
   id: number;
   name: string;
@@ -77,9 +87,8 @@ class AreaBranchService {
   async getAreas(): Promise<Area[]> {
     const response = await fetch(`${API_BASE}/calls/areas`, {
       method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: getAuthHeaders(),
+      credentials: 'include',
     });
     
     return this.handleResponse<Area[]>(response);
@@ -88,9 +97,8 @@ class AreaBranchService {
   async getActiveAreas(): Promise<Area[]> {
     const response = await fetch(`${API_BASE}/calls/areas/active`, {
       method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: getAuthHeaders(),
+      credentials: 'include',
     });
     
     return this.handleResponse<Area[]>(response);
@@ -99,9 +107,8 @@ class AreaBranchService {
   async getAreaById(id: number): Promise<Area> {
     const response = await fetch(`${API_BASE}/calls/areas/${id}`, {
       method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: getAuthHeaders(),
+      credentials: 'include',
     });
     
     return this.handleResponse<Area>(response);
@@ -110,9 +117,8 @@ class AreaBranchService {
   async createArea(area: CreateAreaRequest): Promise<Area> {
     const response = await fetch(`${API_BASE}/calls/areas`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: getAuthHeaders(),
+      credentials: 'include',
       body: JSON.stringify(area),
     });
     
@@ -122,9 +128,8 @@ class AreaBranchService {
   async updateArea(id: number, area: Partial<CreateAreaRequest>): Promise<Area> {
     const response = await fetch(`${API_BASE}/calls/areas/${id}`, {
       method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: getAuthHeaders(),
+      credentials: 'include',
       body: JSON.stringify(area),
     });
     
@@ -134,9 +139,8 @@ class AreaBranchService {
   async deleteArea(id: number): Promise<void> {
     const response = await fetch(`${API_BASE}/calls/areas/${id}`, {
       method: 'DELETE',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: getAuthHeaders(),
+      credentials: 'include',
     });
     
     if (!response.ok) {
@@ -148,9 +152,8 @@ class AreaBranchService {
   async activateArea(id: number): Promise<Area> {
     const response = await fetch(`${API_BASE}/calls/areas/${id}/activate`, {
       method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: getAuthHeaders(),
+      credentials: 'include',
     });
     
     return this.handleResponse<Area>(response);
@@ -159,9 +162,8 @@ class AreaBranchService {
   async deactivateArea(id: number): Promise<Area> {
     const response = await fetch(`${API_BASE}/calls/areas/${id}/deactivate`, {
       method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: getAuthHeaders(),
+      credentials: 'include',
     });
     
     return this.handleResponse<Area>(response);
@@ -170,9 +172,8 @@ class AreaBranchService {
   async searchAreas(name: string): Promise<Area[]> {
     const response = await fetch(`${API_BASE}/calls/areas/search?name=${encodeURIComponent(name)}`, {
       method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: getAuthHeaders(),
+      credentials: 'include',
     });
     
     return this.handleResponse<Area[]>(response);
@@ -182,9 +183,8 @@ class AreaBranchService {
   async getBranches(): Promise<Branch[]> {
     const response = await fetch(`${API_BASE}/calls/branches`, {
       method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: getAuthHeaders(),
+      credentials: 'include',
     });
     
     return this.handleResponse<Branch[]>(response);
@@ -193,9 +193,8 @@ class AreaBranchService {
   async getActiveBranches(): Promise<Branch[]> {
     const response = await fetch(`${API_BASE}/calls/branches/active`, {
       method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: getAuthHeaders(),
+      credentials: 'include',
     });
     
     return this.handleResponse<Branch[]>(response);
@@ -204,9 +203,8 @@ class AreaBranchService {
   async getBranchesByArea(areaId: number): Promise<Branch[]> {
     const response = await fetch(`${API_BASE}/calls/branches/area/${areaId}`, {
       method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: getAuthHeaders(),
+      credentials: 'include',
     });
     
     return this.handleResponse<Branch[]>(response);
@@ -215,9 +213,8 @@ class AreaBranchService {
   async getBranchById(id: number): Promise<Branch> {
     const response = await fetch(`${API_BASE}/calls/branches/${id}`, {
       method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: getAuthHeaders(),
+      credentials: 'include',
     });
     
     return this.handleResponse<Branch>(response);
@@ -226,9 +223,8 @@ class AreaBranchService {
   async createBranch(branch: CreateBranchRequest): Promise<Branch> {
     const response = await fetch(`${API_BASE}/calls/branches`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: getAuthHeaders(),
+      credentials: 'include',
       body: JSON.stringify(branch),
     });
     
@@ -238,9 +234,8 @@ class AreaBranchService {
   async updateBranch(id: number, branch: Partial<CreateBranchRequest>): Promise<Branch> {
     const response = await fetch(`${API_BASE}/calls/branches/${id}`, {
       method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: getAuthHeaders(),
+      credentials: 'include',
       body: JSON.stringify(branch),
     });
     
@@ -250,9 +245,8 @@ class AreaBranchService {
   async deleteBranch(id: number): Promise<void> {
     const response = await fetch(`${API_BASE}/calls/branches/${id}`, {
       method: 'DELETE',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: getAuthHeaders(),
+      credentials: 'include',
     });
     
     if (!response.ok) {
@@ -264,9 +258,8 @@ class AreaBranchService {
   async activateBranch(id: number): Promise<Branch> {
     const response = await fetch(`${API_BASE}/calls/branches/${id}/activate`, {
       method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: getAuthHeaders(),
+      credentials: 'include',
     });
     
     return this.handleResponse<Branch>(response);
@@ -275,9 +268,8 @@ class AreaBranchService {
   async deactivateBranch(id: number): Promise<Branch> {
     const response = await fetch(`${API_BASE}/calls/branches/${id}/deactivate`, {
       method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: getAuthHeaders(),
+      credentials: 'include',
     });
     
     return this.handleResponse<Branch>(response);
@@ -291,9 +283,8 @@ class AreaBranchService {
     
     const response = await fetch(`${API_BASE}/calls/branches/search?${params}`, {
       method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: getAuthHeaders(),
+      credentials: 'include',
     });
     
     return this.handleResponse<Branch[]>(response);
@@ -302,9 +293,8 @@ class AreaBranchService {
   async getUserBranchesByUser(userId: number): Promise<UserBranchAssignment[]> {
     const response = await fetch(`${API_BASE}/calls/user-branches/user/${userId}`, {
       method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: getAuthHeaders(),
+      credentials: 'include',
     });
 
     const data = await this.handleResponse<any[]>(response);
@@ -319,9 +309,8 @@ class AreaBranchService {
   async assignUserToBranch(userId: number, branchId: number): Promise<void> {
     const response = await fetch(`${API_BASE}/calls/user-branches/assign`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: getAuthHeaders(),
+      credentials: 'include',
       body: JSON.stringify({ userId, branchId }),
     });
 
@@ -331,9 +320,8 @@ class AreaBranchService {
   async removeUserFromBranch(userId: number, branchId: number): Promise<void> {
     const response = await fetch(`${API_BASE}/calls/user-branches/remove`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: getAuthHeaders(),
+      credentials: 'include',
       body: JSON.stringify({ userId, branchId }),
     });
 

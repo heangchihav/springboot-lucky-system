@@ -2,31 +2,53 @@ package com.example.callservice.api;
 
 import com.example.callservice.service.PermissionCheckService;
 import jakarta.servlet.http.HttpServletRequest;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 
 import java.util.Map;
 
 public class BaseController {
+
+    private static final Logger logger = LoggerFactory.getLogger(BaseController.class);
     
     @Autowired
     protected PermissionCheckService permissionCheckService;
     
-    protected ResponseEntity<?> checkPermission(HttpServletRequest request, String permissionCode) {
+    protected Long getCurrentUserId(HttpServletRequest request) {
         try {
             String userIdHeader = request.getHeader("X-User-Id");
+            logger.debug("Incoming request header X-User-Id: {}", userIdHeader);
             if (userIdHeader == null) {
-                return ResponseEntity.status(401).body(Map.of("error", "Unauthorized", "message", "User ID required"));
+                return null;
+            }
+
+            return Long.valueOf(userIdHeader);
+        } catch (Exception e) {
+            logger.warn("Failed to parse X-User-Id header", e);
+            return null;
+        }
+    }
+    
+    protected <T> ResponseEntity<T> checkPermissionAndReturn(HttpServletRequest request, String permissionCode) {
+        try {
+            Long userId = getCurrentUserId(request);
+            if (userId == null) {
+                return ResponseEntity.status(401).body(null);
             }
             
-            Long userId = Long.valueOf(userIdHeader);
             if (!permissionCheckService.hasPermission(userId, permissionCode)) {
-                return ResponseEntity.status(403).body(Map.of("error", "Forbidden", "message", "Insufficient permissions"));
+                return ResponseEntity.status(403).body(null);
             }
             
             return null; // Permission check passed
         } catch (Exception e) {
-            return ResponseEntity.status(500).body(Map.of("error", "Internal Server Error", "message", "Permission check failed"));
+            return ResponseEntity.status(500).body(null);
         }
+    }
+    
+    protected ResponseEntity<Map<String, Object>> createErrorResponse(int status, String error, String message) {
+        return ResponseEntity.status(status).body(Map.of("error", error, "message", message));
     }
 }

@@ -73,7 +73,7 @@ public class BranchService {
             throw new IllegalArgumentException("Cannot create branch in inactive area: " + area.getName());
         }
         
-        if (branchRepository.existsByCode(branch.getCode())) {
+        if (branch.getCode() != null && branchRepository.existsByCode(branch.getCode())) {
             throw new IllegalArgumentException("Branch with code '" + branch.getCode() + "' already exists");
         }
         

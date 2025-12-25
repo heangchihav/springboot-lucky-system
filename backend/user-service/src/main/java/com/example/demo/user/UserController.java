@@ -5,6 +5,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/users")
@@ -104,6 +105,22 @@ public class UserController {
     public ResponseEntity<?> getUserServices(@PathVariable Long userId) {
         var services = userService.getUserServices(userId);
         return ResponseEntity.ok(services);
+    }
+
+    @GetMapping("/username/{username}/id")
+    public ResponseEntity<Long> getUserIdByUsername(@PathVariable String username) {
+        Optional<User> user = userService.findUserByUsername(username);
+        return user.map(u -> ResponseEntity.ok(u.getId()))
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    @GetMapping("/{id}/username")
+    public ResponseEntity<String> getUsername(@PathVariable Long id) {
+        User user = userService.getUserById(id);
+        if (user == null) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok(user.getUsername());
     }
 
     public static class CreateUserRequest {

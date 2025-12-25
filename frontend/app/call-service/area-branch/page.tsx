@@ -5,7 +5,7 @@ import { useAuth } from '../../../src/contexts/AuthContext';
 import { areaBranchService, Area, Branch, CreateAreaRequest, CreateBranchRequest } from '../services/areaBranchService';
 
 export default function AreaBranchManagement() {
-  const { hasServiceAccess } = useAuth();
+  const { user, isAuthenticated, hasServiceAccess } = useAuth();
   const [activeTab, setActiveTab] = useState<'areas' | 'branches'>('areas');
   
   // Area states
@@ -54,9 +54,41 @@ export default function AreaBranchManagement() {
   };
 
   useEffect(() => {
-    fetchAreas();
-    fetchBranches();
-  }, []);
+    // Only fetch data if user is authenticated and has access
+    if (isAuthenticated && hasServiceAccess('call')) {
+      fetchAreas();
+      fetchBranches();
+    }
+  }, [isAuthenticated, hasServiceAccess]);
+
+  // Check if user has access to call service
+  if (!isAuthenticated || !user) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <h2 className="text-2xl font-semibold text-white mb-4">Authentication Required</h2>
+          <p className="text-slate-300 mb-6">Please login to access the Area & Branch Management page.</p>
+          <a 
+            href="/auth/login" 
+            className="px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            Go to Login
+          </a>
+        </div>
+      </div>
+    );
+  }
+
+  if (!hasServiceAccess('call')) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <h2 className="text-2xl font-semibold text-white mb-4">Access Denied</h2>
+          <p className="text-slate-300">You don't have permission to access the Call Service.</p>
+        </div>
+      </div>
+    );
+  }
 
   // Area operations
   const saveArea = async () => {
