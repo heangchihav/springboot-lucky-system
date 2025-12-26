@@ -5,21 +5,25 @@ import com.example.callservice.entity.callreport.CallReport;
 import com.example.callservice.entity.branch.Branch;
 import com.example.callservice.repository.callreport.CallReportRepository;
 import com.example.callservice.repository.branch.BranchRepository;
+import com.example.callservice.repository.userbranch.UserBranchRepository;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
 import java.util.HashMap;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 public class CallReportService {
 
     private final CallReportRepository callReportRepository;
     private final BranchRepository branchRepository;
+    private final UserBranchRepository userBranchRepository;
 
-    public CallReportService(CallReportRepository callReportRepository, BranchRepository branchRepository) {
+    public CallReportService(CallReportRepository callReportRepository, BranchRepository branchRepository, UserBranchRepository userBranchRepository) {
         this.callReportRepository = callReportRepository;
         this.branchRepository = branchRepository;
+        this.userBranchRepository = userBranchRepository;
     }
 
     public CallReport saveReport(CallReportRequest request, String createdBy) {
@@ -40,6 +44,26 @@ public class CallReportService {
 
     public List<CallReport> listReports() {
         return callReportRepository.findAll(Sort.by(Sort.Direction.DESC, "createdAt"));
+    }
+
+    public List<CallReport> listReportsForUser(Long userId, boolean isRootUser) {
+        if (isRootUser) {
+            return listReports();
+        }
+
+        if (userId == null) {
+            throw new IllegalArgumentException("User id is required to list reports");
+        }
+
+        List<Long> branchIds = userBranchRepository.findActiveUserBranchesByUserId(userId).stream()
+            .map(userBranch -> userBranch.getBranch().getId())
+            .collect(Collectors.toList());
+
+        if (branchIds.isEmpty()) {
+            return callReportRepository.findByCreatedByOrderByCreatedAtDesc(String.valueOf(userId));
+        }
+
+        return callReportRepository.findByBranch_IdInOrderByCreatedAtDesc(branchIds);
     }
 
     public void deleteReport(Long id) {

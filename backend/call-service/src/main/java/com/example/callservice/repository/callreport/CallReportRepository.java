@@ -11,4 +11,8 @@ import java.util.List;
 public interface CallReportRepository extends JpaRepository<CallReport, Long> {
 
     List<CallReport> findByReportDate(LocalDate reportDate);
+
+    List<CallReport> findByCreatedByOrderByCreatedAtDesc(String createdBy);
+
+    List<CallReport> findByBranch_IdInOrderByCreatedAtDesc(List<Long> branchIds);
 }

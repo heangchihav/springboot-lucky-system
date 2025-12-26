@@ -31,7 +31,12 @@ public class CallReportController extends BaseController {
             return permissionCheck;
         }
 
-        List<CallReportResponse> response = callReportService.listReports().stream()
+        Long userId = getCurrentUserId(request);
+        if (userId == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        List<CallReportResponse> response = callReportService.listReportsForUser(userId, isRootUser(userId)).stream()
             .map(this::toResponse)
             .collect(Collectors.toList());
         return ResponseEntity.ok(response);

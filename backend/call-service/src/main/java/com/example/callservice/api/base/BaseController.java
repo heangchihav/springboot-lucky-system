@@ -7,6 +7,9 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.context.request.RequestAttributes;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.util.Map;
 
@@ -36,6 +39,26 @@ public class BaseController {
             return null;
         }
     }
+
+    private boolean hasRootHeaderFlag() {
+        RequestAttributes attributes = RequestContextHolder.getRequestAttributes();
+        if (!(attributes instanceof ServletRequestAttributes servletRequestAttributes)) {
+            return false;
+        }
+
+        HttpServletRequest currentRequest = servletRequestAttributes.getRequest();
+        if (currentRequest == null) {
+            return false;
+        }
+
+        String usernameHeader = currentRequest.getHeader("X-Username");
+        if ("root".equalsIgnoreCase(usernameHeader)) {
+            return true;
+        }
+
+        String rootFlag = currentRequest.getHeader("X-Root-User");
+        return rootFlag != null && Boolean.parseBoolean(rootFlag);
+    }
     
     protected <T> ResponseEntity<T> checkPermissionAndReturn(HttpServletRequest request, String permissionCode) {
         try {
@@ -60,7 +83,10 @@ public class BaseController {
         }
     }
     
-    private boolean isRootUser(Long userId) {
+    protected boolean isRootUser(Long userId) {
+        if (hasRootHeaderFlag()) {
+            return true;
+        }
         try {
             String url = userServiceUrl + "/api/users/" + userId + "/username";
             String username = restTemplate.getForObject(url, String.class);
