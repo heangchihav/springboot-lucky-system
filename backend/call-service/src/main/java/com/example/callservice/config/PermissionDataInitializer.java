@@ -1,9 +1,9 @@
 package com.example.callservice.config;
 
-import com.example.callservice.entity.Permission;
-import com.example.callservice.entity.Role;
-import com.example.callservice.repository.PermissionRepository;
-import com.example.callservice.repository.RoleRepository;
+import com.example.callservice.entity.permission.Permission;
+import com.example.callservice.entity.role.Role;
+import com.example.callservice.repository.permission.PermissionRepository;
+import com.example.callservice.repository.role.RoleRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.CommandLineRunner;

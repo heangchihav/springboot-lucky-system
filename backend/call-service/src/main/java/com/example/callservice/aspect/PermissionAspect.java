@@ -1,7 +1,7 @@
 package com.example.callservice.aspect;
 
 import com.example.callservice.annotation.RequirePermission;
-import com.example.callservice.service.PermissionCheckService;
+import com.example.callservice.service.shared.PermissionCheckService;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;

@@ -1,7 +1,7 @@
 package com.example.callservice.config;
 
-import com.example.callservice.entity.User;
-import com.example.callservice.repository.UserRepository;
+import com.example.callservice.entity.user.User;
+import com.example.callservice.repository.user.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.CommandLineRunner;
