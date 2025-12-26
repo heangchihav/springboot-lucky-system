@@ -1,46 +1,74 @@
 package com.example.callservice.service.shared;
 
 import com.example.callservice.entity.role.Role;
+import com.example.callservice.entity.role.UserRole;
+import com.example.callservice.repository.role.RoleRepository;
+import com.example.callservice.repository.role.UserRoleRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.ArrayList;
 import java.util.stream.Collectors;
 
 @Service
 public class RoleAssignmentService {
     
-    // Simple in-memory storage for user-role assignments (for demo purposes)
-    private static final Map<Long, List<Long>> roleUserAssignments = new ConcurrentHashMap<>();
+    private final UserRoleRepository userRoleRepository;
+    private final RoleRepository roleRepository;
     
-    public void assignUsersToRole(Long roleId, List<Long> userIds) {
-        // Store the user-role assignments in memory (prevent duplicates)
-        List<Long> currentAssignments = roleUserAssignments.computeIfAbsent(roleId, k -> new ArrayList<>());
-        List<Long> newAssignments = userIds.stream()
-            .filter(userId -> !currentAssignments.contains(userId))
-            .collect(Collectors.toList());
-        currentAssignments.addAll(newAssignments);
+    public RoleAssignmentService(UserRoleRepository userRoleRepository, RoleRepository roleRepository) {
+        this.userRoleRepository = userRoleRepository;
+        this.roleRepository = roleRepository;
     }
     
+    @Transactional
+    public void assignUsersToRole(Long roleId, List<Long> userIds, String assignedBy) {
+        Role role = roleRepository.findById(roleId)
+            .orElseThrow(() -> new IllegalArgumentException("Role not found with id: " + roleId));
+        
+        List<UserRole> existingAssignments = userRoleRepository.findByRoleIdAndUserIdIn(roleId, userIds);
+        List<Long> alreadyAssigned = existingAssignments.stream()
+            .filter(UserRole::getActive)
+            .map(UserRole::getUserId)
+            .collect(Collectors.toList());
+        
+        List<Long> toAssign = userIds.stream()
+            .filter(userId -> !alreadyAssigned.contains(userId))
+            .collect(Collectors.toList());
+        
+        for (Long userId : toAssign) {
+            UserRole userRole = new UserRole(userId, role, assignedBy);
+            userRoleRepository.save(userRole);
+        }
+        
+        // Reactivate any inactive assignments
+        existingAssignments.stream()
+            .filter(userRole -> !userRole.getActive())
+            .forEach(userRole -> {
+                userRole.setActive(true);
+                userRoleRepository.save(userRole);
+            });
+    }
+    
+    @Transactional
     public void removeUsersFromRole(Long roleId, List<Long> userIds) {
-        List<Long> currentAssignments = roleUserAssignments.getOrDefault(roleId, new ArrayList<>());
-        currentAssignments.removeAll(userIds);
+        List<UserRole> assignments = userRoleRepository.findByRoleIdAndUserIdIn(roleId, userIds);
+        assignments.forEach(assignment -> {
+            assignment.setActive(false);
+            userRoleRepository.save(assignment);
+        });
     }
     
     public List<Long> getUsersInRole(Long roleId) {
-        return roleUserAssignments.getOrDefault(roleId, new ArrayList<>());
+        return userRoleRepository.findByRoleIdAndActiveTrue(roleId).stream()
+            .map(UserRole::getUserId)
+            .collect(Collectors.toList());
     }
     
     public List<Long> getRolesForUser(Long userId) {
-        List<Long> userRoles = new ArrayList<>();
-        for (Map.Entry<Long, List<Long>> entry : roleUserAssignments.entrySet()) {
-            if (entry.getValue().contains(userId)) {
-                userRoles.add(entry.getKey());
-            }
-        }
-        return userRoles;
+        return userRoleRepository.findByUserIdAndActiveTrue(userId).stream()
+            .map(userRole -> userRole.getRole().getId())
+            .collect(Collectors.toList());
     }
     
     public List<String> getPermissionCodesForUserThroughRoles(Long userId, List<Role> allRoles) {

@@ -215,8 +215,11 @@ public class RoleController extends BaseController {
             throw new IllegalArgumentException("Role not found with id: " + roleId);
         }
         
+        Long currentUserId = getCurrentUserId(httpRequest);
+        String assignedBy = currentUserId != null ? currentUserId.toString() : "system";
+        
         // Store the user-role assignments using the service
-        roleAssignmentService.assignUsersToRole(roleId, userIds);
+        roleAssignmentService.assignUsersToRole(roleId, userIds, assignedBy);
         logger.info("Users assigned to role {}: {}", roleId, userIds);
         
         return ResponseEntity.ok().build();
