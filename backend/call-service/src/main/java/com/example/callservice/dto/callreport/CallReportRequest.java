@@ -7,12 +7,21 @@ import java.util.Map;
 
 public class CallReportRequest {
 
-    @NotNull
     private LocalDate reportDate;
+    
+    private Long branchId;
 
     @NotNull
     @Size(min = 1)
     private Map<String, Integer> entries;
+
+    public Long getBranchId() {
+        return branchId;
+    }
+
+    public void setBranchId(Long branchId) {
+        this.branchId = branchId;
+    }
 
     public LocalDate getReportDate() {
         return reportDate;

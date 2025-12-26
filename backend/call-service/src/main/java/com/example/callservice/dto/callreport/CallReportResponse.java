@@ -8,6 +8,8 @@ public class CallReportResponse {
 
     private Long id;
     private LocalDate reportDate;
+    private Long branchId;
+    private String branchName;
     private String createdBy;
     private LocalDateTime createdAt;
     private Map<String, Integer> entries;
@@ -15,9 +17,11 @@ public class CallReportResponse {
     public CallReportResponse() {
     }
 
-    public CallReportResponse(Long id, LocalDate reportDate, String createdBy, LocalDateTime createdAt, Map<String, Integer> entries) {
+    public CallReportResponse(Long id, LocalDate reportDate, Long branchId, String branchName, String createdBy, LocalDateTime createdAt, Map<String, Integer> entries) {
         this.id = id;
         this.reportDate = reportDate;
+        this.branchId = branchId;
+        this.branchName = branchName;
         this.createdBy = createdBy;
         this.createdAt = createdAt;
         this.entries = entries;
@@ -29,6 +33,22 @@ public class CallReportResponse {
 
     public void setId(Long id) {
         this.id = id;
+    }
+
+    public Long getBranchId() {
+        return branchId;
+    }
+
+    public void setBranchId(Long branchId) {
+        this.branchId = branchId;
+    }
+
+    public String getBranchName() {
+        return branchName;
+    }
+
+    public void setBranchName(String branchName) {
+        this.branchName = branchName;
     }
 
     public LocalDate getReportDate() {

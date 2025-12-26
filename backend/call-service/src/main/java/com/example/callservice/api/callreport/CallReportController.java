@@ -87,6 +87,8 @@ public class CallReportController extends BaseController {
         return new CallReportResponse(
             callReport.getId(),
             callReport.getReportDate(),
+            callReport.getBranch() != null ? callReport.getBranch().getId() : null,
+            callReport.getBranch() != null ? callReport.getBranch().getName() : "No Branch",
             callReport.getCreatedBy(),
             callReport.getCreatedAt(),
             callReport.getEntries()

@@ -19,9 +19,33 @@ type CallStatusResponse = {
   createdAt: string
 }
 
+type BranchResponse = {
+  id: number
+  name: string
+  code?: string
+  address?: string
+  phone?: string
+  email?: string
+  active: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+type UserBranchResponse = {
+  id: number
+  userId: number
+  branchId: number
+  branchName: string
+  active: boolean
+  assignedAt: string
+  updatedAt: string
+}
+
 type CallReportResponse = {
   id: number
   reportDate: string
+  branchId: number
+  branchName: string
   createdBy: string
   createdAt: string
   entries: Record<string, number>
@@ -32,7 +56,8 @@ type ReportRecord = {
   date: string
   createdAt: string
   createdBy: string
-  branch?: string
+  branchId: number
+  branchName: string
   entries: Record<string, number>
 }
 
@@ -54,6 +79,28 @@ const getStoredUserId = (): number | null => {
   }
 }
 
+const fetchAndCacheUserId = async (): Promise<number | null> => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
+      credentials: 'include',
+    })
+
+    if (!response.ok) {
+      return null
+    }
+
+    const user = await response.json()
+    if (user?.id && typeof window !== 'undefined') {
+      window.localStorage.setItem('user', JSON.stringify(user))
+      return user.id
+    }
+    return user?.id ?? null
+  } catch (error) {
+    console.error('Failed to fetch current user info', error)
+    return null
+  }
+}
+
 const buildAuthHeaders = () => {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -70,6 +117,8 @@ function Page() {
   const [selectedStatus, setSelectedStatus] = useState(
     defaultStatuses[0].key,
   )
+  const [branches, setBranches] = useState<BranchResponse[]>([])
+  const [selectedBranchId, setSelectedBranchId] = useState<number | null>(null)
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10))
   const [entries, setEntries] = useState<Record<string, number>>(
     Object.fromEntries(defaultStatuses.map((s) => [s.key, 0])),
@@ -81,9 +130,11 @@ function Page() {
   const [newStatusName, setNewStatusName] = useState('')
   const [newStatusCode, setNewStatusCode] = useState('')
   const [loadingStatuses, setLoadingStatuses] = useState(false)
+  const [loadingBranches, setLoadingBranches] = useState(false)
   const [loadingReports, setLoadingReports] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [apiError, setApiError] = useState<string | null>(null)
+  const [hasBranchAssignment, setHasBranchAssignment] = useState(false)
 
   // New state for popup menu
   const [showManagePopup, setShowManagePopup] = useState(false)
@@ -257,6 +308,40 @@ function Page() {
     }
   }
 
+  const loadReports = async () => {
+    setLoadingReports(true)
+    setApiError(null)
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/calls/reports`, {
+        headers: buildAuthHeaders(),
+        credentials: 'include',
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to load reports')
+      }
+
+      const serverReports: CallReportResponse[] = await response.json()
+      const mappedReports: ReportRecord[] = serverReports.map((report) => ({
+        id: report.id,
+        date: report.reportDate,
+        createdAt: report.createdAt,
+        createdBy: report.createdBy,
+        branchId: report.branchId,
+        branchName: report.branchName,
+        entries: report.entries,
+      }))
+
+      setReports(mappedReports)
+    } catch (error) {
+      console.error('Failed to fetch reports', error)
+      setApiError('Unable to load call reports from backend')
+    } finally {
+      setLoadingReports(false)
+    }
+  }
+
   const loadStatuses = async () => {
     setLoadingStatuses(true)
     setApiError(null)
@@ -299,39 +384,92 @@ function Page() {
     }
   }
 
-  const loadReports = async () => {
-    setLoadingReports(true)
+  const loadFallbackBranches = async () => {
+    const fallbackResponse = await fetch(`${API_BASE_URL}/api/calls/branches/active`, {
+      headers: buildAuthHeaders(),
+      credentials: 'include',
+    })
+
+    if (!fallbackResponse.ok) {
+      throw new Error('Failed to load branches for selection')
+    }
+
+    const allBranches: BranchResponse[] = await fallbackResponse.json()
+    const activeBranches = allBranches.filter((branch) => branch.active)
+
+    setHasBranchAssignment(false)
+    setBranches(activeBranches)
+    setSelectedBranchId(activeBranches[0]?.id ?? null)
+  }
+
+  const loadBranches = async () => {
+    setLoadingBranches(true)
     setApiError(null)
+    setHasBranchAssignment(false)
+
+    const fetchedUserId = await fetchAndCacheUserId()
+    let userId = fetchedUserId ?? getStoredUserId()
+    if (!userId) {
+      try {
+        await loadFallbackBranches()
+      } catch (error) {
+        console.error('Failed to load fallback branches without user', error)
+        setApiError('Unable to load branch list.')
+        setBranches([])
+        setSelectedBranchId(null)
+      } finally {
+        setLoadingBranches(false)
+      }
+      return
+    }
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/calls/reports`, {
+      const response = await fetch(`${API_BASE_URL}/api/calls/user-branches/user/${userId}`, {
         headers: buildAuthHeaders(),
         credentials: 'include',
       })
+
       if (!response.ok) {
-        throw new Error('Failed to load reports')
+        throw new Error('Failed to load user branches')
       }
 
-      const data: CallReportResponse[] = await response.json()
-      setReports(
-        data.map((record) => ({
-          id: record.id,
-          date: record.reportDate,
-          createdAt: record.createdAt,
-          createdBy: record.createdBy,
-          entries: record.entries,
-        })),
-      )
+      const assignments: UserBranchResponse[] = await response.json()
+      const activeAssignments = assignments.filter((assignment) => assignment.active)
+
+      if (activeAssignments.length > 0) {
+        const mappedBranches = activeAssignments.map<BranchResponse>((assignment) => ({
+          id: assignment.branchId,
+          name: assignment.branchName,
+          active: assignment.active,
+          createdAt: assignment.assignedAt,
+          updatedAt: assignment.updatedAt,
+        }))
+
+        setHasBranchAssignment(true)
+        setBranches(mappedBranches)
+        setSelectedBranchId(mappedBranches[0].id)
+      } else {
+        setHasBranchAssignment(false)
+        await loadFallbackBranches()
+      }
     } catch (error) {
-      console.error('Failed to fetch reports', error)
-      setApiError('Unable to load reports from backend')
+      console.error('Failed to fetch user branches', error)
+      setApiError('Unable to load user branches from backend. Showing all active branches instead.')
+      try {
+        await loadFallbackBranches()
+      } catch (fallbackError) {
+        console.error('Failed to fetch fallback branches', fallbackError)
+        setBranches([])
+        setSelectedBranchId(null)
+      }
     } finally {
-      setLoadingReports(false)
+      setLoadingBranches(false)
     }
   }
 
   useEffect(() => {
     loadStatuses()
+    loadBranches()
     loadReports()
   }, [])
 
@@ -350,6 +488,7 @@ function Page() {
         credentials: 'include',
         body: JSON.stringify({
           reportDate: date,
+          branchId: selectedBranchId,
           entries,
         }),
       })
@@ -401,7 +540,13 @@ function Page() {
   const handleLoadReport = (report: ReportRecord) => {
     setDate(report.date)
     setEntries({ ...report.entries })
+    setSelectedBranchId(report.branchId)
     setEditingReportId(report.id)
+  }
+
+  const handleBranchChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
+    const value = event.target.value
+    setSelectedBranchId(value ? Number(value) : null)
   }
 
   const filteredReports = reports.filter((report) => {
@@ -412,7 +557,7 @@ function Page() {
     return (
       report.date.toLowerCase().includes(normalized) ||
       report.createdBy.toLowerCase().includes(normalized) ||
-      (report.branch?.toLowerCase() ?? '').includes(normalized)
+      (report.branchName?.toLowerCase() ?? '').includes(normalized)
     )
   })
 
@@ -572,6 +717,31 @@ function Page() {
                   className="glass-input w-full text-sm"
                 />
               </div>
+              <div className="flex-1">
+                <label className="block text-xs font-medium text-slate-400 mb-2 uppercase tracking-wider">
+                  Branch
+                </label>
+                {hasBranchAssignment ? (
+                  <div className="glass-input w-full text-sm text-slate-300 flex items-center justify-between">
+                    <span>{branches.find((branch) => branch.id === selectedBranchId)?.name ?? 'Assigned branch'}</span>
+                    <span className="text-[11px] text-emerald-300">Auto-selected</span>
+                  </div>
+                ) : (
+                  <select
+                    value={selectedBranchId !== null ? String(selectedBranchId) : ''}
+                    onChange={handleBranchChange}
+                    className="glass-input w-full text-sm"
+                    disabled={loadingBranches || branches.length === 0}
+                  >
+                    <option value="">Select a branch</option>
+                    {branches.map((branch) => (
+                      <option key={branch.id} value={String(branch.id)}>
+                        {branch.name}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
               <div className="">
                 <p className="text-[10px] uppercase tracking-wider text-slate-400 mb-1">
                   Total Count
@@ -613,7 +783,7 @@ function Page() {
               </button>
               <button
                 onClick={handleSubmit}
-                disabled={isSubmitting}
+                disabled={isSubmitting || !selectedBranchId}
                 className="glass-button px-5 py-2 text-xs font-semibold bg-gradient-to-r from-orange-500 to-orange-600 text-white hover:shadow-glow-strong hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
               >
                 {isSubmitting ? (
@@ -678,7 +848,7 @@ function Page() {
                           </td>
                           <td className="px-3 py-3 text-white font-medium text-xs">{report.date}</td>
                           <td className="px-3 py-3 text-slate-300 text-xs">{report.createdBy}</td>
-                          <td className="px-3 py-3 text-slate-300 text-xs">{report.branch}</td>
+                          <td className="px-3 py-3 text-slate-300 text-xs">{report.branchName}</td>
                           {statuses.map((status) => (
                             <td
                               key={`${report.id}-${status.key}`}

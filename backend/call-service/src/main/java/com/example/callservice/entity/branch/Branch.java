@@ -8,9 +8,11 @@ import java.time.LocalDateTime;
 import java.util.List;
 import com.example.callservice.entity.area.Area;
 import com.example.callservice.entity.userbranch.UserBranch;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 @Entity
 @Table(name = "branches")
+@JsonIgnoreProperties({"area", "userBranches"})
 public class Branch {
     
     @Id

@@ -3,6 +3,7 @@ package com.example.callservice.entity.callreport;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import com.example.callservice.entity.branch.Branch;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -19,7 +20,11 @@ public class CallReport {
     @NotNull
     @Column(name = "report_date", nullable = false)
     private LocalDate reportDate;
-
+    
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "branch_id")
+    private Branch branch;
+    
     @NotBlank
     @Column(name = "created_by", nullable = false)
     private String createdBy;
@@ -36,8 +41,9 @@ public class CallReport {
     public CallReport() {
     }
 
-    public CallReport(LocalDate reportDate, String createdBy, Map<String, Integer> entries) {
+    public CallReport(LocalDate reportDate, Branch branch, String createdBy, Map<String, Integer> entries) {
         this.reportDate = reportDate;
+        this.branch = branch;
         this.createdBy = createdBy;
         this.entries = entries;
     }
@@ -53,6 +59,14 @@ public class CallReport {
 
     public void setId(Long id) {
         this.id = id;
+    }
+
+    public Branch getBranch() {
+        return branch;
+    }
+
+    public void setBranch(Branch branch) {
+        this.branch = branch;
     }
 
     public LocalDate getReportDate() {
