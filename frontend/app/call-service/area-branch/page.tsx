@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../../src/contexts/AuthContext';
 import { areaBranchService, Area, Branch, CreateAreaRequest, CreateBranchRequest } from '../services/areaBranchService';
+import { PermissionGuard } from '../../components/PermissionGuard';
 
 export default function AreaBranchManagement() {
   const { user, isAuthenticated, hasServiceAccess } = useAuth();
@@ -289,12 +290,22 @@ export default function AreaBranchManagement() {
         <div>
           <div className="mb-4 flex justify-between items-center">
             <h2 className="text-xl font-semibold text-white">Areas</h2>
-            <button
-              onClick={() => setShowAreaForm(true)}
-              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-slate-900"
-            >
-              Add Area
-            </button>
+            <PermissionGuard permission="menu.6.area.create" fallback={
+              <button
+                disabled
+                className="px-4 py-2 bg-gray-600 text-gray-400 rounded-md cursor-not-allowed"
+                title="You don't have permission to create areas"
+              >
+                Add Area (No Permission)
+              </button>
+            }>
+              <button
+                onClick={() => setShowAreaForm(true)}
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-slate-900"
+              >
+                Add Area
+              </button>
+            </PermissionGuard>
           </div>
 
           {showAreaForm && (
@@ -404,24 +415,54 @@ export default function AreaBranchManagement() {
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <button
-                        onClick={() => editArea(area)}
-                        className="text-blue-400 hover:text-blue-300 mr-3"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => toggleAreaStatus(area.id, !area.active)}
-                        className={`mr-3 ${area.active ? 'text-yellow-400 hover:text-yellow-300' : 'text-green-400 hover:text-green-300'}`}
-                      >
-                        {area.active ? 'Deactivate' : 'Activate'}
-                      </button>
-                      <button
-                        onClick={() => deleteArea(area.id)}
-                        className="text-red-400 hover:text-red-300"
-                      >
-                        Delete
-                      </button>
+                      <PermissionGuard permission="menu.6.area.edit" fallback={
+                        <button
+                          disabled
+                          className="text-gray-400 mr-3 cursor-not-allowed"
+                          title="You don't have permission to edit areas"
+                        >
+                          Edit
+                        </button>
+                      }>
+                        <button
+                          onClick={() => editArea(area)}
+                          className="text-blue-400 hover:text-blue-300 mr-3"
+                        >
+                          Edit
+                        </button>
+                      </PermissionGuard>
+                      <PermissionGuard permission="menu.6.area.edit" fallback={
+                        <button
+                          disabled
+                          className="text-gray-400 mr-3 cursor-not-allowed"
+                          title="You don't have permission to change area status"
+                        >
+                          {area.active ? 'Deactivate' : 'Activate'}
+                        </button>
+                      }>
+                        <button
+                          onClick={() => toggleAreaStatus(area.id, !area.active)}
+                          className={`mr-3 ${area.active ? 'text-yellow-400 hover:text-yellow-300' : 'text-green-400 hover:text-green-300'}`}
+                        >
+                          {area.active ? 'Deactivate' : 'Activate'}
+                        </button>
+                      </PermissionGuard>
+                      <PermissionGuard permission="menu.6.area.delete" fallback={
+                        <button
+                          disabled
+                          className="text-gray-400 cursor-not-allowed"
+                          title="You don't have permission to delete areas"
+                        >
+                          Delete
+                        </button>
+                      }>
+                        <button
+                          onClick={() => deleteArea(area.id)}
+                          className="text-red-400 hover:text-red-300"
+                        >
+                          Delete
+                        </button>
+                      </PermissionGuard>
                     </td>
                   </tr>
                 ))}
@@ -436,12 +477,22 @@ export default function AreaBranchManagement() {
         <div>
           <div className="mb-4 flex justify-between items-center">
             <h2 className="text-xl font-semibold text-white">Branches</h2>
-            <button
-              onClick={() => setShowBranchForm(true)}
-              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-slate-900"
-            >
-              Add Branch
-            </button>
+            <PermissionGuard permission="branch.create" fallback={
+              <button
+                disabled
+                className="px-4 py-2 bg-gray-600 text-gray-400 rounded-md cursor-not-allowed"
+                title="You don't have permission to create branches"
+              >
+                Add Branch (No Permission)
+              </button>
+            }>
+              <button
+                onClick={() => setShowBranchForm(true)}
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-slate-900"
+              >
+                Add Branch
+              </button>
+            </PermissionGuard>
           </div>
 
           {showBranchForm && (
@@ -608,24 +659,54 @@ export default function AreaBranchManagement() {
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <button
-                        onClick={() => editBranch(branch)}
-                        className="text-blue-400 hover:text-blue-300 mr-3"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => toggleBranchStatus(branch.id, !branch.active)}
-                        className={`mr-3 ${branch.active ? 'text-yellow-400 hover:text-yellow-300' : 'text-green-400 hover:text-green-300'}`}
-                      >
-                        {branch.active ? 'Deactivate' : 'Activate'}
-                      </button>
-                      <button
-                        onClick={() => deleteBranch(branch.id)}
-                        className="text-red-400 hover:text-red-300"
-                      >
-                        Delete
-                      </button>
+                      <PermissionGuard permission="branch.update" fallback={
+                        <button
+                          disabled
+                          className="text-gray-400 mr-3 cursor-not-allowed"
+                          title="You don't have permission to edit branches"
+                        >
+                          Edit
+                        </button>
+                      }>
+                        <button
+                          onClick={() => editBranch(branch)}
+                          className="text-blue-400 hover:text-blue-300 mr-3"
+                        >
+                          Edit
+                        </button>
+                      </PermissionGuard>
+                      <PermissionGuard permission="branch.update" fallback={
+                        <button
+                          disabled
+                          className="text-gray-400 mr-3 cursor-not-allowed"
+                          title="You don't have permission to change branch status"
+                        >
+                          {branch.active ? 'Deactivate' : 'Activate'}
+                        </button>
+                      }>
+                        <button
+                          onClick={() => toggleBranchStatus(branch.id, !branch.active)}
+                          className={`mr-3 ${branch.active ? 'text-yellow-400 hover:text-yellow-300' : 'text-green-400 hover:text-green-300'}`}
+                        >
+                          {branch.active ? 'Deactivate' : 'Activate'}
+                        </button>
+                      </PermissionGuard>
+                      <PermissionGuard permission="branch.delete" fallback={
+                        <button
+                          disabled
+                          className="text-gray-400 cursor-not-allowed"
+                          title="You don't have permission to delete branches"
+                        >
+                          Delete
+                        </button>
+                      }>
+                        <button
+                          onClick={() => deleteBranch(branch.id)}
+                          className="text-red-400 hover:text-red-300"
+                        >
+                          Delete
+                        </button>
+                      </PermissionGuard>
                     </td>
                   </tr>
                 ))}

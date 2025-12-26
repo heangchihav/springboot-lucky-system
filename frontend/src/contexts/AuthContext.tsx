@@ -1,7 +1,9 @@
 'use client'
 
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react'
-import { apiService, UserInfo, LoginRequest, RegisterRequest, ApiError } from '../services/api'
+import { apiService, UserInfo, LoginRequest, RegisterRequest, ApiError, UserServiceEntity } from '../services/api'
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'
 
 interface AuthContextType {
   user: UserInfo | null
@@ -16,6 +18,7 @@ interface AuthContextType {
   clearError: () => void
   hasServiceAccess: (serviceKey: string) => boolean
   getAccessibleServices: () => string[]
+  hasPermission: (permissionCode: string) => Promise<boolean>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -36,6 +39,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<UserInfo | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [permissionCache, setPermissionCache] = useState<Record<string, boolean>>({})
 
   const clearError = () => setError(null)
 
@@ -48,7 +52,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         try {
           const userServices = await apiService.getUserServices(userInfo.id)
           // Transform backend services to frontend UserRole format
-          const userRoles = userServices.map(service => ({
+          const userRoles = userServices.map((service: UserServiceEntity) => ({
             id: service.id,
             userId: userInfo.id,
             roleId: service.id, // Using service.id as roleId for now
@@ -162,7 +166,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
     // Map service keys to menu section IDs
     const serviceKeyToSectionMap: Record<string, string> = {
       'call': 'call-service',
+      'call-service': 'call-service',
       'delivery': 'delivery-service',
+      'delivery-service': 'delivery-service',
       'user': 'user-service'
     }
     
@@ -185,7 +191,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
     // Map service keys to menu section IDs
     const serviceKeyToSectionMap: Record<string, string> = {
       'call': 'call-service',
+      'call-service': 'call-service',
       'delivery': 'delivery-service',
+      'delivery-service': 'delivery-service',
       'user': 'user-service'
     }
     
@@ -194,6 +202,52 @@ export function AuthProvider({ children }: AuthProviderProps) {
       .map(role => serviceKeyToSectionMap[role.serviceKey])
       .filter(Boolean)
   }
+
+  const hasPermission = async (permissionCode: string): Promise<boolean> => {
+    if (!user?.id) {
+      return false
+    }
+
+    if (user.username === 'root') {
+      return true
+    }
+
+    const cached = permissionCache[permissionCode]
+    if (cached !== undefined) {
+      return cached
+    }
+
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/calls/permissions/user/${user.id}/check/${encodeURIComponent(permissionCode)}`,
+        {
+          credentials: 'include'
+        }
+      )
+
+      if (!response.ok) {
+        return false
+      }
+
+      const result = await response.json()
+      const hasPerm = !!result?.hasPermission
+
+      setPermissionCache(prev => ({
+        ...prev,
+        [permissionCode]: hasPerm
+      }))
+
+      return hasPerm
+    } catch (err) {
+      console.error('Permission check failed:', err)
+      return false
+    }
+  }
+
+  useEffect(() => {
+    // Clear cached permission results whenever the authenticated user changes
+    setPermissionCache({})
+  }, [user?.id])
 
   useEffect(() => {
     const initializeAuth = async () => {
@@ -227,7 +281,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
     error,
     clearError,
     hasServiceAccess,
-    getAccessibleServices
+    getAccessibleServices,
+    hasPermission
   }
 
   return (

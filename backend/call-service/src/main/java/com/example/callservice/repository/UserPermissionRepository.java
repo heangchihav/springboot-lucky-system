@@ -25,5 +25,6 @@ public interface UserPermissionRepository extends JpaRepository<UserPermission, 
     @Query("SELECT up.permission.code FROM UserPermission up WHERE up.userId = :userId AND up.active = true")
     List<String> findPermissionCodesByUserId(@Param("userId") Long userId);
     
+        
     void deleteByUserIdAndPermissionId(Long userId, Long permissionId);
 }

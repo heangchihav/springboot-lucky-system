@@ -4,6 +4,7 @@ export type SubMenuItem = {
   description: string;
   path: string;
   menuNumber: string;
+  requiredPermission?: string;
 };
 
 export type MenuSection = {
@@ -25,28 +26,32 @@ export const MENU_SECTIONS: MenuSection[] = [
         description: "Overview of call service metrics",
         path: "/call-service/dashboard",
         menuNumber: "1",
+        requiredPermission: "menu.1.view",
       },
-      
       {
-        id: "call-area-branch",
-        label: "Area & Branch",
-        description: "Manage areas and branches for call service",
-        path: "/call-service/area-branch",
+        id: "call-submit-report",
+        label: "Submit Report",
+        description: "Record daily call statuses",
+        path: "/call-service/submit-report",
         menuNumber: "2",
+        requiredPermission: "menu.3.view",
       },
-      {
+       {
         id: "call-reports",
         label: "Reports",
         description: "Detailed call reports and analytics",
         path: "/call-service/reports",
         menuNumber: "3",
+        requiredPermission: "menu.3.analytics",
       },
+
       {
         id: "call-manage-user",
         label: "Manage Users",
         description: "Manage call center users and their permissions",
         path: "/call-service/manage-user",
         menuNumber: "4",
+        requiredPermission: "menu.4.view",
       },
       {
         id: "call-permissions",
@@ -54,7 +59,16 @@ export const MENU_SECTIONS: MenuSection[] = [
         description: "Manage roles, permissions, and user access control",
         path: "/call-service/permissions",
         menuNumber: "5",
-      }
+        requiredPermission: "menu.5.view",
+      },
+      {
+        id: "call-area-branch",
+        label: "Area & Branch",
+        description: "Manage areas and branches for call service",
+        path: "/call-service/area-branch",
+        menuNumber: "6",
+        requiredPermission: "menu.2.view",
+      },
     ],
   },
   {

@@ -1,214 +1,171 @@
 'use client'
 
-import React, { useContext, useEffect, useState } from 'react'
-import { permissionsService } from '../services/permissionsService'
+import React, { useEffect, useState } from 'react'
+import { useAuth } from '../../src/contexts/AuthContext'
+
+const MENU_PERMISSION_MAP: Record<string, string> = {
+  canViewDashboard: 'menu.1.view',
+  canViewBranches: 'menu.2.view',
+  canManageBranches: 'menu.2.branch.create',
+  canViewCalls: 'menu.1.view',
+  canManageCalls: 'menu.1.edit',
+  canViewQueue: 'menu.3.view',
+  canManageQueue: 'menu.3.analytics',
+  canViewReports: 'menu.3.view',
+  canManageUsers: 'menu.4.view',
+}
+
+const resolvePermissionCode = (key: string) => MENU_PERMISSION_MAP[key] ?? key
 
 interface PermissionGuardProps {
   permission: string
   children: React.ReactNode
   fallback?: React.ReactNode
-  userId?: number
 }
 
-export function PermissionGuard({ permission, children, fallback = null, userId }: PermissionGuardProps) {
-  const [hasPermission, setHasPermission] = useState<boolean | null>(null)
-  const [loading, setLoading] = useState(true)
+export function PermissionGuard({ permission, children, fallback = null }: PermissionGuardProps) {
+  const { user, hasPermission } = useAuth()
+  const [allowed, setAllowed] = useState<boolean | null>(null)
 
   useEffect(() => {
-    checkPermission()
-  }, [permission, userId])
+    let cancelled = false
 
-  const checkPermission = async () => {
-    try {
-      setLoading(true)
-      const currentUserId = userId || getCurrentUserId()
-      
-      if (!currentUserId) {
-        setHasPermission(false)
+    const check = async () => {
+      if (!user) {
+        setAllowed(false)
         return
       }
 
-      const permissionResult = await permissionsService.checkUserPermission(currentUserId, permission)
-      setHasPermission(permissionResult)
-    } catch (error) {
-      console.error('Error checking permission:', error)
-      setHasPermission(false)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const getCurrentUserId = (): number | null => {
-    // Get user ID from auth context or localStorage
-    const userStr = localStorage.getItem('user')
-    if (userStr) {
-      try {
-        const user = JSON.parse(userStr)
-        return user.id || null
-      } catch {
-        return null
+      const result = await hasPermission(permission)
+      if (!cancelled) {
+        setAllowed(result)
       }
     }
-    return null
-  }
 
-  if (loading) {
+    check()
+
+    return () => {
+      cancelled = true
+    }
+  }, [user, permission, hasPermission])
+
+  if (allowed === null) {
     return <div className="animate-pulse bg-gray-200 h-4 w-20 rounded"></div>
   }
 
-  if (hasPermission === null) {
-    return fallback
-  }
-
-  return hasPermission ? <>{children}</> : <>{fallback}</>
+  return allowed ? <>{children}</> : <>{fallback}</>
 }
 
 interface MenuGuardProps {
   menuKey: string
   children: React.ReactNode
   fallback?: React.ReactNode
-  userId?: number
 }
 
-export function MenuGuard({ menuKey, children, fallback = null, userId }: MenuGuardProps) {
-  const [hasMenuAccess, setHasMenuAccess] = useState<boolean | null>(null)
-  const [loading, setLoading] = useState(true)
+export function MenuGuard({ menuKey, children, fallback = null }: MenuGuardProps) {
+  const { user, hasPermission } = useAuth()
+  const [allowed, setAllowed] = useState<boolean | null>(null)
 
   useEffect(() => {
-    checkMenuAccess()
-  }, [menuKey, userId])
+    let cancelled = false
 
-  const checkMenuAccess = async () => {
-    try {
-      setLoading(true)
-      const currentUserId = userId || getCurrentUserId()
-      
-      if (!currentUserId) {
-        setHasMenuAccess(false)
+    const check = async () => {
+      if (!user) {
+        setAllowed(false)
         return
       }
 
-      const menuPermissions = await permissionsService.getUserMenuPermissions(currentUserId)
-      const hasAccess = menuPermissions[menuKey] || false
-      setHasMenuAccess(hasAccess)
-    } catch (error) {
-      console.error('Error checking menu access:', error)
-      setHasMenuAccess(false)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const getCurrentUserId = (): number | null => {
-    const userStr = localStorage.getItem('user')
-    if (userStr) {
-      try {
-        const user = JSON.parse(userStr)
-        return user.id || null
-      } catch {
-        return null
+      const permissionCode = resolvePermissionCode(menuKey)
+      const result = await hasPermission(permissionCode)
+      if (!cancelled) {
+        setAllowed(result)
       }
     }
-    return null
-  }
 
-  if (loading) {
+    check()
+
+    return () => {
+      cancelled = true
+    }
+  }, [user, menuKey, hasPermission])
+
+  if (allowed === null) {
     return <div className="animate-pulse bg-gray-200 h-4 w-20 rounded"></div>
   }
 
-  if (hasMenuAccess === null) {
-    return fallback
-  }
-
-  return hasMenuAccess ? <>{children}</> : <>{fallback}</>
+  return allowed ? <>{children}</> : <>{fallback}</>
 }
 
-// Hook for checking permissions
-export function usePermission(permission: string, userId?: number) {
-  const [hasPermission, setHasPermission] = useState<boolean | null>(null)
-  const [loading, setLoading] = useState(true)
+export function usePermission(permission: string) {
+  const { user, hasPermission } = useAuth()
+  const [allowed, setAllowed] = useState<boolean | null>(null)
 
   useEffect(() => {
-    checkPermission()
-  }, [permission, userId])
+    let cancelled = false
 
-  const checkPermission = async () => {
-    try {
-      setLoading(true)
-      const currentUserId = userId || getCurrentUserId()
-      
-      if (!currentUserId) {
-        setHasPermission(false)
+    const check = async () => {
+      if (!user) {
+        setAllowed(false)
         return
       }
 
-      const permissionResult = await permissionsService.checkUserPermission(currentUserId, permission)
-      setHasPermission(permissionResult)
-    } catch (error) {
-      console.error('Error checking permission:', error)
-      setHasPermission(false)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const getCurrentUserId = (): number | null => {
-    const userStr = localStorage.getItem('user')
-    if (userStr) {
-      try {
-        const user = JSON.parse(userStr)
-        return user.id || null
-      } catch {
-        return null
+      const result = await hasPermission(permission)
+      if (!cancelled) {
+        setAllowed(result)
       }
     }
-    return null
-  }
 
-  return { hasPermission, loading }
+    check()
+
+    return () => {
+      cancelled = true
+    }
+  }, [user, permission, hasPermission])
+
+  return {
+    hasPermission: allowed,
+    loading: allowed === null,
+  }
 }
 
-// Hook for checking menu permissions
-export function useMenuPermissions(userId?: number) {
+const DEFAULT_MENU_KEYS = Object.keys(MENU_PERMISSION_MAP)
+
+export function useMenuPermissions(keys: string[] = DEFAULT_MENU_KEYS) {
+  const { user, hasPermission } = useAuth()
   const [menuPermissions, setMenuPermissions] = useState<Record<string, boolean>>({})
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    fetchMenuPermissions()
-  }, [userId])
+    let cancelled = false
 
-  const fetchMenuPermissions = async () => {
-    try {
-      setLoading(true)
-      const currentUserId = userId || getCurrentUserId()
-      
-      if (!currentUserId) {
+    const checkPermissions = async () => {
+      if (!user) {
         setMenuPermissions({})
+        setLoading(false)
         return
       }
 
-      const permissions = await permissionsService.getUserMenuPermissions(currentUserId)
-      setMenuPermissions(permissions)
-    } catch (error) {
-      console.error('Error fetching menu permissions:', error)
-      setMenuPermissions({})
-    } finally {
-      setLoading(false)
-    }
-  }
+      setLoading(true)
+      const results = await Promise.all(
+        keys.map(async (key) => {
+          const code = resolvePermissionCode(key)
+          const allowed = await hasPermission(code)
+          return [key, allowed] as const
+        })
+      )
 
-  const getCurrentUserId = (): number | null => {
-    const userStr = localStorage.getItem('user')
-    if (userStr) {
-      try {
-        const user = JSON.parse(userStr)
-        return user.id || null
-      } catch {
-        return null
+      if (!cancelled) {
+        setMenuPermissions(Object.fromEntries(results))
+        setLoading(false)
       }
     }
-    return null
-  }
+
+    checkPermissions()
+
+    return () => {
+      cancelled = true
+    }
+  }, [keys, user, hasPermission])
 
   const hasMenuAccess = (menuKey: string): boolean => {
     return menuPermissions[menuKey] || false

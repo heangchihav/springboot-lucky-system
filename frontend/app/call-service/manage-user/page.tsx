@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react'
 import { userService, User, CreateUserRequest } from '../../services/userService'
 import { serviceService } from '../../services/serviceService'
 import { areaBranchService, Branch } from '../services/areaBranchService'
+import { PermissionGuard } from '../../components/PermissionGuard'
 
 export default function ManageUserPage() {
   const [users, setUsers] = useState<User[]>([])
@@ -32,10 +33,12 @@ export default function ManageUserPage() {
   const [editBranchId, setEditBranchId] = useState<number | null>(null)
   const [editingUserBranchCurrentId, setEditingUserBranchCurrentId] = useState<number | null>(null)
 
-  const filteredUsers = users.filter(user =>
-    user.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.username.toLowerCase().includes(searchTerm.toLowerCase())
-  )
+  const normalizedSearch = searchTerm.toLowerCase()
+  const filteredUsers = users.filter(user => {
+    const fullName = (user.fullName ?? '').toLowerCase()
+    const username = (user.username ?? '').toLowerCase()
+    return fullName.includes(normalizedSearch) || username.includes(normalizedSearch)
+  })
 
   // Fetch users on component mount
   useEffect(() => {
@@ -140,6 +143,23 @@ export default function ManageUserPage() {
       alert(`Error creating user: ${error instanceof Error ? error.message : 'Unknown error'}`)
     } finally {
       setIsSubmitting(false)
+    }
+  }
+
+  const handleToggleUserStatus = async (userId: number) => {
+    try {
+      // Use updateUser to toggle the active status
+      const user = users.find(u => u.id === userId)
+      if (user) {
+        await userService.updateUser(userId, { active: !user.active })
+        setUsers(prev => prev.map(u => 
+          u.id === userId ? { ...u, active: !u.active } : u
+        ))
+        alert('User status updated successfully')
+      }
+    } catch (error) {
+      console.error('Error toggling user status:', error)
+      alert(`Error updating user status: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }
 
@@ -377,13 +397,24 @@ export default function ManageUserPage() {
           </div>
           
           <div className="flex justify-end">
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-slate-900 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isSubmitting ? 'Creating...' : 'Create User'}
-            </button>
+            <PermissionGuard permission="menu.4.create" fallback={
+              <button
+                type="button"
+                disabled
+                className="px-6 py-2 bg-gray-600 text-gray-400 rounded-md cursor-not-allowed"
+                title="You don't have permission to create users"
+              >
+                Create User (No Permission)
+              </button>
+            }>
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-slate-900 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isSubmitting ? 'Creating...' : 'Create User'}
+              </button>
+            </PermissionGuard>
           </div>
         </form>
       </div>
@@ -591,28 +622,58 @@ export default function ManageUserPage() {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                         <div className="flex space-x-2">
-                          <button
-                            onClick={() => startEditUser(user)}
-                            className="px-3 py-1 bg-blue-100 text-blue-800 rounded text-xs font-medium hover:bg-blue-200 transition-colors"
-                          >
-                            Edit
-                          </button>
-                          <button
-                            onClick={() => toggleUserStatus(user.id)}
-                            className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
-                              user.active
-                                ? 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200'
-                                : 'bg-green-100 text-green-800 hover:bg-green-200'
-                            }`}
-                          >
-                            {user.active ? 'Deactivate' : 'Activate'}
-                          </button>
-                          <button
-                            onClick={() => deleteUser(user.id)}
-                            className="px-3 py-1 bg-red-100 text-red-800 rounded text-xs font-medium hover:bg-red-200 transition-colors"
-                          >
-                            Delete
-                          </button>
+                          <PermissionGuard permission="menu.4.edit" fallback={
+                            <button
+                              disabled
+                              className="px-3 py-1 bg-gray-100 text-gray-400 rounded text-xs font-medium cursor-not-allowed"
+                              title="You don't have permission to edit users"
+                            >
+                              Edit
+                            </button>
+                          }>
+                            <button
+                              onClick={() => startEditUser(user)}
+                              className="px-3 py-1 bg-blue-100 text-blue-800 rounded text-xs font-medium hover:bg-blue-200 transition-colors"
+                            >
+                              Edit
+                            </button>
+                          </PermissionGuard>
+                          <PermissionGuard permission="menu.4.edit" fallback={
+                            <button
+                              disabled
+                              className="px-3 py-1 bg-gray-100 text-gray-400 rounded text-xs font-medium cursor-not-allowed"
+                              title="You don't have permission to change user status"
+                            >
+                              {user.active ? 'Deactivate' : 'Activate'}
+                            </button>
+                          }>
+                            <button
+                              onClick={() => handleToggleUserStatus(user.id)}
+                              className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
+                                user.active
+                                  ? 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200'
+                                  : 'bg-green-100 text-green-800 hover:bg-green-200'
+                              }`}
+                            >
+                              {user.active ? 'Deactivate' : 'Activate'}
+                            </button>
+                          </PermissionGuard>
+                          <PermissionGuard permission="menu.4.delete" fallback={
+                            <button
+                              disabled
+                              className="px-3 py-1 bg-gray-100 text-gray-400 rounded text-xs font-medium cursor-not-allowed"
+                              title="You don't have permission to delete users"
+                            >
+                              Delete
+                            </button>
+                          }>
+                            <button
+                              onClick={() => deleteUser(user.id)}
+                              className="px-3 py-1 bg-red-100 text-red-800 rounded text-xs font-medium hover:bg-red-200 transition-colors"
+                            >
+                              Delete
+                            </button>
+                          </PermissionGuard>
                         </div>
                       </td>
                     </tr>

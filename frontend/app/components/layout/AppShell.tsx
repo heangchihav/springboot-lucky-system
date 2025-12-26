@@ -43,19 +43,66 @@ export function AppShell({ children }: AppShellProps) {
   const pathname = usePathname();
   const router = useRouter();
   const { locale, dictionary, t } = useCurrentLocale();
-  const { user, logout, isAuthenticated, getAccessibleServices } = useAuth();
+  const { user, logout, isAuthenticated, isLoading, getAccessibleServices, hasPermission } = useAuth();
   
-  // Filter menu sections based on user's service access
+  const [permittedItems, setPermittedItems] = useState<Set<string>>(new Set());
+
+  // Filter menu sections based on user's service access and permissions
   const accessibleSections = useMemo(() => {
     if (!isAuthenticated || !user) {
-      return MENU_SECTIONS; // Show all sections if not authenticated (for login page)
+      return [];
     }
     
     const accessibleServiceIds = getAccessibleServices();
-    return MENU_SECTIONS.filter(section => 
-      accessibleServiceIds.includes(section.id)
-    );
-  }, [isAuthenticated, user, getAccessibleServices]);
+    return MENU_SECTIONS
+      .filter(section => accessibleServiceIds.includes(section.id))
+      .map(section => ({
+        ...section,
+        items: section.items.filter(item => 
+          !item.requiredPermission || permittedItems.has(item.id)
+        ),
+      }))
+      .filter(section => section.items.length > 0);
+  }, [isAuthenticated, user, getAccessibleServices, permittedItems]);
+
+  useEffect(() => {
+    const runPermissionChecks = async () => {
+      if (!isAuthenticated || !user) {
+        setPermittedItems(new Set());
+        return;
+      }
+
+      // Root user sees all items
+      if (user.username === "root") {
+        const allItemIds = new Set(
+          MENU_SECTIONS.flatMap(section => section.items.map(item => item.id))
+        );
+        setPermittedItems(allItemIds);
+        return;
+      }
+
+      const permissionsToCheck: Record<string, string> = {};
+      MENU_SECTIONS.forEach(section => {
+        section.items.forEach(item => {
+          if (item.requiredPermission) {
+            permissionsToCheck[item.id] = item.requiredPermission;
+          }
+        });
+      });
+
+      const entries = Object.entries(permissionsToCheck);
+      const results = await Promise.all(
+        entries.map(async ([itemId, permissionCode]) => {
+          const allowed = await hasPermission(permissionCode);
+          return allowed ? itemId : null;
+        })
+      );
+
+      setPermittedItems(new Set(results.filter((id): id is string => Boolean(id))));
+    };
+
+    runPermissionChecks();
+  }, [isAuthenticated, user, hasPermission]);
   
   const resolvedItems = useMemo(
     () =>
@@ -112,6 +159,32 @@ export function AppShell({ children }: AppShellProps) {
     () => accessibleSections.find((section) => section.id === activeSectionId),
     [activeSectionId, accessibleSections]
   );
+
+  useEffect(() => {
+    if (!isLoading && (!isAuthenticated || !user) && pathname !== "/auth/login") {
+      router.replace("/auth/login");
+    }
+  }, [isLoading, isAuthenticated, user, pathname, router]);
+
+  if (isLoading) {
+    return (
+      <main className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center">
+        <span className="text-sm text-slate-400 animate-pulse">Loading session…</span>
+      </main>
+    );
+  }
+
+  if (!isAuthenticated || !user) {
+    if (pathname !== "/auth/login") {
+      return null;
+    }
+
+    return (
+      <main className="min-h-screen bg-slate-950 text-slate-100">
+        {children}
+      </main>
+    );
+  }
 
   return (
     <div className="flex min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-slate-100">

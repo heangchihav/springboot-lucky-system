@@ -6,6 +6,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.client.RestTemplate;
 
 import java.util.Map;
 
@@ -15,6 +16,11 @@ public class BaseController {
     
     @Autowired
     protected PermissionCheckService permissionCheckService;
+    
+    @Autowired
+    protected RestTemplate restTemplate;
+    
+    protected String userServiceUrl = "http://localhost:8081";
     
     protected Long getCurrentUserId(HttpServletRequest request) {
         try {
@@ -38,6 +44,12 @@ public class BaseController {
                 return ResponseEntity.status(401).body(null);
             }
             
+            // Root users bypass all permission checks
+            if (isRootUser(userId)) {
+                logger.debug("Root user {} bypassing permission check for {}", userId, permissionCode);
+                return null; // Permission check passed
+            }
+            
             if (!permissionCheckService.hasPermission(userId, permissionCode)) {
                 return ResponseEntity.status(403).body(null);
             }
@@ -45,6 +57,17 @@ public class BaseController {
             return null; // Permission check passed
         } catch (Exception e) {
             return ResponseEntity.status(500).body(null);
+        }
+    }
+    
+    private boolean isRootUser(Long userId) {
+        try {
+            String url = userServiceUrl + "/api/users/" + userId + "/username";
+            String username = restTemplate.getForObject(url, String.class);
+            return "root".equals(username);
+        } catch (Exception e) {
+            logger.error("Error checking if user {} is root: {}", userId, e.getMessage());
+            return false;
         }
     }
     

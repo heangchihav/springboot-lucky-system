@@ -29,10 +29,12 @@ export default function ManageUserPage() {
     phone: ''
   })
 
-  const filteredUsers = users.filter(user =>
-    user.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.username.toLowerCase().includes(searchTerm.toLowerCase())
-  )
+  const normalizedSearch = searchTerm.toLowerCase()
+  const filteredUsers = users.filter(user => {
+    const fullName = (user.fullName ?? '').toLowerCase()
+    const username = (user.username ?? '').toLowerCase()
+    return fullName.includes(normalizedSearch) || username.includes(normalizedSearch)
+  })
 
   // Fetch users on component mount
   useEffect(() => {

@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Map;
+import java.util.ArrayList;
 import java.util.stream.Collectors;
 
 @RestController
@@ -23,6 +24,52 @@ public class PermissionController {
     }
     
     // Permission management endpoints
+    
+    @PostMapping("/initialize")
+    public ResponseEntity<List<PermissionResponse>> initializeCallServicePermissions() {
+        List<Permission> createdPermissions = new ArrayList<>();
+        
+        // Reports and Statuses permissions (menu.3.view is the key one for reports/statuses)
+        createdPermissions.add(permissionService.createPermission("menu.3.view", "View Reports & Statuses", "Can view call reports and statuses", "Reports", "3"));
+        createdPermissions.add(permissionService.createPermission("menu.3.create", "Create Reports", "Can create new call reports", "Reports", "3"));
+        createdPermissions.add(permissionService.createPermission("menu.3.edit", "Edit Reports", "Can edit existing call reports", "Reports", "3"));
+        createdPermissions.add(permissionService.createPermission("menu.3.delete", "Delete Reports", "Can delete call reports", "Reports", "3"));
+        
+        // Areas management
+        createdPermissions.add(permissionService.createPermission("2.1.view-areas", "View Areas & Branches", "Can view areas and branches", "Areas", "2.1"));
+        createdPermissions.add(permissionService.createPermission("2.1.edit-areas", "Edit Areas", "Can edit existing areas", "Areas", "2.1"));
+        createdPermissions.add(permissionService.createPermission("2.1.edit-branches", "Edit Branches", "Can edit existing branches", "Areas", "2.1"));
+        
+        // Call management
+        createdPermissions.add(permissionService.createPermission("menu.1.view", "View Calls", "Can view call list", "Calls", "1"));
+        createdPermissions.add(permissionService.createPermission("menu.1.create", "Create Calls", "Can create new calls", "Calls", "1"));
+        createdPermissions.add(permissionService.createPermission("menu.1.edit", "Edit Calls", "Can edit existing calls", "Calls", "1"));
+        createdPermissions.add(permissionService.createPermission("menu.1.delete", "Delete Calls", "Can delete calls", "Calls", "1"));
+        
+        // User management for call-service
+        createdPermissions.add(permissionService.createPermission("menu.users.view", "View Users", "Can view users in call-service", "Users", "users"));
+        createdPermissions.add(permissionService.createPermission("menu.users.assign", "Assign Users", "Can assign users to branches/roles", "Users", "users"));
+        
+        // Permission management
+        createdPermissions.add(permissionService.createPermission("menu.permissions.view", "View Permissions", "Can view permissions", "Permissions", "permissions"));
+        createdPermissions.add(permissionService.createPermission("menu.permissions.manage", "Manage Permissions", "Can manage user permissions", "Permissions", "permissions"));
+        
+        List<PermissionResponse> response = createdPermissions.stream()
+            .map(p -> new PermissionResponse(
+                p.getId(),
+                p.getCode(),
+                p.getName(),
+                p.getDescription(),
+                p.getActive(),
+                p.getCreatedAt(),
+                p.getUpdatedAt(),
+                p.getMenuGroup(),
+                p.getMenuNumber()
+            ))
+            .collect(Collectors.toList());
+            
+        return ResponseEntity.ok(response);
+    }
     
     @GetMapping
     public ResponseEntity<List<PermissionResponse>> getAllPermissions() {
@@ -67,12 +114,14 @@ public class PermissionController {
         String code = request.get("code");
         String name = request.get("name");
         String description = request.get("description");
+        String menuGroup = request.get("menuGroup");
+        String menuNumber = request.get("menuNumber");
         
         if (code == null || name == null || description == null) {
             throw new IllegalArgumentException("code, name, and description are required");
         }
         
-        Permission permission = permissionService.createPermission(code, name, description);
+        Permission permission = permissionService.createPermission(code, name, description, menuGroup, menuNumber);
         
         PermissionResponse response = new PermissionResponse(
             permission.getId(),

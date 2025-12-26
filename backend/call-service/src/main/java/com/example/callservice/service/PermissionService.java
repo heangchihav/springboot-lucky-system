@@ -2,6 +2,7 @@ package com.example.callservice.service;
 
 import com.example.callservice.entity.Permission;
 import com.example.callservice.entity.UserPermission;
+import com.example.callservice.entity.Role;
 import com.example.callservice.repository.PermissionRepository;
 import com.example.callservice.repository.UserPermissionRepository;
 import org.slf4j.Logger;
@@ -20,10 +21,17 @@ public class PermissionService {
     
     private final PermissionRepository permissionRepository;
     private final UserPermissionRepository userPermissionRepository;
+    private final RoleAssignmentService roleAssignmentService;
+    private final RoleService roleService;
     
-    public PermissionService(PermissionRepository permissionRepository, UserPermissionRepository userPermissionRepository) {
+    public PermissionService(PermissionRepository permissionRepository, 
+                           UserPermissionRepository userPermissionRepository,
+                           RoleAssignmentService roleAssignmentService,
+                           RoleService roleService) {
         this.permissionRepository = permissionRepository;
         this.userPermissionRepository = userPermissionRepository;
+        this.roleAssignmentService = roleAssignmentService;
+        this.roleService = roleService;
     }
     
     // Permission management
@@ -40,11 +48,17 @@ public class PermissionService {
     }
     
     public Permission createPermission(String code, String name, String description) {
+        return createPermission(code, name, description, null, null);
+    }
+    
+    public Permission createPermission(String code, String name, String description, String menuGroup, String menuNumber) {
         if (permissionRepository.existsByCode(code)) {
             throw new IllegalArgumentException("Permission with code " + code + " already exists");
         }
         
         Permission permission = new Permission(code, name, description);
+        permission.setMenuGroup(menuGroup);
+        permission.setMenuNumber(menuNumber);
         Permission saved = permissionRepository.save(permission);
         logger.info("Created permission: {}", saved.getCode());
         return saved;
@@ -76,8 +90,16 @@ public class PermissionService {
     }
     
     public boolean hasUserPermission(Long userId, String permissionCode) {
+        // Check direct user permissions first
         List<String> userPermissionCodes = userPermissionRepository.findPermissionCodesByUserId(userId);
-        return userPermissionCodes.contains(permissionCode);
+        if (userPermissionCodes.contains(permissionCode)) {
+            return true;
+        }
+        
+        // Check role-based permissions using in-memory assignments
+        List<Role> allRoles = roleService.getAllRoles();
+        List<String> rolePermissionCodes = roleAssignmentService.getPermissionCodesForUserThroughRoles(userId, allRoles);
+        return rolePermissionCodes.contains(permissionCode);
     }
     
     public UserPermission assignPermissionToUser(Long userId, Long permissionId, String assignedBy) {

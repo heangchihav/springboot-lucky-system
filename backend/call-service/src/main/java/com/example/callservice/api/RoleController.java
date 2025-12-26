@@ -7,6 +7,9 @@ import com.example.callservice.dto.UpdateRoleRequest;
 import com.example.callservice.dto.UserResponse;
 import com.example.callservice.entity.Role;
 import com.example.callservice.service.RoleService;
+import com.example.callservice.annotation.RequirePermission;
+import com.example.callservice.api.BaseController;
+import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
@@ -15,26 +18,31 @@ import org.springframework.web.bind.annotation.*;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
+
+import com.example.callservice.service.RoleService;
+import com.example.callservice.service.RoleAssignmentService;
 
 @RestController
 @RequestMapping("/api/calls/roles")
-public class RoleController {
+public class RoleController extends BaseController {
     
     private static final Logger logger = LoggerFactory.getLogger(RoleController.class);
     
     private final RoleService roleService;
+    private final RoleAssignmentService roleAssignmentService;
     
-    // Simple in-memory storage for user-role assignments (for demo purposes)
-    private static final Map<Long, List<Long>> roleUserAssignments = new ConcurrentHashMap<>();
-    
-    public RoleController(RoleService roleService) {
+    public RoleController(RoleService roleService, RoleAssignmentService roleAssignmentService) {
         this.roleService = roleService;
+        this.roleAssignmentService = roleAssignmentService;
     }
     
     @GetMapping
-    public ResponseEntity<List<RoleResponse>> getAllRoles() {
+    public ResponseEntity<List<RoleResponse>> getAllRoles(HttpServletRequest request) {
+        ResponseEntity<List<RoleResponse>> permissionCheck = checkPermissionAndReturn(request, "menu.5.view");
+        if (permissionCheck != null) {
+            return permissionCheck;
+        }
         List<Role> roles = roleService.getAllRoles();
         List<RoleResponse> response = roles.stream()
             .map(role -> new RoleResponse(
@@ -64,7 +72,11 @@ public class RoleController {
     }
     
     @GetMapping("/{id}")
-    public ResponseEntity<RoleResponse> getRoleById(@PathVariable Long id) {
+    public ResponseEntity<RoleResponse> getRoleById(@PathVariable Long id, HttpServletRequest request) {
+        ResponseEntity<RoleResponse> permissionCheck = checkPermissionAndReturn(request, "menu.5.view");
+        if (permissionCheck != null) {
+            return permissionCheck;
+        }
         Role role = roleService.getRoleById(id)
             .orElseThrow(() -> new IllegalArgumentException("Role not found with id: " + id));
         
@@ -94,10 +106,15 @@ public class RoleController {
     }
     
     @PostMapping
-    public ResponseEntity<RoleResponse> createRole(@RequestBody CreateRoleRequest request) {
-        logger.info("Creating new role: {}", request.getName());
+    @RequirePermission("menu.5.manage")
+    public ResponseEntity<RoleResponse> createRole(@RequestBody CreateRoleRequest roleRequest, HttpServletRequest httpRequest) {
+        ResponseEntity<RoleResponse> permissionCheck = checkPermissionAndReturn(httpRequest, "menu.5.manage");
+        if (permissionCheck != null) {
+            return permissionCheck;
+        }
+        logger.info("Creating new role: {}", roleRequest.getName());
         
-        Role role = roleService.createRole(request);
+        Role role = roleService.createRole(roleRequest);
         
         RoleResponse response = new RoleResponse(
             role.getId(),
@@ -125,10 +142,15 @@ public class RoleController {
     }
     
     @PutMapping("/{id}")
-    public ResponseEntity<RoleResponse> updateRole(@PathVariable Long id, @RequestBody UpdateRoleRequest request) {
-        logger.info("Updating role {}: {}", id, request.getName());
+    @RequirePermission("menu.5.manage")
+    public ResponseEntity<RoleResponse> updateRole(@PathVariable Long id, @RequestBody UpdateRoleRequest roleRequest, HttpServletRequest httpRequest) {
+        ResponseEntity<RoleResponse> permissionCheck = checkPermissionAndReturn(httpRequest, "menu.5.manage");
+        if (permissionCheck != null) {
+            return permissionCheck;
+        }
+        logger.info("Updating role {}: {}", id, roleRequest.getName());
         
-        Role role = roleService.updateRole(id, request);
+        Role role = roleService.updateRole(id, roleRequest);
         
         RoleResponse response = new RoleResponse(
             role.getId(),
@@ -156,7 +178,12 @@ public class RoleController {
     }
     
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteRole(@PathVariable Long id) {
+    @RequirePermission("menu.5.manage")
+    public ResponseEntity<Void> deleteRole(@PathVariable Long id, HttpServletRequest request) {
+        ResponseEntity<Void> permissionCheck = checkPermissionAndReturn(request, "menu.5.manage");
+        if (permissionCheck != null) {
+            return permissionCheck;
+        }
         logger.info("Deleting role with id: {}", id);
         
         if (!roleService.existsById(id)) {
@@ -168,9 +195,16 @@ public class RoleController {
     }
     
     @PostMapping("/{roleId}/assign-users")
+    @RequirePermission("menu.5.assign")
     public ResponseEntity<Void> assignUsersToRole(
             @PathVariable Long roleId, 
-            @RequestBody Map<String, List<Long>> request) {
+            @RequestBody Map<String, List<Long>> request,
+            HttpServletRequest httpRequest) {
+        
+        ResponseEntity<Void> permissionCheck = checkPermissionAndReturn(httpRequest, "menu.5.assign");
+        if (permissionCheck != null) {
+            return permissionCheck;
+        }
         
         List<Long> userIds = request.get("userIds");
         if (userIds == null || userIds.isEmpty()) {
@@ -183,13 +217,9 @@ public class RoleController {
             throw new IllegalArgumentException("Role not found with id: " + roleId);
         }
         
-        // Store the user-role assignments in memory (prevent duplicates)
-        List<Long> currentAssignments = roleUserAssignments.computeIfAbsent(roleId, k -> new ArrayList<>());
-        List<Long> newAssignments = userIds.stream()
-            .filter(userId -> !currentAssignments.contains(userId))
-            .collect(Collectors.toList());
-        currentAssignments.addAll(newAssignments);
-        logger.info("Users assigned to role {}: {} (new: {})", roleId, currentAssignments, newAssignments);
+        // Store the user-role assignments using the service
+        roleAssignmentService.assignUsersToRole(roleId, userIds);
+        logger.info("Users assigned to role {}: {}", roleId, userIds);
         
         return ResponseEntity.ok().build();
     }
@@ -203,7 +233,7 @@ public class RoleController {
         }
         
         // Return the actual stored user assignments with real user data
-        List<Long> assignedUserIds = roleUserAssignments.getOrDefault(roleId, new ArrayList<>());
+        List<Long> assignedUserIds = roleAssignmentService.getUsersInRole(roleId);
         List<UserResponse> users = new ArrayList<>();
         
         // For now, create mock responses that match the real user structure
@@ -232,14 +262,9 @@ public class RoleController {
             throw new IllegalArgumentException("Role not found with id: " + roleId);
         }
         
-        // Remove users from the role assignment
-        List<Long> currentAssignments = roleUserAssignments.getOrDefault(roleId, new ArrayList<>());
-        List<Long> removedUsers = userIds.stream()
-            .filter(currentAssignments::contains)
-            .collect(Collectors.toList());
-        currentAssignments.removeAll(removedUsers);
-        
-        logger.info("Users removed from role {}: {} (removed: {})", roleId, currentAssignments, removedUsers);
+        // Remove users from the role assignment using the service
+        roleAssignmentService.removeUsersFromRole(roleId, userIds);
+        logger.info("Users removed from role {}: {}", roleId, userIds);
         
         return ResponseEntity.ok().build();
     }

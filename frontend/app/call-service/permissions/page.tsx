@@ -1,9 +1,10 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import { Shield, Users, Plus, Edit2, Trash2, Check, X, UserPlus, Settings, ChevronDown, ChevronRight } from 'lucide-react'
 import { permissionsService, Permission, Role, PermissionGroup, CreateRoleRequest, UpdateRoleRequest } from '../../services/permissionsService'
 import { userService, User } from '../../services/userService'
+import { PermissionGuard } from '../../components/PermissionGuard'
+import { Plus, Trash2, Edit, Users, Shield, Check, X, UserPlus, UserMinus, ChevronDown, ChevronRight } from 'lucide-react'
 
 export default function PermissionsPage() {
   const [roles, setRoles] = useState<Role[]>([])
@@ -248,44 +249,63 @@ export default function PermissionsPage() {
   }
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
-          <Shield className="h-8 w-8 text-blue-600" />
-          Permissions Management
-        </h1>
-        <p className="text-gray-600 mt-2">
-          Manage roles, permissions, and user access control for the call service
-        </p>
-      </div>
+    <>
+      <div className="min-h-screen px-4 py-8 relative overflow-hidden">
+        {/* Animated Background Gradients */}
+        <div className="fixed inset-0 -z-10">
+          <div className="absolute top-0 -left-4 w-96 h-96 bg-orange-600 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
+          <div className="absolute top-0 -right-4 w-96 h-96 bg-blue-700 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
+          <div className="absolute -bottom-8 left-20 w-96 h-96 bg-orange-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000"></div>
+        </div>
 
-      {/* Roles & Permissions Content */}
-      <div>
-          {/* Role List */}
-          <div className="bg-white shadow rounded-lg">
-            <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
-              <h2 className="text-lg font-medium text-gray-900">Roles</h2>
-              <button
-                onClick={() => openRoleForm()}
-                className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 flex items-center gap-2"
-              >
-                <Plus className="h-4 w-4" />
-                Create Role
-              </button>
+        <div className="mx-auto max-w-6xl flex flex-col gap-8 relative z-10">
+          {/* Header */}
+          <div className="flex items-center gap-2 mb-5">
+            <div className="w-1 h-6 bg-linear-to-b from-orange-500 to-orange-600 rounded-full"></div>
+            <h1 className="text-2xl font-bold bg-linear-to-r from-orange-400 to-orange-600 bg-clip-text text-transparent">
+              Permissions Management
+            </h1>
+          </div>
+          <p className="text-slate-300">
+            Manage roles and permissions for the call service system.
+          </p>
+
+          {/* Roles Section */}
+          <section className="glass-card animate-fade-in-up">
+            <div className="flex justify-between items-center">
+              <h2 className="text-xl font-semibold text-white">Roles</h2>
+              <PermissionGuard permission="menu.5.manage" fallback={
+                <button
+                  disabled
+                  className="glass-button px-4 py-2 text-sm font-semibold bg-gray-600 text-gray-400 cursor-not-allowed flex items-center gap-2"
+                  title="You don't have permission to manage roles"
+                >
+                  <Plus className="h-4 w-4" />
+                  Create Role (No Permission)
+                </button>
+              }>
+                <button
+                  onClick={() => openRoleForm()}
+                  className="glass-button px-4 py-2 text-sm font-semibold bg-linear-to-r from-orange-500 to-orange-600 text-white hover:shadow-glow flex items-center gap-2"
+                >
+                  <Plus className="h-4 w-4" />
+                  Create Role
+                </button>
+              </PermissionGuard>
             </div>
-            <div className="divide-y divide-gray-200">
+            <div className="space-y-4">
               {roles.map((role) => (
-                <div key={role.id} className="p-6">
+                <div key={role.id} className="glass-card-inner">
                   <div className="flex justify-between items-start">
                     <div className="flex-1">
-                      <h3 className="text-lg font-medium text-gray-900">{role.name}</h3>
-                      <p className="text-sm text-gray-600 mt-1">{role.description}</p>
+                      <h3 className="text-lg font-semibold text-white">{role.name}</h3>
+                      <p className="text-sm text-slate-300 mt-1">{role.description}</p>
                       
                       {/* Display assigned users */}
                       <div className="mt-3">
                         <div className="flex items-center gap-2 mb-2">
-                          <Users className="h-4 w-4 text-gray-500" />
-                          <span className="text-sm font-medium text-gray-700">
+                          <Users className="h-4 w-4 text-slate-400" />
+                          <span className="text-sm font-medium text-slate-300">
                             Assigned Users ({roleUsers.get(role.id)?.length || 0})
                           </span>
                         </div>
@@ -294,151 +314,186 @@ export default function PermissionsPage() {
                             {roleUsers.get(role.id)!.map((user) => (
                               <span
                                 key={user.id}
-                                className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-gray-100 text-gray-800"
+                                className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-slate-700/50 text-slate-300 border border-slate-600"
                               >
                                 {user.fullName}
                               </span>
                             ))}
                           </div>
                         ) : (
-                          <p className="text-xs text-gray-500 italic">No users assigned to this role</p>
+                          <p className="text-xs text-slate-500 italic">No users assigned to this role</p>
                         )}
                       </div>
-                      
-                      <div className="flex items-center gap-2 mt-3">
+                    </div>
+                    
+                    <div className="flex items-center gap-2">
+                      <PermissionGuard permission="menu.5.assign" fallback={
+                        <button
+                          disabled
+                          className="table-action-button bg-gray-600 text-gray-400 cursor-not-allowed"
+                          title="You don't have permission to assign users"
+                        >
+                          <UserPlus className="h-4 w-4" />
+                        </button>
+                      }>
                         <button
                           onClick={() => openUserAssignment(role)}
-                          className="text-green-600 hover:text-green-900 p-1"
+                          className="table-action-button bg-linear-to-r from-green-600 to-green-800 text-white hover:shadow-glow"
                           title="Assign Users"
                         >
                           <UserPlus className="h-4 w-4" />
                         </button>
+                      </PermissionGuard>
+                      <PermissionGuard permission="menu.5.manage" fallback={
+                        <button
+                          disabled
+                          className="table-action-button bg-gray-600 text-gray-400 cursor-not-allowed"
+                          title="You don't have permission to edit roles"
+                        >
+                          <Edit className="h-4 w-4" />
+                        </button>
+                      }>
                         <button
                           onClick={() => openRoleForm(role)}
-                          className="text-blue-600 hover:text-blue-900 p-1"
+                          className="table-action-button bg-linear-to-r from-blue-600 to-blue-800 text-white hover:shadow-glow-blue"
                           title="Edit Role"
                         >
-                          <Edit2 className="h-4 w-4" />
+                          <Edit className="h-4 w-4" />
                         </button>
+                      </PermissionGuard>
+                      <PermissionGuard permission="menu.5.manage" fallback={
+                        <button
+                          disabled
+                          className="table-action-button bg-gray-600 text-gray-400 cursor-not-allowed"
+                          title="You don't have permission to delete roles"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      }>
                         <button
                           onClick={() => handleDeleteRole(role.id)}
-                          className="text-red-600 hover:text-red-900 p-1"
+                          className="table-action-button bg-linear-to-r from-red-600 to-red-800 text-white hover:shadow-glow-red"
                           title="Delete Role"
                         >
                           <Trash2 className="h-4 w-4" />
                         </button>
-                      </div>
+                      </PermissionGuard>
                     </div>
                   </div>
                 </div>
               ))}
             </div>
-          </div>
+          </section>
+
         </div>
+      </div>
 
       {/* Role Form Modal */}
       {showRoleForm && (
-        <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-medium text-gray-900">
-                {editingRole ? 'Edit Role' : 'Create New Role'}
-              </h3>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in">
+          <div 
+            className="absolute inset-0 bg-black/60 backdrop-blur-md"
+            onClick={resetRoleForm}
+          ></div>
+          <div className="popup-card w-full max-w-2xl animate-scale-in">
+            <div className="flex items-start justify-between mb-5">
+              <div>
+                <h3 className="text-xl font-bold bg-linear-to-r from-orange-400 to-orange-600 bg-clip-text text-transparent">
+                  {editingRole ? 'Edit Role' : 'Create New Role'}
+                </h3>
+              </div>
               <button
                 onClick={resetRoleForm}
-                className="text-gray-400 hover:text-gray-500"
+                className="menu-button hover:rotate-90"
               >
-                <X className="h-5 w-5" />
+                <X className="h-4 w-4" />
               </button>
             </div>
 
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-slate-300 mb-1">
                   Role Name
                 </label>
                 <input
                   type="text"
                   value={roleForm.name}
                   onChange={(e) => setRoleForm({ ...roleForm, name: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="e.g., Normal Staff"
+                  className="glass-input w-full"
+                  placeholder="Enter role name"
                 />
               </div>
-
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-slate-300 mb-1">
                   Description
                 </label>
                 <textarea
                   value={roleForm.description}
                   onChange={(e) => setRoleForm({ ...roleForm, description: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="glass-input w-full"
                   rows={3}
-                  placeholder="Describe the role's purpose and responsibilities"
+                  placeholder="Enter role description"
                 />
               </div>
+            </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Permissions
-                </label>
-                <div className="space-y-3 max-h-60 overflow-y-auto border border-gray-200 rounded-md p-3">
-                  {permissionGroups.map((group) => (
-                    <div key={group.id} className="border border-gray-100 rounded-md">
-                      <div
-                        className="flex items-center space-x-2 p-2 bg-gray-50 cursor-pointer hover:bg-gray-100 rounded-t-md"
-                        onClick={() => toggleGroupExpansion(group.id)}
-                      >
+            <div className="mt-6">
+              <h4 className="text-lg font-semibold text-white mb-4">Permissions</h4>
+              <div className="space-y-3 max-h-60 overflow-y-auto">
+                {permissionGroups.map((group) => (
+                  <div key={group.id} className="glass-card-inner">
+                    <div 
+                      className="flex items-center justify-between cursor-pointer"
+                      onClick={() => toggleGroupExpansion(group.id)}
+                    >
+                      <div className="flex items-center gap-2">
                         {expandedGroups.has(group.id) ? (
-                          <ChevronDown className="h-4 w-4 text-gray-500" />
+                          <ChevronDown className="h-4 w-4 text-slate-400" />
                         ) : (
-                          <ChevronRight className="h-4 w-4 text-gray-500" />
+                          <ChevronRight className="h-4 w-4 text-slate-400" />
                         )}
-                        <span className="text-sm font-medium text-gray-700">
-                          {group.menuNumber}. {group.name}
-                        </span>
-                        <span className="text-xs text-gray-500">({group.permissions.length} permissions)</span>
+                        <span className="font-medium text-white">{group.name}</span>
                       </div>
-                      {expandedGroups.has(group.id) && (
-                        <div className="p-2 space-y-1">
-                          {group.permissions.map((permission) => (
-                            <label
-                              key={permission.code}
-                              className="flex items-center space-x-3 cursor-pointer hover:bg-gray-50 p-2 rounded"
-                            >
-                              <input
-                                type="checkbox"
-                                checked={selectedPermissions.includes(permission.code)}
-                                onChange={() => togglePermission(permission.code)}
-                                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                              />
-                              <div className="flex-1">
-                                <div className="text-sm font-medium text-gray-900">
-                                  {permission.menuNumber} {permission.name}
-                                </div>
-                                <div className="text-xs text-gray-500">{permission.description}</div>
-                              </div>
-                            </label>
-                          ))}
-                        </div>
-                      )}
+                      <span className="text-xs text-slate-400">({group.permissions.length} permissions)</span>
                     </div>
-                  ))}
-                </div>
+                    {expandedGroups.has(group.id) && (
+                      <div className="mt-2 space-y-1">
+                        {group.permissions.map((permission) => (
+                          <label
+                            key={permission.code}
+                            className="flex items-center space-x-3 cursor-pointer hover:bg-white/5 p-2 rounded"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={selectedPermissions.includes(permission.code)}
+                              onChange={() => togglePermission(permission.code)}
+                              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-slate-600 rounded bg-slate-700"
+                            />
+                            <div className="flex-1">
+                              <div className="text-sm font-medium text-white">
+                                {permission.menuNumber} {permission.name}
+                              </div>
+                              <div className="text-xs text-slate-400">{permission.description}</div>
+                            </div>
+                          </label>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
               </div>
             </div>
 
             <div className="mt-6 flex justify-end gap-3">
               <button
                 onClick={resetRoleForm}
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md"
+                className="glass-button-secondary px-4 py-2 text-sm font-semibold text-slate-300 hover:text-white"
               >
                 Cancel
               </button>
               <button
                 onClick={editingRole ? handleUpdateRole : handleCreateRole}
-                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md"
+                className="glass-button px-4 py-2 text-sm font-semibold bg-linear-to-r from-blue-600 to-blue-800 text-white hover:shadow-glow"
               >
                 {editingRole ? 'Update Role' : 'Create Role'}
               </button>
@@ -449,35 +504,41 @@ export default function PermissionsPage() {
 
       {/* User Assignment Modal */}
       {showUserAssignment && selectedRole && (
-        <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-medium text-gray-900">
-                Assign Users to {selectedRole.name}
-              </h3>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in">
+          <div 
+            className="absolute inset-0 bg-black/60 backdrop-blur-md"
+            onClick={() => setShowUserAssignment(false)}
+          ></div>
+          <div className="popup-card w-full max-w-2xl animate-scale-in">
+            <div className="flex items-start justify-between mb-5">
+              <div>
+                <h3 className="text-xl font-bold bg-linear-to-r from-orange-400 to-orange-600 bg-clip-text text-transparent">
+                  Assign Users to {selectedRole.name}
+                </h3>
+              </div>
               <button
                 onClick={() => setShowUserAssignment(false)}
-                className="text-gray-400 hover:text-gray-500"
+                className="menu-button hover:rotate-90"
               >
-                <X className="h-5 w-5" />
+                <X className="h-4 w-4" />
               </button>
             </div>
 
-            <div className="space-y-2 max-h-60 overflow-y-auto border border-gray-200 rounded-md p-3">
+            <div className="space-y-2 max-h-60 overflow-y-auto glass-card-inner">
               {availableUsers.map((user) => (
                 <label
                   key={user.id}
-                  className="flex items-center space-x-3 cursor-pointer hover:bg-gray-50 p-2 rounded"
+                  className="flex items-center space-x-3 cursor-pointer hover:bg-white/5 p-2 rounded"
                 >
                   <input
                     type="checkbox"
                     checked={selectedUsers.includes(user.id)}
                     onChange={() => toggleUserSelection(user.id)}
-                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-slate-600 rounded bg-slate-700"
                   />
                   <div className="flex-1">
-                    <div className="text-sm font-medium text-gray-900">{user.fullName}</div>
-                    <div className="text-xs text-gray-500">@{user.username}{user.phone && ` • ${user.phone}`}</div>
+                    <div className="text-sm font-medium text-white">{user.fullName}</div>
+                    <div className="text-xs text-slate-400">@{user.username}{user.phone && ` • ${user.phone}`}</div>
                   </div>
                 </label>
               ))}
@@ -486,14 +547,14 @@ export default function PermissionsPage() {
             <div className="mt-6 flex justify-end gap-3">
               <button
                 onClick={() => setShowUserAssignment(false)}
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md"
+                className="glass-button-secondary px-4 py-2 text-sm font-semibold text-slate-300 hover:text-white"
               >
                 Cancel
               </button>
               <button
                 onClick={handleAssignUsers}
                 disabled={selectedUsers.length === 0}
-                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
+                className="glass-button px-4 py-2 text-sm font-semibold bg-linear-to-r from-blue-600 to-blue-800 text-white hover:shadow-glow disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Assign {selectedUsers.length} User{selectedUsers.length !== 1 ? 's' : ''}
               </button>
@@ -501,6 +562,177 @@ export default function PermissionsPage() {
           </div>
         </div>
       )}
-    </div>
+      
+      <style jsx global>{`
+        @keyframes blob {
+          0%, 100% { transform: translate(0, 0) scale(1); }
+          33% { transform: translate(30px, -50px) scale(1.1); }
+          66% { transform: translate(-20px, 20px) scale(0.9); }
+        }
+
+        @keyframes fade-in {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+
+        @keyframes fade-in-up {
+          from {
+            opacity: 0;
+            transform: translateY(20px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+
+        @keyframes scale-in {
+          from {
+            opacity: 0;
+            transform: scale(0.9);
+          }
+          to {
+            opacity: 1;
+            transform: scale(1);
+          }
+        }
+
+        .animate-blob {
+          animation: blob 7s infinite;
+        }
+
+        .animation-delay-2000 {
+          animation-delay: 2s;
+        }
+
+        .animation-delay-4000 {
+          animation-delay: 4s;
+        }
+
+        .animate-fade-in {
+          animation: fade-in 0.3s ease-out;
+        }
+
+        .animate-fade-in-up {
+          animation: fade-in-up 0.6s ease-out;
+        }
+
+        .animate-scale-in {
+          animation: scale-in 0.3s ease-out;
+        }
+
+        .glass-card {
+          background: rgba(15, 23, 42, 0.6);
+          backdrop-filter: blur(20px);
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          border-radius: 24px;
+          padding: 2rem;
+          box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3),
+                      inset 0 1px 0 rgba(255, 255, 255, 0.1);
+        }
+
+        .glass-card-inner {
+          background: rgba(15, 23, 42, 0.4);
+          backdrop-filter: blur(10px);
+          border: 1px solid rgba(255, 255, 255, 0.05);
+          border-radius: 20px;
+          padding: 1.5rem;
+        }
+
+        .glass-input {
+          background: rgba(15, 23, 42, 0.5);
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          border-radius: 12px;
+          padding: 0.75rem 1rem;
+          color: white;
+          transition: all 0.3s ease;
+        }
+
+        .glass-input:focus {
+          outline: none;
+          border-color: rgba(249, 115, 22, 0.5);
+          box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.1);
+        }
+
+        .glass-input::placeholder {
+          color: rgba(255, 255, 255, 0.5);
+        }
+
+        .glass-button {
+          border-radius: 12px;
+          padding: 0.75rem 1.5rem;
+          font-weight: 600;
+          transition: all 0.3s ease;
+          border: none;
+          cursor: pointer;
+        }
+
+        .glass-button-secondary {
+          background: rgba(255, 255, 255, 0.1);
+          border: 1px solid rgba(255, 255, 255, 0.2);
+          border-radius: 12px;
+          padding: 0.75rem 1.5rem;
+          font-weight: 600;
+          transition: all 0.3s ease;
+          cursor: pointer;
+        }
+
+        .glass-button-secondary:hover {
+          background: rgba(255, 255, 255, 0.2);
+          border-color: rgba(255, 255, 255, 0.3);
+        }
+
+        .table-action-button {
+          border-radius: 8px;
+          padding: 0.5rem 1rem;
+          font-size: 0.75rem;
+          font-weight: 600;
+          transition: all 0.3s ease;
+          border: none;
+          cursor: pointer;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .shadow-glow {
+          box-shadow: 0 0 20px rgba(249, 115, 22, 0.3);
+        }
+
+        .shadow-glow-blue {
+          box-shadow: 0 0 20px rgba(59, 130, 246, 0.3);
+        }
+
+        .shadow-glow-red {
+          box-shadow: 0 0 20px rgba(239, 68, 68, 0.3);
+        }
+
+        .popup-card {
+          background: rgba(15, 23, 42, 0.95);
+          backdrop-filter: blur(20px);
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          border-radius: 24px;
+          padding: 2rem;
+          box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+          position: relative;
+          z-index: 10;
+        }
+
+        .menu-button {
+          background: rgba(255, 255, 255, 0.1);
+          border: 1px solid rgba(255, 255, 255, 0.2);
+          border-radius: 8px;
+          padding: 0.5rem;
+          color: white;
+          transition: all 0.3s ease;
+          cursor: pointer;
+        }
+
+        .menu-button:hover {
+          background: rgba(255, 255, 255, 0.2);
+          border-color: rgba(255, 255, 255, 0.3);
+        }
+      `}</style>
+    </>
   )
 }

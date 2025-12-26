@@ -15,12 +15,14 @@ public class PermissionCheckService {
     private static final Logger logger = LoggerFactory.getLogger(PermissionCheckService.class);
     
     private final RestTemplate restTemplate;
+    private final PermissionService permissionService;
     
     @Value("${user.service.url:http://localhost:8081}")
     private String userServiceUrl;
     
-    public PermissionCheckService(RestTemplate restTemplate) {
+    public PermissionCheckService(RestTemplate restTemplate, PermissionService permissionService) {
         this.restTemplate = restTemplate;
+        this.permissionService = permissionService;
     }
     
     public boolean hasPermission(Long userId, String permissionCode) {
@@ -30,17 +32,7 @@ public class PermissionCheckService {
                 logger.debug("User {} is root user, granting all permissions", userId);
                 return true;
             }
-            
-            String url = userServiceUrl + "/api/rbac/check-permission";
-            Map<String, Object> request = Map.of(
-                "userId", userId,
-                "permissionCode", permissionCode
-            );
-            
-            @SuppressWarnings("unchecked")
-            Map<String, Object> response = restTemplate.postForObject(url, request, Map.class);
-            boolean hasPermission = response != null && Boolean.TRUE.equals(response.get("hasPermission"));
-            
+            boolean hasPermission = permissionService.hasUserPermission(userId, permissionCode);
             logger.debug("Permission check for user {} permission {}: {}", userId, permissionCode, hasPermission);
             return hasPermission;
         } catch (Exception e) {
