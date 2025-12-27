@@ -30,8 +30,16 @@ public class UserController extends BaseController {
         if (permissionCheck != null) {
             return permissionCheck;
         }
-        logger.info("Fetching all users");
-        List<UserResponse> users = userService.getAllUsers();
+        
+        Long currentUserId = getCurrentUserId(request);
+        if (currentUserId == null) {
+            return ResponseEntity.status(401).build();
+        }
+        
+        boolean isRootUser = isRootUser(currentUserId);
+        logger.info("Fetching users for user {} (root: {})", currentUserId, isRootUser);
+        
+        List<UserResponse> users = userService.getUsersInSameBranch(currentUserId, isRootUser);
         return ResponseEntity.ok(users);
     }
     

@@ -80,7 +80,8 @@ class UserService {
 
   async getAllUsers(): Promise<User[]> {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/users`, {
+      // Use call-service endpoint which filters users by current user's branch
+      const response = await fetch(`${API_BASE_URL}/api/calls/users`, {
         headers: this.getAuthHeaders(),
         credentials: 'include'
       })
@@ -97,9 +98,30 @@ class UserService {
     }
   }
 
+  async getAllUsersFromUserService(): Promise<User[]> {
+    try {
+      // Use user-service endpoint for managing all users across services
+      const response = await fetch(`${API_BASE_URL}/api/users`, {
+        headers: this.getAuthHeaders(),
+        credentials: 'include'
+      })
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+
+      const users = await this.parseJsonResponse<any[]>(response, 'Received unexpected response while fetching all users from user-service')
+      return this.mapUsers(users)
+    } catch (error) {
+      console.error('Error fetching all users from user-service:', error)
+      throw error
+    }
+  }
+
   async getActiveUsers(): Promise<User[]> {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/users/active`, {
+      // Use call-service endpoint which filters users by current user's branch
+      const response = await fetch(`${API_BASE_URL}/api/calls/users`, {
         headers: this.getAuthHeaders(),
         credentials: 'include'
       })
@@ -109,7 +131,8 @@ class UserService {
       }
 
       const users = await this.parseJsonResponse<any[]>(response, 'Received unexpected response while fetching active users')
-      return this.mapUsers(users)
+      // Filter for active users since call-service doesn't have a separate active endpoint
+      return this.mapUsers(users.filter(user => user.active))
     } catch (error) {
       console.error('Error fetching active users:', error)
       throw error

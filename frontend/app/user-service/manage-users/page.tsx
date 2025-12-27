@@ -31,8 +31,8 @@ export default function ManageUserPage() {
   const [showPassword, setShowPassword] = useState(false)
 
   const filteredUsers = users.filter(user =>
-    user.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.username.toLowerCase().includes(searchTerm.toLowerCase())
+    (user.fullName?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+    (user.username?.toLowerCase() || '').includes(searchTerm.toLowerCase())
   )
 
   // Fetch users and services on component mount
@@ -54,7 +54,7 @@ export default function ManageUserPage() {
     try {
       setLoading(true)
       setError(null)
-      const usersData = await userService.getAllUsers()
+      const usersData = await userService.getAllUsersFromUserService()
       setUsers(usersData)
     } catch (err) {
       setError('Failed to fetch users. Please try again.')
