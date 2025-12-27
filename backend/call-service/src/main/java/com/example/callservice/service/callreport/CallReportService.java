@@ -1,16 +1,21 @@
 package com.example.callservice.service.callreport;
 
 import com.example.callservice.dto.callreport.CallReportRequest;
+import com.example.callservice.dto.callreport.CallReportSummaryResponse;
 import com.example.callservice.entity.callreport.CallReport;
 import com.example.callservice.entity.branch.Branch;
 import com.example.callservice.repository.callreport.CallReportRepository;
+import com.example.callservice.repository.callreport.CallReportSummaryProjection;
 import com.example.callservice.repository.branch.BranchRepository;
 import com.example.callservice.repository.userbranch.UserBranchRepository;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -66,6 +71,16 @@ public class CallReportService {
         return callReportRepository.findByBranch_IdInOrderByCreatedAtDesc(branchIds);
     }
 
+    public List<Long> findAccessibleBranchIdsForUser(Long userId) {
+        if (userId == null) {
+            return List.of();
+        }
+
+        return userBranchRepository.findActiveUserBranchesByUserId(userId).stream()
+            .map(userBranch -> userBranch.getBranch().getId())
+            .collect(Collectors.toList());
+    }
+
     public void deleteReport(Long id) {
         if (!callReportRepository.existsById(id)) {
             throw new RuntimeException("Report not found with id: " + id);
@@ -87,5 +102,69 @@ public class CallReportService {
         report.setEntries(new HashMap<>(request.getEntries()));
         
         return callReportRepository.save(report);
+    }
+
+    public List<CallReportSummaryResponse> summarizeReports(
+        LocalDate startDate,
+        LocalDate endDate,
+        List<Long> branchIds,
+        List<String> statusKeys
+    ) {
+        List<CallReportSummaryProjection> rows = callReportRepository.summarizeReports();
+
+        Map<String, CallReportSummaryResponse> grouped = new HashMap<>();
+        for (CallReportSummaryProjection row : rows) {
+            if (!isWithinDateRange(row.getReportDate(), startDate, endDate)) {
+                continue;
+            }
+
+            if (!matchesBranch(row.getBranchId(), branchIds)) {
+                continue;
+            }
+
+            if (!matchesStatus(row.getStatusKey(), statusKeys)) {
+                continue;
+            }
+
+            String key = row.getReportDate() + "|" + row.getBranchId();
+            CallReportSummaryResponse summary = grouped.computeIfAbsent(key, ignored -> new CallReportSummaryResponse(
+                row.getReportDate(),
+                row.getBranchId(),
+                row.getBranchName(),
+                new HashMap<>()
+            ));
+            summary.getStatusTotals().put(row.getStatusKey(), row.getTotal());
+        }
+        return new ArrayList<>(grouped.values());
+    }
+
+    private boolean isWithinDateRange(LocalDate date, LocalDate startDate, LocalDate endDate) {
+        if (date == null) {
+            return false;
+        }
+        if (startDate != null && date.isBefore(startDate)) {
+            return false;
+        }
+        if (endDate != null && date.isAfter(endDate)) {
+            return false;
+        }
+        return true;
+    }
+
+    private boolean matchesBranch(Long branchId, List<Long> branchIds) {
+        if (branchIds == null || branchIds.isEmpty()) {
+            return true;
+        }
+        if (branchId == null) {
+            return false;
+        }
+        return branchIds.contains(branchId);
+    }
+
+    private boolean matchesStatus(String statusKey, List<String> statusKeys) {
+        if (statusKeys == null || statusKeys.isEmpty()) {
+            return true;
+        }
+        return statusKeys.contains(statusKey);
     }
 }
