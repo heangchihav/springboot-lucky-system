@@ -548,21 +548,24 @@ function CallDashboard() {
       (payload.statusKey ?? payload.name ?? '') as string
 
     const RADIAN = Math.PI / 180
-    const baseOffset = percent < 0.07 ? 28 : 18
-    const armOffset = percent < 0.07 ? 60 : 45
+    const baseOffset = percent < 0.07 ? 26 : 20
+    const elbowRadius = outerRadius + baseOffset
+    const horizontalArm = percent < 0.07 ? 70 : 55
     const sx = cx + (outerRadius + 4) * Math.cos(-midAngle * RADIAN)
     const sy = cy + (outerRadius + 4) * Math.sin(-midAngle * RADIAN)
-    const mx = cx + (outerRadius + baseOffset) * Math.cos(-midAngle * RADIAN)
-    const my = cy + (outerRadius + baseOffset) * Math.sin(-midAngle * RADIAN)
-    const ex = cx + (outerRadius + armOffset) * Math.cos(-midAngle * RADIAN)
-    const ey = cy + (outerRadius + armOffset) * Math.sin(-midAngle * RADIAN)
-    const textAnchor = ex > cx ? 'start' : 'end'
+    const mx = cx + elbowRadius * Math.cos(-midAngle * RADIAN)
+    const my = cy + elbowRadius * Math.sin(-midAngle * RADIAN)
+    const textAnchor = mx > cx ? 'start' : 'end'
+    const ex = mx + (textAnchor === 'start' ? horizontalArm : -horizontalArm)
+    const ey = my
     const textX = ex + (textAnchor === 'start' ? 8 : -8)
     const lineColor = 'rgba(148,163,184,0.6)'
     const percentLabel = `${(percent * 100).toFixed(1)}%`
+    const primaryLabel = getStatusLabel(statusKey)
+    const compactLayout = percent < 0.1
 
     return (
-      <g key={`label-${payload.statusKey}-${index}`}>
+      <g key={`label-${payload.statusKey ?? statusKey}-${index}`}>
         <path
           d={`M${sx},${sy} L${mx},${my} L${ex},${ey}`}
           stroke={lineColor}
@@ -573,13 +576,18 @@ function CallDashboard() {
         <text
           x={textX}
           y={ey}
-          fill="#e2e8f0"
-          fontSize={11}
+          fill="#f8fafc"
+          fontSize={compactLayout ? 11 : 13}
           fontWeight={600}
           textAnchor={textAnchor}
-          dominantBaseline="central"
+          dominantBaseline="middle"
         >
-          {`${getStatusLabel(statusKey)} • ${percentLabel}`}
+          <tspan x={textX} dy="0">
+            {primaryLabel}
+          </tspan>
+          <tspan x={textX} dy="1.2em" fill="#cbd5f5" fontSize={compactLayout ? 10 : 11}>
+            {percentLabel}
+          </tspan>
         </text>
       </g>
     )
@@ -898,72 +906,84 @@ function CallDashboard() {
                   No status distribution to chart.
                 </div>
               ) : (
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart margin={{ top: 32, right: 110, bottom: 32, left: 110 }}>
-                    <defs>
-                      <filter id="pieShadow" x="-20%" y="-20%" width="140%" height="140%">
-                        <feDropShadow dx="0" dy="12" stdDeviation="8" floodOpacity="0.35" />
-                      </filter>
-                      {statusDistribution.map((entry, index) => {
-                        const color =
-                          statusColorMap[entry.statusKey] ??
-                          STATUS_COLORS[index % STATUS_COLORS.length]
-                        return (
-                          <radialGradient
-                            key={`radial-${entry.statusKey}`}
-                            id={`radial-${entry.statusKey}`}
-                            cx="50%"
-                            cy="50%"
-                            r="70%"
-                          >
-                            <stop offset="10%" stopColor="#ffffff" stopOpacity="0.25" />
-                            <stop offset="60%" stopColor={color} stopOpacity="0.95" />
-                            <stop offset="95%" stopColor={color} stopOpacity="1" />
-                          </radialGradient>
-                        )
-                      })}
-                    </defs>
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: '#0f172a',
-                        borderColor: 'rgba(255,255,255,0.15)',
-                      }}
-                      formatter={(value: number, name) => [
-                        `${formatNumber(value)} calls`,
-                        getStatusLabel(name as string),
-                      ]}
-                    />
-                    <Pie
-                      data={statusDistribution}
-                      dataKey="value"
-                      nameKey="label"
-                      innerRadius={75}
-                      outerRadius={120}
-                      startAngle={90}
-                      endAngle={-270}
-                      paddingAngle={2}
-                      cornerRadius={8}
-                      stroke="rgba(15,23,42,0.6)"
-                      strokeWidth={2}
-                      labelLine={false}
-                      label={renderStatusPieLabel}
-                      filter="url(#pieShadow)"
-                    >
-                      {statusDistribution.map((entry) => (
-                        <Cell key={entry.statusKey} fill={`url(#radial-${entry.statusKey})`} />
-                      ))}
-                    </Pie>
-                    <Pie
-                      data={statusDistribution}
-                      dataKey="value"
-                      innerRadius={60}
-                      outerRadius={65}
-                      fill="rgba(255,255,255,0.05)"
-                      stroke="none"
-                      isAnimationActive={false}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
+                <div className="relative h-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart margin={{ top: 32, right: 110, bottom: 32, left: 110 }}>
+                      <defs>
+                        <filter id="pieShadow" x="-20%" y="-20%" width="140%" height="140%">
+                          <feDropShadow dx="0" dy="12" stdDeviation="8" floodOpacity="0.35" />
+                        </filter>
+                        {statusDistribution.map((entry, index) => {
+                          const color =
+                            statusColorMap[entry.statusKey] ??
+                            STATUS_COLORS[index % STATUS_COLORS.length]
+                          return (
+                            <radialGradient
+                              key={`radial-${entry.statusKey}`}
+                              id={`radial-${entry.statusKey}`}
+                              cx="50%"
+                              cy="50%"
+                              r="70%"
+                            >
+                              <stop offset="10%" stopColor="#ffffff" stopOpacity="0.25" />
+                              <stop offset="60%" stopColor={color} stopOpacity="0.95" />
+                              <stop offset="95%" stopColor={color} stopOpacity="1" />
+                            </radialGradient>
+                          )
+                        })}
+                      </defs>
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: '#0f172a',
+                          borderColor: 'rgba(255,255,255,0.15)',
+                        }}
+                        labelStyle={{ color: '#e2e8f0' }}
+                        itemStyle={{ color: '#f8fafc' }}
+                        formatter={(value: number, name) => [
+                          `${formatNumber(value)} calls`,
+                          getStatusLabel(name as string),
+                        ]}
+                      />
+                      <Pie
+                        data={statusDistribution}
+                        dataKey="value"
+                        nameKey="label"
+                        innerRadius={75}
+                        outerRadius={120}
+                        startAngle={90}
+                        endAngle={-270}
+                        paddingAngle={2}
+                        cornerRadius={8}
+                        stroke="rgba(15,23,42,0.6)"
+                        strokeWidth={2}
+                        labelLine={false}
+                        label={renderStatusPieLabel}
+                        filter="url(#pieShadow)"
+                      >
+                        {statusDistribution.map((entry) => (
+                          <Cell key={entry.statusKey} fill={`url(#radial-${entry.statusKey})`} />
+                        ))}
+                      </Pie>
+                      <Pie
+                        data={statusDistribution}
+                        dataKey="value"
+                        innerRadius={60}
+                        outerRadius={65}
+                        fill="rgba(255,255,255,0.05)"
+                        stroke="none"
+                        isAnimationActive={false}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                    <div className="text-center">
+                      <p className="text-[11px] uppercase tracking-[0.3em] text-slate-500">Total</p>
+                      <p className="text-3xl font-semibold text-white drop-shadow-lg">
+                        {grandTotal.toLocaleString()}
+                      </p>
+                    </div>
+                  </div>
+                </div>
               )}
             </div>
             <div className="space-y-3">
