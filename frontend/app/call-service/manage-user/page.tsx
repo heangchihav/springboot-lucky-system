@@ -174,7 +174,9 @@ export default function ManageUserPage() {
         password: '',
         phone: ''
       })
-      setSelectedBranchId(null)
+      if (!hasBranchAssignment) {
+        setSelectedBranchId(null)
+      }
       
       if (selectedBranchId) {
         await areaBranchService.assignUserToBranch(newUser.id, selectedBranchId)

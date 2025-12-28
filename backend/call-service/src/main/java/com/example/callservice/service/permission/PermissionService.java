@@ -12,8 +12,10 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -70,6 +72,15 @@ public class PermissionService {
             .collect(Collectors.toSet())
             .stream()
             .collect(Collectors.toList());
+    }
+    
+    public Set<String> getRoleDerivedPermissionCodes(Long userId) {
+        if (userId == null) {
+            return Set.of();
+        }
+        List<Role> allRoles = roleService.getAllRoles();
+        List<String> rolePermissionCodes = roleAssignmentService.getPermissionCodesForUserThroughRoles(userId, allRoles);
+        return new HashSet<>(rolePermissionCodes);
     }
     
     public Permission createPermission(String code, String name, String description) {
@@ -182,5 +193,25 @@ public class PermissionService {
         }
         
         logger.info("Replaced permissions for user {} with {} permissions", userId, permissionIds.size());
+    }
+
+    public void trimUserPermissionsToAllowedCodes(Long userId, Set<String> allowedPermissionCodes) {
+        if (userId == null) {
+            return;
+        }
+
+        List<UserPermission> activePermissions = userPermissionRepository.findByUserIdAndActiveTrue(userId);
+        for (UserPermission assignment : activePermissions) {
+            Permission permission = assignment.getPermission();
+            if (permission == null) {
+                continue;
+            }
+            String code = permission.getCode();
+            if (code == null || !allowedPermissionCodes.contains(code)) {
+                assignment.setActive(false);
+                userPermissionRepository.save(assignment);
+                logger.info("Trimmed direct permission {} from user {}", code, userId);
+            }
+        }
     }
 }

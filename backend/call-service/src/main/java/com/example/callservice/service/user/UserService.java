@@ -72,6 +72,17 @@ public class UserService {
         );
     }
     
+    private boolean wasCreatedByUser(Map<String, Object> userData, Long creatorId) {
+        if (creatorId == null) {
+            return false;
+        }
+        Object createdBy = userData.get("createdBy");
+        if (createdBy instanceof Number number) {
+            return number.longValue() == creatorId;
+        }
+        return false;
+    }
+    
     public List<UserResponse> getUsersInSameBranch(Long currentUserId, boolean isRootUser) {
         // Root users can see all users
         if (isRootUser) {
@@ -120,6 +131,7 @@ public class UserService {
             // Filter users by those assigned to same branches
             return allUsers.stream()
                 .filter(userData -> userIds.contains(((Number) userData.get("id")).longValue()))
+                .filter(userData -> wasCreatedByUser(userData, currentUserId))
                 .map(this::mapUserToResponse)
                 .collect(Collectors.toList());
         } catch (Exception e) {

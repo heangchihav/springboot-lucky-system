@@ -65,6 +65,9 @@ public class User {
     @Column(columnDefinition = "BOOLEAN DEFAULT TRUE")
     private boolean enabled = true;
 
+    @Column(name = "created_by")
+    private Long createdBy;
+
     // ========== SERVICE ASSIGNMENTS ==========
 
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
@@ -118,6 +121,9 @@ public class User {
 
     public List<UserXService> getUserServices() { return userServices; }
     public void setUserServices(List<UserXService> userServices) { this.userServices = userServices; }
+
+    public Long getCreatedBy() { return createdBy; }
+    public void setCreatedBy(Long createdBy) { this.createdBy = createdBy; }
 
     /**
      * Increment token version to invalidate all existing tokens

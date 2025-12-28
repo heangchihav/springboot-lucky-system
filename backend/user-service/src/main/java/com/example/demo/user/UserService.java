@@ -53,7 +53,12 @@ public class UserService implements UserDetailsService {
     }
 
     @Transactional
-    public com.example.demo.user.User createUser(String username, String rawPassword, String fullName, String phone, List<Long> serviceIds) {
+    public com.example.demo.user.User createUser(String username,
+                                                 String rawPassword,
+                                                 String fullName,
+                                                 String phone,
+                                                 List<Long> serviceIds,
+                                                 Long creatorId) {
         com.example.demo.user.User u = new com.example.demo.user.User();
         u.setUsername(username);
         u.setPassword(passwordEncoder.encode(rawPassword));
@@ -61,6 +66,7 @@ public class UserService implements UserDetailsService {
         u.setPhone(phone);
         u.setEnabled(true);
         u.setAccountLocked(false);
+        u.setCreatedBy(creatorId);
         u = save(u);
         
         // Assign services if provided

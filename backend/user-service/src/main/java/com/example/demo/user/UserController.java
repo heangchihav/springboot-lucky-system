@@ -1,5 +1,6 @@
 package com.example.demo.user;
 
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
@@ -30,13 +31,15 @@ public class UserController {
     }
 
     @PostMapping
-    public ResponseEntity<User> createUser(@RequestBody CreateUserRequest request) {
+    public ResponseEntity<User> createUser(@RequestBody CreateUserRequest request, HttpServletRequest httpRequest) {
+        Long creatorId = extractUserIdFromHeader(httpRequest);
         User newUser = userService.createUser(
             request.getUsername(),
             request.getPassword(),
             request.getFullName(),
             request.getPhone(),
-            request.getServiceIds()
+            request.getServiceIds(),
+            creatorId
         );
         return ResponseEntity.ok(newUser);
     }
@@ -168,5 +171,20 @@ public class UserController {
 
         public List<Long> getServiceIds() { return serviceIds; }
         public void setServiceIds(List<Long> serviceIds) { this.serviceIds = serviceIds; }
+    }
+
+    private Long extractUserIdFromHeader(HttpServletRequest request) {
+        if (request == null) {
+            return null;
+        }
+        String header = request.getHeader("X-User-Id");
+        if (header == null || header.isBlank()) {
+            return null;
+        }
+        try {
+            return Long.valueOf(header);
+        } catch (NumberFormatException ex) {
+            return null;
+        }
     }
 }

@@ -4,8 +4,10 @@ import com.example.callservice.dto.role.CreateRoleRequest;
 import com.example.callservice.dto.role.UpdateRoleRequest;
 import com.example.callservice.entity.permission.Permission;
 import com.example.callservice.entity.role.Role;
+import com.example.callservice.entity.role.UserRole;
 import com.example.callservice.repository.permission.PermissionRepository;
 import com.example.callservice.repository.role.RoleRepository;
+import com.example.callservice.repository.role.UserRoleRepository;
 import com.example.callservice.service.permission.PermissionService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -14,6 +16,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -28,13 +31,16 @@ public class RoleService {
     private final RoleRepository roleRepository;
     private final PermissionRepository permissionRepository;
     private final PermissionService permissionService;
+    private final UserRoleRepository userRoleRepository;
     
     public RoleService(RoleRepository roleRepository, 
                       PermissionRepository permissionRepository, 
-                      @Lazy PermissionService permissionService) {
+                      @Lazy PermissionService permissionService,
+                      UserRoleRepository userRoleRepository) {
         this.roleRepository = roleRepository;
         this.permissionRepository = permissionRepository;
         this.permissionService = permissionService;
+        this.userRoleRepository = userRoleRepository;
     }
     
     public List<Role> getAllRoles() {
@@ -98,7 +104,11 @@ public class RoleService {
             role.setPermissions(allowedPermissions);
         }
         
-        return roleRepository.save(role);
+        Role updatedRole = roleRepository.save(role);
+        
+        synchronizeCreatorRolesForAssignments(updatedRole.getId());
+        
+        return updatedRole;
     }
     
     public Role updateRole(Long id, UpdateRoleRequest request, Long currentUserId, boolean isRootUser) {
@@ -138,7 +148,9 @@ public class RoleService {
             role.setPermissions(allowedPermissions);
         }
         
-        return roleRepository.save(role);
+        Role updatedRole = roleRepository.save(role);
+        synchronizeCreatorRolesForAssignments(updatedRole.getId());
+        return updatedRole;
     }
     
     public void deleteRole(Long id) {
@@ -160,5 +172,59 @@ public class RoleService {
     
     public boolean existsByName(String name) {
         return roleRepository.existsByName(name);
+    }
+
+    private void synchronizeCreatorRolesForAssignments(Long roleId) {
+        List<UserRole> assignments = userRoleRepository.findByRoleIdAndActiveTrue(roleId);
+        Set<Long> creators = assignments.stream()
+            .map(UserRole::getUserId)
+            .filter(userId -> userId != null)
+            .collect(Collectors.toSet());
+
+        for (Long creatorId : creators) {
+            reconcileRolesForCreator(creatorId);
+        }
+    }
+
+    public void reconcileRolesForCreator(Long creatorId) {
+        if (creatorId == null) {
+            return;
+        }
+        synchronizeRolesCreatedByUser(creatorId, new HashSet<>());
+    }
+
+    private void synchronizeRolesCreatedByUser(Long creatorId, Set<Long> visitedCreators) {
+        if (creatorId == null || visitedCreators.contains(creatorId)) {
+            return;
+        }
+        visitedCreators.add(creatorId);
+
+        List<Role> createdRoles = roleRepository.findByCreatedBy(creatorId);
+        if (createdRoles.isEmpty()) {
+            return;
+        }
+
+        Set<String> creatorPermissionCodes = permissionService.getPermissionsForUser(creatorId).stream()
+            .map(Permission::getCode)
+            .collect(Collectors.toSet());
+
+        permissionService.trimUserPermissionsToAllowedCodes(creatorId, creatorPermissionCodes);
+
+        for (Role createdRole : createdRoles) {
+            Set<Permission> filteredPermissions = createdRole.getPermissions().stream()
+                .filter(permission -> creatorPermissionCodes.contains(permission.getCode()))
+                .collect(Collectors.toSet());
+
+            if (!filteredPermissions.equals(createdRole.getPermissions())) {
+                createdRole.setPermissions(filteredPermissions);
+                roleRepository.save(createdRole);
+                logger.info("Synchronized permissions for role {} created by user {}", createdRole.getId(), creatorId);
+            }
+
+            List<UserRole> downstreamAssignments = userRoleRepository.findByRoleIdAndActiveTrue(createdRole.getId());
+            for (UserRole assignment : downstreamAssignments) {
+                synchronizeRolesCreatedByUser(assignment.getUserId(), visitedCreators);
+            }
+        }
     }
 }
