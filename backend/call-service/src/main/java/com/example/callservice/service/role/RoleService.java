@@ -6,9 +6,14 @@ import com.example.callservice.entity.permission.Permission;
 import com.example.callservice.entity.role.Role;
 import com.example.callservice.repository.permission.PermissionRepository;
 import com.example.callservice.repository.role.RoleRepository;
+import com.example.callservice.service.permission.PermissionService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -18,42 +23,85 @@ import java.util.stream.Collectors;
 @Transactional
 public class RoleService {
     
+    private static final Logger logger = LoggerFactory.getLogger(RoleService.class);
+    
     private final RoleRepository roleRepository;
     private final PermissionRepository permissionRepository;
+    private final PermissionService permissionService;
     
-    public RoleService(RoleRepository roleRepository, PermissionRepository permissionRepository) {
+    public RoleService(RoleRepository roleRepository, 
+                      PermissionRepository permissionRepository, 
+                      @Lazy PermissionService permissionService) {
         this.roleRepository = roleRepository;
         this.permissionRepository = permissionRepository;
+        this.permissionService = permissionService;
     }
     
     public List<Role> getAllRoles() {
         return roleRepository.findAll();
     }
     
+    public List<Role> getRolesForUser(Long userId, boolean isRootUser) {
+        if (isRootUser) {
+            return roleRepository.findAll();
+        }
+        if (userId == null) {
+            return Collections.emptyList();
+        }
+        return roleRepository.findByCreatedBy(userId);
+    }
+    
     public Optional<Role> getRoleById(Long id) {
         return roleRepository.findById(id);
     }
     
-    public Role createRole(CreateRoleRequest request) {
+    public Role createRole(CreateRoleRequest request, Long createdBy, boolean isRootUser) {
+        if (createdBy == null) {
+            throw new IllegalArgumentException("Creator user ID is required to create a role");
+        }
         if (roleRepository.existsByName(request.getName())) {
             throw new IllegalArgumentException("Role with name '" + request.getName() + "' already exists");
         }
         
-        Role role = new Role(request.getName(), request.getDescription());
+        Role role = new Role(request.getName(), request.getDescription(), createdBy);
         
-        // Add permissions based on permission codes
+        // Add permissions based on permission codes, but only allow permissions the user already has
         if (request.getPermissionCodes() != null && !request.getPermissionCodes().isEmpty()) {
-            Set<Permission> permissions = request.getPermissionCodes().stream()
+            Set<Permission> requestedPermissions = request.getPermissionCodes().stream()
                 .map(permissionCode -> permissionRepository.findByCode(permissionCode)
                     .orElseThrow(() -> new IllegalArgumentException("Permission not found with code: " + permissionCode)))
                 .collect(Collectors.toSet());
-            role.setPermissions(permissions);
+
+            Set<Permission> allowedPermissions = requestedPermissions;
+
+            if (!isRootUser) {
+                // Get current user's permissions
+                List<Permission> userPermissions = permissionService.getPermissionsForUser(createdBy);
+                Set<String> userPermissionCodes = userPermissions.stream()
+                    .map(Permission::getCode)
+                    .collect(Collectors.toSet());
+                
+                logger.info("User {} has {} permissions: {}", createdBy, userPermissionCodes.size(), userPermissionCodes);
+                logger.info("Requested permissions: {}", request.getPermissionCodes());
+                
+                // Filter requested permissions to only include those the user has
+                allowedPermissions = requestedPermissions.stream()
+                    .filter(permission -> userPermissionCodes.contains(permission.getCode()))
+                    .collect(Collectors.toSet());
+                
+                logger.info("Allowed permissions after filtering: {}", allowedPermissions.stream().map(Permission::getCode).collect(Collectors.toList()));
+            } else {
+                logger.info("Root user {} creating role with unrestricted permissions: {}", createdBy,
+                    requestedPermissions.stream().map(Permission::getCode).collect(Collectors.toList()));
+            }
+
+            role.setPermissions(allowedPermissions);
         }
         
         return roleRepository.save(role);
     }
     
-    public Role updateRole(Long id, UpdateRoleRequest request) {
+    public Role updateRole(Long id, UpdateRoleRequest request, Long currentUserId, boolean isRootUser) {
         Role role = roleRepository.findById(id)
             .orElseThrow(() -> new IllegalArgumentException("Role not found with id: " + id));
         
@@ -65,13 +113,29 @@ public class RoleService {
         role.setName(request.getName());
         role.setDescription(request.getDescription());
         
-        // Update permissions based on permission codes
+        // Update permissions based on permission codes, but only allow permissions the current user has
         if (request.getPermissionCodes() != null) {
-            Set<Permission> permissions = request.getPermissionCodes().stream()
+            Set<Permission> requestedPermissions = request.getPermissionCodes().stream()
                 .map(permissionCode -> permissionRepository.findByCode(permissionCode)
                     .orElseThrow(() -> new IllegalArgumentException("Permission not found with code: " + permissionCode)))
                 .collect(Collectors.toSet());
-            role.setPermissions(permissions);
+
+            Set<Permission> allowedPermissions = requestedPermissions;
+
+            if (!isRootUser) {
+                // Get current user's permissions
+                List<Permission> userPermissions = permissionService.getPermissionsForUser(currentUserId);
+                Set<String> userPermissionCodes = userPermissions.stream()
+                    .map(Permission::getCode)
+                    .collect(Collectors.toSet());
+                
+                // Filter requested permissions to only include those the user has
+                allowedPermissions = requestedPermissions.stream()
+                    .filter(permission -> userPermissionCodes.contains(permission.getCode()))
+                    .collect(Collectors.toSet());
+            }
+            
+            role.setPermissions(allowedPermissions);
         }
         
         return roleRepository.save(role);

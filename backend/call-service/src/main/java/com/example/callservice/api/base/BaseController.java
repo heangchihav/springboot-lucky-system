@@ -5,6 +5,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.context.request.RequestAttributes;
@@ -23,7 +24,8 @@ public class BaseController {
     @Autowired
     protected RestTemplate restTemplate;
     
-    protected String userServiceUrl = "http://localhost:8081";
+    @Value("${user.service.url:http://localhost:8080}")
+    protected String userServiceUrl;
     
     protected Long getCurrentUserId(HttpServletRequest request) {
         try {

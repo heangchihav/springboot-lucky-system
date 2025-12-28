@@ -1,10 +1,52 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { permissionsService, Permission, Role, PermissionGroup, CreateRoleRequest, UpdateRoleRequest } from '../../services/permissionsService'
 import { userService, User } from '../../services/userService'
 import { PermissionGuard } from '../../components/PermissionGuard'
 import { Plus, Trash2, Edit, Users, Shield, Check, X, UserPlus, UserMinus, ChevronDown, ChevronRight } from 'lucide-react'
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080'
+
+const getStoredUserId = (): number | null => {
+  if (typeof window === 'undefined') {
+    return null
+  }
+
+  const userStr = window.localStorage.getItem('user')
+  if (!userStr) {
+    return null
+  }
+
+  try {
+    const parsed = JSON.parse(userStr)
+    return parsed?.id ?? null
+  } catch {
+    return null
+  }
+}
+
+const fetchAndCacheUserId = async (): Promise<number | null> => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
+      credentials: 'include',
+    })
+
+    if (!response.ok) {
+      return null
+    }
+
+    const user = await response.json()
+    if (user?.id && typeof window !== 'undefined') {
+      window.localStorage.setItem('user', JSON.stringify(user))
+      return user.id
+    }
+    return user?.id ?? null
+  } catch (error) {
+    console.error('Failed to fetch current user info', error)
+    return null
+  }
+}
 
 export default function PermissionsPage() {
   const [roles, setRoles] = useState<Role[]>([])
@@ -25,10 +67,51 @@ export default function PermissionsPage() {
   const [selectedUsers, setSelectedUsers] = useState<number[]>([])
   const [availableUsers, setAvailableUsers] = useState<User[]>([])
   const [roleUsers, setRoleUsers] = useState<Map<number, User[]>>(new Map())
+  const [currentUserId, setCurrentUserId] = useState<number | null>(null)
+  const [allowedPermissionCodes, setAllowedPermissionCodes] = useState<Set<string> | null>(null)
+  const [permissionScopeLoaded, setPermissionScopeLoaded] = useState(false)
+  const [permissionLimitError, setPermissionLimitError] = useState<string | null>(null)
 
   useEffect(() => {
     fetchData()
+    loadCurrentUserPermissions()
   }, [])
+
+  const loadCurrentUserPermissions = async () => {
+    try {
+      setPermissionScopeLoaded(false)
+      const freshUserId = await fetchAndCacheUserId()
+      const resolvedUserId = freshUserId ?? getStoredUserId()
+      if (!resolvedUserId) {
+        setAllowedPermissionCodes(null)
+        setPermissionScopeLoaded(false)
+        return
+      }
+      setCurrentUserId(resolvedUserId)
+
+      const response = await fetch(`${API_BASE_URL}/api/calls/permissions/user/${resolvedUserId}`, {
+        credentials: 'include',
+      })
+
+      if (!response.ok) {
+        throw new Error('Unable to fetch user permissions')
+      }
+
+      const userPermissions: { permissionCode: string }[] = await response.json()
+      const codes = new Set(
+        userPermissions
+          .map((perm) => perm.permissionCode)
+          .filter((code): code is string => typeof code === 'string' && code.length > 0),
+      )
+      setAllowedPermissionCodes(codes)
+      setPermissionScopeLoaded(true)
+    } catch (error) {
+      console.error('Failed to load current user permissions', error)
+      setAllowedPermissionCodes(null)
+      setPermissionLimitError('Unable to determine your permission scope. Showing all permissions.')
+      setPermissionScopeLoaded(false)
+    }
+  }
 
   const fetchData = async () => {
     try {
@@ -134,8 +217,12 @@ export default function PermissionsPage() {
     if (role) {
       setEditingRole(role)
       setRoleForm({ name: role.name, description: role.description })
-      setSelectedPermissions(role.permissions.map(p => p.code))
+      const filteredCodes = allowedPermissionCodes
+        ? role.permissions.map((p) => p.code).filter((code) => allowedPermissionCodes.has(code))
+        : role.permissions.map((p) => p.code)
+      setSelectedPermissions(filteredCodes)
     } else {
+      setEditingRole(null)
       setRoleForm({ name: '', description: '' })
       setSelectedPermissions([])
     }
@@ -143,12 +230,38 @@ export default function PermissionsPage() {
   }
 
   const togglePermission = (permissionCode: string) => {
-    setSelectedPermissions(prev =>
+    if (allowedPermissionCodes && !allowedPermissionCodes.has(permissionCode)) {
+      return
+    }
+    setSelectedPermissions((prev) =>
       prev.includes(permissionCode)
-        ? prev.filter(p => p !== permissionCode)
-        : [...prev, permissionCode]
+        ? prev.filter((p) => p !== permissionCode)
+        : [...prev, permissionCode],
     )
   }
+
+  const filteredRoles = useMemo(() => {
+    if (!currentUserId) {
+      return roles
+    }
+    // Backend RoleResponse currently lacks creator metadata, so we cannot filter precisely.
+    // Return all roles until API exposes creator information.
+    return roles
+  }, [roles, currentUserId])
+
+  const filteredPermissionGroups = useMemo(() => {
+    if (!permissionScopeLoaded || allowedPermissionCodes === null) {
+      return []
+    }
+    return permissionGroups
+      .map((group) => ({
+        ...group,
+        permissions: group.permissions.filter((permission) =>
+          allowedPermissionCodes.has(permission.code),
+        ),
+      }))
+      .filter((group) => group.permissions.length > 0)
+  }, [permissionGroups, allowedPermissionCodes])
 
   const openUserAssignment = async (role: Role) => {
     setSelectedRole(role)
@@ -294,7 +407,7 @@ export default function PermissionsPage() {
               </PermissionGuard>
             </div>
             <div className="space-y-4">
-              {roles.map((role) => (
+              {filteredRoles.map((role) => (
                 <div key={role.id} className="glass-card-inner">
                   <div className="flex justify-between items-start">
                     <div className="flex-1">
@@ -440,7 +553,7 @@ export default function PermissionsPage() {
             <div className="mt-6">
               <h4 className="text-lg font-semibold text-white mb-4">Permissions</h4>
               <div className="space-y-3 max-h-60 overflow-y-auto">
-                {permissionGroups.map((group) => (
+                {filteredPermissionGroups.map((group) => (
                   <div key={group.id} className="glass-card-inner">
                     <div 
                       className="flex items-center justify-between cursor-pointer"
@@ -458,25 +571,40 @@ export default function PermissionsPage() {
                     </div>
                     {expandedGroups.has(group.id) && (
                       <div className="mt-2 space-y-1">
-                        {group.permissions.map((permission) => (
-                          <label
-                            key={permission.code}
-                            className="flex items-center space-x-3 cursor-pointer hover:bg-white/5 p-2 rounded"
-                          >
-                            <input
-                              type="checkbox"
-                              checked={selectedPermissions.includes(permission.code)}
-                              onChange={() => togglePermission(permission.code)}
-                              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-slate-600 rounded bg-slate-700"
-                            />
-                            <div className="flex-1">
-                              <div className="text-sm font-medium text-white">
-                                {permission.menuNumber} {permission.name}
+                        {group.permissions.map((permission) => {
+                          const isAllowed = !allowedPermissionCodes || allowedPermissionCodes.has(permission.code)
+                          return (
+                            <label
+                              key={permission.code}
+                              className={`flex items-center space-x-3 p-2 rounded ${
+                                isAllowed
+                                  ? 'cursor-pointer hover:bg-white/5'
+                                  : 'cursor-not-allowed opacity-40'
+                              }`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={selectedPermissions.includes(permission.code)}
+                                onChange={() => togglePermission(permission.code)}
+                                disabled={!isAllowed}
+                                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-slate-600 rounded bg-slate-700 disabled:opacity-50"
+                              />
+                              <div className="flex-1">
+                                <div className="text-sm font-medium text-white flex items-center gap-2">
+                                  <span>
+                                    {permission.menuNumber} {permission.name}
+                                  </span>
+                                  {!isAllowed && (
+                                    <span className="text-[10px] uppercase tracking-wide bg-white/10 text-slate-300 px-2 py-0.5 rounded">
+                                      Not in your scope
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="text-xs text-slate-400">{permission.description}</div>
                               </div>
-                              <div className="text-xs text-slate-400">{permission.description}</div>
-                            </div>
-                          </label>
-                        ))}
+                            </label>
+                          )
+                        })}
                       </div>
                     )}
                   </div>

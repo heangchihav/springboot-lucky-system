@@ -181,8 +181,8 @@ public class PermissionDataInitializer implements CommandLineRunner {
             return;
         }
         
-        // Create default role
-        Role fullAccessRole = new Role("Full Access", "Role with access to all call-service permissions");
+        // Create default role (use system user ID 0L for bootstrap data)
+        Role fullAccessRole = new Role("Full Access", "Role with access to all call-service permissions", 0L);
         
         // Assign all permissions to this role
         List<Permission> allPermissions = permissionRepository.findAll();

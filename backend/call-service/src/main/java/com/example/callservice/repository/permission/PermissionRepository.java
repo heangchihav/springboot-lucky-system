@@ -16,5 +16,7 @@ public interface PermissionRepository extends JpaRepository<Permission, Long> {
     
     List<Permission> findByActiveTrueOrderByName();
     
+    List<Permission> findByCodeIn(List<String> codes);
+    
     boolean existsByCode(String code);
 }

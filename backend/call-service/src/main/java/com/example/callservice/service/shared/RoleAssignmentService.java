@@ -26,28 +26,23 @@ public class RoleAssignmentService {
         Role role = roleRepository.findById(roleId)
             .orElseThrow(() -> new IllegalArgumentException("Role not found with id: " + roleId));
         
-        List<UserRole> existingAssignments = userRoleRepository.findByRoleIdAndUserIdIn(roleId, userIds);
-        List<Long> alreadyAssigned = existingAssignments.stream()
-            .filter(UserRole::getActive)
-            .map(UserRole::getUserId)
-            .collect(Collectors.toList());
-        
-        List<Long> toAssign = userIds.stream()
-            .filter(userId -> !alreadyAssigned.contains(userId))
-            .collect(Collectors.toList());
-        
-        for (Long userId : toAssign) {
-            UserRole userRole = new UserRole(userId, role, assignedBy);
+        for (Long userId : userIds) {
+            // deactivate all other active role assignments for this user
+            List<UserRole> activeAssignments = userRoleRepository.findByUserIdAndActiveTrue(userId);
+            for (UserRole assignment : activeAssignments) {
+                if (!assignment.getRole().getId().equals(roleId)) {
+                    assignment.setActive(false);
+                    userRoleRepository.save(assignment);
+                }
+            }
+            
+            // ensure the target role assignment exists and is active
+            UserRole userRole = userRoleRepository.findByRoleIdAndUserId(roleId, userId)
+                .orElseGet(() -> new UserRole(userId, role, assignedBy));
+            userRole.setActive(true);
+            userRole.setAssignedBy(assignedBy);
             userRoleRepository.save(userRole);
         }
-        
-        // Reactivate any inactive assignments
-        existingAssignments.stream()
-            .filter(userRole -> !userRole.getActive())
-            .forEach(userRole -> {
-                userRole.setActive(true);
-                userRoleRepository.save(userRole);
-            });
     }
     
     @Transactional

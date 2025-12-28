@@ -41,7 +41,12 @@ public class RoleController extends BaseController {
         if (permissionCheck != null) {
             return permissionCheck;
         }
-        List<Role> roles = roleService.getAllRoles();
+        Long currentUserId = getCurrentUserId(request);
+        if (currentUserId == null) {
+            return ResponseEntity.status(401).build();
+        }
+        boolean isRootUser = isRootUser(currentUserId);
+        List<Role> roles = roleService.getRolesForUser(currentUserId, isRootUser);
         List<RoleResponse> response = roles.stream()
             .map(role -> new RoleResponse(
                 role.getId(),
@@ -110,9 +115,14 @@ public class RoleController extends BaseController {
         if (permissionCheck != null) {
             return permissionCheck;
         }
+        Long currentUserId = getCurrentUserId(httpRequest);
+        if (currentUserId == null) {
+            return ResponseEntity.status(401).build();
+        }
         logger.info("Creating new role: {}", roleRequest.getName());
+        boolean isRootUser = isRootUser(currentUserId);
         
-        Role role = roleService.createRole(roleRequest);
+        Role role = roleService.createRole(roleRequest, currentUserId, isRootUser);
         
         RoleResponse response = new RoleResponse(
             role.getId(),
@@ -146,9 +156,14 @@ public class RoleController extends BaseController {
         if (permissionCheck != null) {
             return permissionCheck;
         }
+        Long currentUserId = getCurrentUserId(httpRequest);
+        if (currentUserId == null) {
+            return ResponseEntity.status(401).build();
+        }
         logger.info("Updating role {}: {}", id, roleRequest.getName());
+        boolean isRootUser = isRootUser(currentUserId);
         
-        Role role = roleService.updateRole(id, roleRequest);
+        Role role = roleService.updateRole(id, roleRequest, currentUserId, isRootUser);
         
         RoleResponse response = new RoleResponse(
             role.getId(),

@@ -23,6 +23,9 @@ public class Role {
     @Column(nullable = false)
     private Boolean active = true;
     
+    @Column(name = "created_by", nullable = false, updatable = false)
+    private Long createdBy;
+    
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
     
@@ -51,9 +54,10 @@ public class Role {
     // Constructors
     public Role() {}
     
-    public Role(String name, String description) {
+    public Role(String name, String description, Long createdBy) {
         this.name = name;
         this.description = description;
+        this.createdBy = createdBy;
     }
     
     // Getters and Setters
@@ -119,5 +123,13 @@ public class Role {
     
     public void removePermission(Permission permission) {
         this.permissions.remove(permission);
+    }
+    
+    public Long getCreatedBy() {
+        return createdBy;
+    }
+    
+    public void setCreatedBy(Long createdBy) {
+        this.createdBy = createdBy;
     }
 }

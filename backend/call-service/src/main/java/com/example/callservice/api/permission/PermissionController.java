@@ -1,10 +1,12 @@
 package com.example.callservice.api.permission;
 
+import com.example.callservice.api.base.BaseController;
 import com.example.callservice.dto.permission.PermissionResponse;
 import com.example.callservice.dto.shared.UserPermissionResponse;
 import com.example.callservice.entity.permission.Permission;
 import com.example.callservice.entity.shared.UserPermission;
 import com.example.callservice.service.permission.PermissionService;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -15,7 +17,7 @@ import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/calls/permissions")
-public class PermissionController {
+public class PermissionController extends BaseController {
     
     private final PermissionService permissionService;
     
@@ -72,8 +74,22 @@ public class PermissionController {
     }
     
     @GetMapping
-    public ResponseEntity<List<PermissionResponse>> getAllPermissions() {
-        List<Permission> permissions = permissionService.getAllPermissions();
+    public ResponseEntity<List<PermissionResponse>> getAllPermissions(HttpServletRequest request) {
+        ResponseEntity<List<PermissionResponse>> permissionCheck = checkPermissionAndReturn(request, "menu.5.view");
+        if (permissionCheck != null) {
+            return permissionCheck;
+        }
+
+        Long currentUserId = getCurrentUserId(request);
+        if (currentUserId == null) {
+            return ResponseEntity.status(401).build();
+        }
+
+        boolean isRootUser = isRootUser(currentUserId);
+        List<Permission> permissions = isRootUser
+            ? permissionService.getAllPermissions()
+            : permissionService.getPermissionsForUser(currentUserId);
+
         List<PermissionResponse> response = permissions.stream()
             .map(p -> new PermissionResponse(
                 p.getId(),
@@ -171,20 +187,28 @@ public class PermissionController {
     // User permission management endpoints
     
     @GetMapping("/user/{userId}")
-    public ResponseEntity<List<UserPermissionResponse>> getUserPermissions(@PathVariable Long userId) {
-        List<UserPermission> userPermissions = permissionService.getUserPermissions(userId);
-        List<UserPermissionResponse> response = userPermissions.stream()
-            .map(up -> new UserPermissionResponse(
-                up.getId(),
-                up.getUserId(),
-                up.getPermission().getId(),
-                up.getPermission().getCode(),
-                up.getPermission().getName(),
-                up.getPermission().getDescription(),
-                up.getActive(),
-                up.getAssignedBy(),
-                up.getAssignedAt(),
-                up.getUpdatedAt()
+    public ResponseEntity<List<UserPermissionResponse>> getUserPermissions(
+            @PathVariable Long userId,
+            HttpServletRequest request) {
+        
+        Long requesterId = getCurrentUserId(request);
+        boolean requesterIsRoot = requesterId != null && requesterId.equals(userId) && isRootUser(requesterId);
+        
+        List<Permission> scopedPermissions = requesterIsRoot
+            ? permissionService.getAllPermissions()
+            : permissionService.getPermissionsForUser(userId);
+        List<UserPermissionResponse> response = scopedPermissions.stream()
+            .map(permission -> new UserPermissionResponse(
+                null,
+                userId,
+                permission.getId(),
+                permission.getCode(),
+                permission.getName(),
+                permission.getDescription(),
+                true,
+                "scope",
+                permission.getCreatedAt(),
+                permission.getUpdatedAt()
             ))
             .collect(Collectors.toList());
         return ResponseEntity.ok(response);

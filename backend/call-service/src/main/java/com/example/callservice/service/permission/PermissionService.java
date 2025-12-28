@@ -14,6 +14,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @Service
 @Transactional
@@ -47,6 +49,27 @@ public class PermissionService {
     
     public Optional<Permission> getPermissionByCode(String code) {
         return permissionRepository.findByCode(code);
+    }
+    
+    public List<Permission> getPermissionsForUser(Long userId) {
+        if (userId == null) {
+            return List.of();
+        }
+        
+        // Get permissions directly assigned to user
+        List<String> userPermissionCodes = userPermissionRepository.findPermissionCodesByUserId(userId);
+        List<Permission> directPermissions = permissionRepository.findByCodeIn(userPermissionCodes);
+        
+        // Get permissions through user's roles
+        List<Role> allRoles = roleService.getAllRoles();
+        List<String> rolePermissionCodes = roleAssignmentService.getPermissionCodesForUserThroughRoles(userId, allRoles);
+        List<Permission> rolePermissions = permissionRepository.findByCodeIn(rolePermissionCodes);
+        
+        // Combine and deduplicate
+        return Stream.concat(directPermissions.stream(), rolePermissions.stream())
+            .collect(Collectors.toSet())
+            .stream()
+            .collect(Collectors.toList());
     }
     
     public Permission createPermission(String code, String name, String description) {

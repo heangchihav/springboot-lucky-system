@@ -1,10 +1,52 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { userService, User, CreateUserRequest } from '../../services/userService'
 import { serviceService } from '../../services/serviceService'
 import { areaBranchService, Branch } from '../services/areaBranchService'
 import { PermissionGuard } from '../../components/PermissionGuard'
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080'
+
+const getStoredUserId = (): number | null => {
+  if (typeof window === 'undefined') {
+    return null
+  }
+
+  const userStr = window.localStorage.getItem('user')
+  if (!userStr) {
+    return null
+  }
+
+  try {
+    const parsed = JSON.parse(userStr)
+    return parsed?.id ?? null
+  } catch {
+    return null
+  }
+}
+
+const fetchAndCacheUserId = async (): Promise<number | null> => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
+      credentials: 'include',
+    })
+
+    if (!response.ok) {
+      return null
+    }
+
+    const user = await response.json()
+    if (user?.id && typeof window !== 'undefined') {
+      window.localStorage.setItem('user', JSON.stringify(user))
+      return user.id
+    }
+    return user?.id ?? null
+  } catch (error) {
+    console.error('Failed to fetch current user info', error)
+    return null
+  }
+}
 
 export default function ManageUserPage() {
   const [users, setUsers] = useState<User[]>([])
@@ -22,6 +64,7 @@ export default function ManageUserPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
+  const [hasBranchAssignment, setHasBranchAssignment] = useState(false)
   
   // Edit user state
   const [editingUser, setEditingUser] = useState<User | null>(null)
@@ -165,10 +208,56 @@ export default function ManageUserPage() {
 
   const loadBranches = async () => {
     try {
-      const data = await areaBranchService.getActiveBranches()
-      setBranches(data)
+      setHasBranchAssignment(false)
+
+      const fetchedUserId = await fetchAndCacheUserId()
+      const currentUserId = fetchedUserId ?? getStoredUserId()
+
+      const activeBranches = await areaBranchService.getActiveBranches()
+      const branchMap = new Map(activeBranches.map((branch) => [branch.id, branch]))
+
+      if (currentUserId) {
+        try {
+          const assignments = await areaBranchService.getUserBranchesByUser(currentUserId)
+          const activeAssignments = assignments.filter((assignment) => assignment.active)
+
+          if (activeAssignments.length > 0) {
+            const lockedBranches = activeAssignments.map((assignment) => {
+              const branch = branchMap.get(assignment.branchId)
+              if (branch) {
+                return branch
+              }
+              const fallbackBranch: Branch = {
+                id: assignment.branchId,
+                name: assignment.branchName,
+                description: '',
+                code: '',
+                address: '',
+                phone: '',
+                email: '',
+                active: true,
+                areaId: 0,
+                areaName: 'Assigned branch',
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+              }
+              return fallbackBranch
+            })
+
+            setHasBranchAssignment(true)
+            setBranches(lockedBranches)
+            setSelectedBranchId(lockedBranches[0]?.id ?? null)
+            return
+          }
+        } catch (assignmentError) {
+          console.error('Error loading current user branch assignments:', assignmentError)
+        }
+      }
+
+      setBranches(activeBranches)
     } catch (err) {
       console.error('Error loading branches:', err)
+      setBranches([])
     }
   }
 
