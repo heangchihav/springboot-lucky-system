@@ -8,18 +8,24 @@ import com.example.callservice.service.callreport.CallReportService;
 import com.example.callservice.api.base.BaseController;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import org.springframework.format.annotation.DateTimeFormat;
 import java.time.LocalDate;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/calls/reports")
 public class CallReportController extends BaseController {
+
+    private static final Logger logger = LoggerFactory.getLogger(CallReportController.class);
 
     private final CallReportService callReportService;
 
@@ -39,8 +45,11 @@ public class CallReportController extends BaseController {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
 
-        List<CallReportResponse> response = callReportService.listReportsForUser(userId, isRootUser(userId)).stream()
-            .map(this::toResponse)
+        List<CallReport> reports = callReportService.listReportsForUser(userId, isRootUser(userId));
+        Map<String, String> creatorNames = resolveCreatorNames(reports);
+
+        List<CallReportResponse> response = reports.stream()
+            .map(report -> toResponse(report, creatorNames))
             .collect(Collectors.toList());
         return ResponseEntity.ok(response);
     }
@@ -111,7 +120,8 @@ public class CallReportController extends BaseController {
         }
 
         CallReport saved = callReportService.saveReport(request, String.valueOf(userId));
-        return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(saved));
+        Map<String, String> creatorNames = resolveCreatorNames(List.of(saved));
+        return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(saved, creatorNames));
     }
 
     @PutMapping("/{id}")
@@ -123,7 +133,8 @@ public class CallReportController extends BaseController {
 
         try {
             CallReport updated = callReportService.updateReport(id, request);
-            return ResponseEntity.ok(toResponse(updated));
+            Map<String, String> creatorNames = resolveCreatorNames(List.of(updated));
+            return ResponseEntity.ok(toResponse(updated, creatorNames));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
@@ -144,15 +155,44 @@ public class CallReportController extends BaseController {
         }
     }
 
-    private CallReportResponse toResponse(CallReport callReport) {
+    private CallReportResponse toResponse(CallReport callReport, Map<String, String> creatorNames) {
         return new CallReportResponse(
             callReport.getId(),
             callReport.getReportDate(),
             callReport.getBranch() != null ? callReport.getBranch().getId() : null,
             callReport.getBranch() != null ? callReport.getBranch().getName() : "No Branch",
-            callReport.getCreatedBy(),
+            creatorNames.getOrDefault(callReport.getCreatedBy(), callReport.getCreatedBy()),
             callReport.getCreatedAt(),
             callReport.getEntries()
         );
+    }
+
+    private Map<String, String> resolveCreatorNames(List<CallReport> reports) {
+        Map<String, String> names = new HashMap<>();
+        for (CallReport report : reports) {
+            String creatorId = report.getCreatedBy();
+            if (creatorId == null || creatorId.isBlank() || names.containsKey(creatorId)) {
+                continue;
+            }
+            names.put(creatorId, fetchUsernameForCreator(creatorId));
+        }
+        return names;
+    }
+
+    private String fetchUsernameForCreator(String creatorId) {
+        if (creatorId == null || creatorId.isBlank()) {
+            return "Unknown";
+        }
+        try {
+            Long userId = Long.valueOf(creatorId);
+            String url = userServiceUrl + "/api/users/" + userId + "/username";
+            String username = restTemplate.getForObject(url, String.class);
+            if (username != null && !username.isBlank()) {
+                return username;
+            }
+        } catch (Exception ex) {
+            logger.warn("Failed to resolve username for creator {}: {}", creatorId, ex.getMessage());
+        }
+        return creatorId;
     }
 }
