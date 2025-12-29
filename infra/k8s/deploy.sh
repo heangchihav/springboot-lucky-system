@@ -27,7 +27,10 @@ envsubst < secrets.yaml | kubectl apply -f -
 kubectl apply -f configmap.yaml
 kubectl apply -f postgres.yaml
 kubectl apply -f redis.yaml
-kubectl apply -f app.yaml
+kubectl apply -f user-service.yaml
+kubectl apply -f call-service.yaml
+kubectl apply -f delivery-service.yaml
+kubectl apply -f gateway.yaml
 kubectl apply -f nginx-configmap.yaml
 kubectl apply -f nginx.yaml
 kubectl apply -f cloudflared.yaml

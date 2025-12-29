@@ -17,13 +17,13 @@ spec:
     spec:
       containers:
         - name: delivery-service
-          image: delivery-service:latest
-          imagePullPolicy: Never
+          image: heangchihav/delivery-service:latest
+          imagePullPolicy: Always
           ports:
             - containerPort: 8083
           envFrom:
             - secretRef:
-                name: backend-secrets
+                name: demo-secrets
           readinessProbe:
             httpGet:
               path: /actuator/health

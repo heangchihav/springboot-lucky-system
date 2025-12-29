@@ -98,15 +98,22 @@ docker compose logs -f
 
 ### Quick Start
 
-1. **Build and push Docker image:**
+1. **Build & push microservice images to Docker Hub:**
    ```bash
-   # From project root
-   docker build -t demo-app:latest .
-   
-   # If using a registry:
-   docker tag demo-app:latest your-registry/demo-app:latest
-   docker push your-registry/demo-app:latest
+   # Configure once
+   export DOCKER_HUB_USERNAME=heangchihav
+   export IMAGE_TAG=v1.0.0        # optional, defaults to latest
+
+   # Build, tag, push, and rollout gateway/user/call/delivery
+   cd infra/k8s
+   ./update.sh
    ```
+
+   The script:
+   - Runs `./mvnw` for all backend modules
+   - Builds each service with its own Dockerfile (e.g., `backend/user-service/Dockerfile`)
+   - Pushes `heangchihav/<service>:${IMAGE_TAG}`
+   - Calls `kubectl set image` for any existing deployments
 
 2. **Update secrets** in `infra/k8s/secrets.yaml`:
    - Set your Cloudflare tunnel token
@@ -122,11 +129,13 @@ docker compose logs -f
    CLOUDFLARED_TUNNEL_TOKEN=eyJhIjoi...
    ```
 
-5. **Deploy to Kubernetes** (uses token from `.env` automatically):
+5. **Deploy the whole microservice stack to Kubernetes** (uses token from `.env` automatically):
    ```bash
    cd infra/k8s
    ./deploy.sh
    ```
+   This applies namespace, config/secrets, Postgres, Redis, all Spring Boot services
+   (gateway, user-service, call-service, delivery-service, demo-app), nginx, cloudflared, and ingress.
 
    Or manually with kustomize:
    ```bash
