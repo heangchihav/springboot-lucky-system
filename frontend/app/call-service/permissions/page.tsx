@@ -5,8 +5,7 @@ import { permissionsService, Permission, Role, PermissionGroup, CreateRoleReques
 import { userService, User } from '../../services/userService'
 import { PermissionGuard } from '../../components/PermissionGuard'
 import { Plus, Trash2, Edit, Users, Shield, Check, X, UserPlus, UserMinus, ChevronDown, ChevronRight } from 'lucide-react'
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080'
+import { API_BASE_URL } from '@/config/env'
 
 const getStoredUserId = (): number | null => {
   if (typeof window === 'undefined') {

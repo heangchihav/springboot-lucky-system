@@ -18,8 +18,7 @@ import {
   YAxis,
 } from 'recharts'
 import type { PieLabelRenderProps } from 'recharts'
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080'
+import { API_BASE_URL } from '@/config/env'
 
 const STATUS_COLORS = [
   '#08BDBA', // teal

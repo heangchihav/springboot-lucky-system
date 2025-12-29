@@ -2,8 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react'
 import { apiService, UserInfo, LoginRequest, RegisterRequest, ApiError, UserServiceEntity } from '../services/api'
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'
+import { API_BASE_URL } from '@/config/env'
 
 interface AuthContextType {
   user: UserInfo | null

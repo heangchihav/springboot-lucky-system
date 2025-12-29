@@ -5,8 +5,7 @@ import { userService, User, CreateUserRequest } from '../../services/userService
 import { serviceService } from '../../services/serviceService'
 import { areaBranchService, Branch } from '../services/areaBranchService'
 import { PermissionGuard } from '../../components/PermissionGuard'
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080'
+import { API_BASE_URL } from '@/config/env'
 
 const getStoredUserId = (): number | null => {
   if (typeof window === 'undefined') {

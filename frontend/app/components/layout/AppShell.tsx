@@ -160,11 +160,17 @@ export function AppShell({ children }: AppShellProps) {
     [activeSectionId, accessibleSections]
   );
 
+  const publicAuthPaths = useMemo(() => ["/auth/login", "/auth/register"], []);
+
   useEffect(() => {
-    if (!isLoading && (!isAuthenticated || !user) && pathname !== "/auth/login") {
+    if (
+      !isLoading &&
+      (!isAuthenticated || !user) &&
+      !publicAuthPaths.includes(pathname ?? "")
+    ) {
       router.replace("/auth/login");
     }
-  }, [isLoading, isAuthenticated, user, pathname, router]);
+  }, [isLoading, isAuthenticated, user, pathname, router, publicAuthPaths]);
 
   if (isLoading) {
     return (
@@ -175,7 +181,7 @@ export function AppShell({ children }: AppShellProps) {
   }
 
   if (!isAuthenticated || !user) {
-    if (pathname !== "/auth/login") {
+    if (!publicAuthPaths.includes(pathname ?? "")) {
       return null;
     }
 
