@@ -362,7 +362,9 @@ public class ApiAuthController {
                                        HttpServletResponse httpResponse) {
         
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null || !auth.isAuthenticated()) {
+        if (auth == null || !auth.isAuthenticated() ||
+                auth instanceof org.springframework.security.authentication.AnonymousAuthenticationToken ||
+                "anonymousUser".equals(auth.getName())) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(Map.of("error", "Not authenticated"));
         }
@@ -401,7 +403,9 @@ public class ApiAuthController {
     @GetMapping("/me")
     public ResponseEntity<?> getCurrentUser(HttpServletRequest httpRequest) {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null || !auth.isAuthenticated()) {
+        if (auth == null || !auth.isAuthenticated() ||
+                auth instanceof org.springframework.security.authentication.AnonymousAuthenticationToken ||
+                "anonymousUser".equals(auth.getName())) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(Map.of("error", "Not authenticated"));
         }
@@ -441,7 +445,7 @@ public class ApiAuthController {
             deviceCookie.setSecure(secureCookies);
             deviceCookie.setPath("/");
             deviceCookie.setMaxAge(refreshTokenExpirationDays * 24 * 60 * 60);
-            deviceCookie.setAttribute("SameSite", "Strict");
+            deviceCookie.setAttribute("SameSite", "None");
             response.addCookie(deviceCookie);
         }
 
@@ -451,7 +455,7 @@ public class ApiAuthController {
         accessCookie.setSecure(secureCookies);
         accessCookie.setPath("/");
         accessCookie.setMaxAge(accessTokenExpirationMinutes * 60);
-        accessCookie.setAttribute("SameSite", "Strict");
+        accessCookie.setAttribute("SameSite", "None");
         response.addCookie(accessCookie);
 
         // Refresh token cookie - longer-lived
@@ -460,7 +464,7 @@ public class ApiAuthController {
         refreshCookie.setSecure(secureCookies);
         refreshCookie.setPath("/");
         refreshCookie.setMaxAge(refreshTokenExpirationDays * 24 * 60 * 60);
-        refreshCookie.setAttribute("SameSite", "Strict");
+        refreshCookie.setAttribute("SameSite", "None");
         response.addCookie(refreshCookie);
     }
 
@@ -472,7 +476,7 @@ public class ApiAuthController {
         deviceCookie.setSecure(secureCookies);
         deviceCookie.setPath("/");
         deviceCookie.setMaxAge(0);
-        deviceCookie.setAttribute("SameSite", "Strict");
+        deviceCookie.setAttribute("SameSite", "None");
         response.addCookie(deviceCookie);
 
         Cookie accessCookie = new Cookie("access_token", "");
@@ -480,6 +484,7 @@ public class ApiAuthController {
         accessCookie.setSecure(secureCookies);
         accessCookie.setPath("/");
         accessCookie.setMaxAge(0);
+        accessCookie.setAttribute("SameSite", "None");
         response.addCookie(accessCookie);
 
         Cookie refreshCookie = new Cookie("refresh_token", "");
@@ -487,6 +492,7 @@ public class ApiAuthController {
         refreshCookie.setSecure(secureCookies);
         refreshCookie.setPath("/");
         refreshCookie.setMaxAge(0);
+        refreshCookie.setAttribute("SameSite", "None");
         response.addCookie(refreshCookie);
     }
 
@@ -496,7 +502,7 @@ public class ApiAuthController {
         sessionCookie.setSecure(secureCookies);
         sessionCookie.setPath("/");
         sessionCookie.setMaxAge(0);
-        sessionCookie.setAttribute("SameSite", "Strict");
+        sessionCookie.setAttribute("SameSite", "None");
         response.addCookie(sessionCookie);
     }
 

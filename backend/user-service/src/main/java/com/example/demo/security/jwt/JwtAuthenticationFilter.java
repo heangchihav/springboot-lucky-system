@@ -193,7 +193,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             deviceCookie.setSecure(secureCookies);
             deviceCookie.setPath("/");
             deviceCookie.setMaxAge(refreshTokenExpirationDays * 24 * 60 * 60);
-            deviceCookie.setAttribute("SameSite", "Strict");
+            deviceCookie.setAttribute("SameSite", "None");
             response.addCookie(deviceCookie);
         }
 
@@ -203,7 +203,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         accessCookie.setSecure(secureCookies);
         accessCookie.setPath("/");
         accessCookie.setMaxAge(accessTokenExpirationMinutes * 60);
-        accessCookie.setAttribute("SameSite", "Strict");
+        accessCookie.setAttribute("SameSite", "None");
         response.addCookie(accessCookie);
 
         // Refresh token cookie
@@ -212,7 +212,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         refreshCookie.setSecure(secureCookies);
         refreshCookie.setPath("/");
         refreshCookie.setMaxAge(refreshTokenExpirationDays * 24 * 60 * 60);
-        refreshCookie.setAttribute("SameSite", "Strict");
+        refreshCookie.setAttribute("SameSite", "None");
         response.addCookie(refreshCookie);
     }
 
