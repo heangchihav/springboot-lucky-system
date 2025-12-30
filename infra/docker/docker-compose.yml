@@ -47,6 +47,7 @@ services:
       - user-service
       - call-service
       - delivery-service
+      - marketing-service
 
   user-service:
     build:
@@ -83,6 +84,32 @@ services:
     restart: unless-stopped
     ports:
       - "8082:8082"
+    env_file:
+      - ./.env
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/mydb
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      SPRING_CACHE_TYPE: redis
+      USER_SERVICE_URL: http://gateway:8080
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  marketing-service:
+    build:
+      context: ../..
+      dockerfile: backend/Dockerfile
+      args:
+        MODULE: marketing-service
+    container_name: demo-marketing-service
+    restart: unless-stopped
+    ports:
+      - "8084:8084"
     env_file:
       - ./.env
     environment:
@@ -136,6 +163,12 @@ services:
       - "host.docker.internal:host-gateway"
     depends_on:
       - gateway
+    healthcheck:
+      test: ["CMD-SHELL", "busybox wget -q -O- http://127.0.0.1/healthz > /dev/null"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
 
   cloudflared:
     image: cloudflare/cloudflared:latest
@@ -143,7 +176,10 @@ services:
     restart: unless-stopped
     env_file:
       - ./.env
-    command: tunnel run --token ${CLOUDFLARED_TUNNEL_TOKEN}
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARED_TUNNEL_TOKEN}
+    depends_on:
+      nginx:
+        condition: service_healthy
 
   prometheus:
     image: prom/prometheus:v2.54.1

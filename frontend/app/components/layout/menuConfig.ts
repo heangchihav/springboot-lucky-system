@@ -100,6 +100,34 @@ export const MENU_SECTIONS: MenuSection[] = [
     ],
   },
   {
+    id: "marketing-service",
+    label: "Marketing Service",
+    description: "Competitive intel & member loyalty",
+    items: [
+      {
+        id: "marketing-competitors",
+        label: "Competitors Dashboard",
+        description: "Benchmark competitors and share trends",
+        path: "/marketing-service/competitors",
+        menuNumber: "1",
+      },
+      {
+        id: "marketing-vip",
+        label: "VIP Member Dashboard",
+        description: "Track loyalty tiers and engagement",
+        path: "/marketing-service/vip-members",
+        menuNumber: "2",
+      },
+      {
+        id: "marketing-goods",
+        label: "Goods Dashboard",
+        description: "Monitor product categories and demand",
+        path: "/marketing-service/goods",
+        menuNumber: "3",
+      },
+    ],
+  },
+  {
     id: "user-service",
     label: "User Service",
     description: "Directory, access, and audit trails",

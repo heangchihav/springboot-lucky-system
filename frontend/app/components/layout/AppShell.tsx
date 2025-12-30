@@ -193,7 +193,7 @@ export function AppShell({ children }: AppShellProps) {
   }
 
   return (
-    <div className="flex min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-slate-100">
+    <div className="flex min-h-screen bg-linear-to-br from-slate-950 via-slate-900 to-slate-950 text-slate-100">
       <MobileSidebar
         open={mobileSidebarOpen}
         onClose={() => setMobileSidebarOpen(false)}
@@ -351,7 +351,7 @@ function Sidebar({
 
   return (
     <aside
-      className={`w-80 flex-shrink-0 border-r border-white/10 bg-slate-950/80 ${className}`}
+      className={`w-80 shrink-0 border-r border-white/10 bg-slate-950/80 ${className}`}
     >
       <div className="px-6 py-8 flex h-full flex-col gap-10">
         <div>
@@ -518,7 +518,7 @@ function AccountQuickAccess({
         href="/auth/login"
         className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-white transition hover:border-blue-400/60 hover:bg-blue-400/10"
       >
-        <div className="flex h-11 w-11 items-center justify-center rounded-full border border-blue-400/60 bg-gradient-to-br from-blue-500 to-blue-400">
+        <div className="flex h-11 w-11 items-center justify-center rounded-full border border-blue-400/60 bg-linear-to-br from-blue-500 to-blue-400">
           <svg className="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
           </svg>
@@ -535,7 +535,7 @@ function AccountQuickAccess({
 
   return (
     <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white">
-      <div className="flex h-11 w-11 items-center justify-center rounded-full border border-orange-400/60 bg-gradient-to-br from-orange-500 to-amber-400 text-base font-semibold text-slate-950">
+      <div className="flex h-11 w-11 items-center justify-center rounded-full border border-orange-400/60 bg-linear-to-br from-orange-500 to-amber-400 text-base font-semibold text-slate-950">
         {name.slice(0, 2).toUpperCase()}
       </div>
       <div className="flex flex-col text-left">

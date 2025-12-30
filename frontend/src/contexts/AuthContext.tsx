@@ -168,7 +168,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
       'call-service': 'call-service',
       'delivery': 'delivery-service',
       'delivery-service': 'delivery-service',
-      'user': 'user-service'
+      'user': 'user-service',
+      'marketing': 'marketing-service',
+      'marketing-service': 'marketing-service'
     }
     
     const sectionId = serviceKeyToSectionMap[serviceKey]
@@ -182,7 +184,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const getAccessibleServices = (): string[] => {
     // Root user has access to all services
     if (user?.username === 'root') {
-      return ['call-service', 'delivery-service', 'user-service']
+      return ['call-service', 'delivery-service', 'user-service', 'marketing-service']
     }
     
     if (!user?.userRoles) return []
@@ -193,7 +195,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
       'call-service': 'call-service',
       'delivery': 'delivery-service',
       'delivery-service': 'delivery-service',
-      'user': 'user-service'
+      'user': 'user-service',
+      'marketing': 'marketing-service',
+      'marketing-service': 'marketing-service'
     }
     
     return user.userRoles
