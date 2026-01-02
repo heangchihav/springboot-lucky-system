@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Bar,
   BarChart,
@@ -15,35 +15,15 @@ import {
   YAxis,
 } from 'recharts'
 import { MarketingServiceGuard } from '../_components/MarketingServiceGuard'
+import {
+  marketingHierarchyService,
+  MarketingArea,
+  MarketingBranch,
+  MarketingSubArea,
+} from '../services/marketingHierarchyService'
+import { vipMemberService, VipMember } from '../services/vipMemberService'
 
-type VipMember = {
-  id: number
-  name: string
-  phone: string
-  createdAt: string
-  deletedAt?: string | null
-  createRemark?: string
-  deleteRemark?: string
-}
-
-type Branch = {
-  id: number
-  name: string
-  members: VipMember[]
-}
-
-type SubArea = {
-  id: number
-  name: string
-  branches: Branch[]
-}
-
-type Area = {
-  id: number
-  name: string
-  subAreas?: SubArea[]
-  branches?: Branch[]
-}
+type FilterValue = number | 'all'
 
 type ChartSegment = {
   key: string
@@ -54,253 +34,15 @@ type ChartSegment = {
 
 type EnrichedMember = {
   member: VipMember
-  areaId: number
-  areaName: string
-  subAreaId?: number
-  subAreaName?: string
+  areaId?: number
+  areaName?: string
+  subAreaId?: number | null
+  subAreaName?: string | null
   branchId: number
-  branchName: string
+  branchName?: string
+  joinedDate: string | null
+  removedDate: string | null
 }
-
-const VIP_MEMBER_DATA: Area[] = [
-  {
-    id: 1,
-    name: 'Area 1',
-    subAreas: [
-      {
-        id: 11,
-        name: 'Sub Area A',
-        branches: [
-          {
-            id: 101,
-            name: 'Branch A1',
-            members: [
-              {
-                id: 1,
-                name: 'Sok Dara',
-                phone: '012345678',
-                createdAt: '2025-01-05',
-                createRemark: 'Joined via referral program',
-              },
-              {
-                id: 2,
-                name: 'Chan Vuthy',
-                phone: '098765432',
-                createdAt: '2025-01-08',
-                deletedAt: '2025-01-20',
-                createRemark: 'Signed up from Facebook ad',
-                deleteRemark: 'Stopped using service',
-              },
-            ],
-          },
-          {
-            id: 102,
-            name: 'Branch A2',
-            members: [
-              {
-                id: 5,
-                name: 'Sokha',
-                phone: '099112233',
-                createdAt: '2025-01-15',
-                createRemark: 'VIP upsell campaign',
-              },
-            ],
-          },
-        ],
-      },
-      {
-        id: 12,
-        name: 'Sub Area B',
-        branches: [
-          {
-            id: 103,
-            name: 'Branch B1',
-            members: [
-              {
-                id: 6,
-                name: 'Dalin',
-                phone: '015666777',
-                createdAt: '2025-01-11',
-              },
-              {
-                id: 7,
-                name: 'Rith',
-                phone: '017777666',
-                createdAt: '2025-01-13',
-              },
-            ],
-          },
-        ],
-      },
-    ],
-  },
-  {
-    id: 2,
-    name: 'Area 2',
-    branches: [
-      {
-        id: 201,
-        name: 'Branch B1',
-        members: [
-          {
-            id: 3,
-            name: 'Srey Neang',
-            phone: '010203040',
-            createdAt: '2025-01-10',
-            createRemark: 'Invited by branch manager',
-          },
-          {
-            id: 4,
-            name: 'Kimheng',
-            phone: '096887766',
-            createdAt: '2025-01-12',
-            deletedAt: '2025-01-18',
-            createRemark: 'Walk-in registration',
-            deleteRemark: 'Did not meet VIP requirements',
-          },
-        ],
-      },
-      {
-        id: 202,
-        name: 'Branch B2',
-        members: [
-          {
-            id: 8,
-            name: 'Sokny',
-            phone: '089555444',
-            createdAt: '2025-01-19',
-          },
-        ],
-      },
-    ],
-  },
-  {
-    id: 3,
-    name: 'Area 3',
-    subAreas: [
-      {
-        id: 31,
-        name: 'Sub Area C',
-        branches: [
-          {
-            id: 301,
-            name: 'Branch C1',
-            members: [
-              {
-                id: 9,
-                name: 'Piseth',
-                phone: '011222333',
-                createdAt: '2025-02-01',
-                createRemark: 'Corporate partnership',
-              },
-              {
-                id: 10,
-                name: 'Linda',
-                phone: '085111222',
-                createdAt: '2025-02-03',
-              },
-            ],
-          },
-          {
-            id: 302,
-            name: 'Branch C2',
-            members: [
-              {
-                id: 11,
-                name: 'Malis',
-                phone: '016999888',
-                createdAt: '2025-02-05',
-                createRemark: 'Event signup',
-              },
-              {
-                id: 12,
-                name: 'Veasna',
-                phone: '097333222',
-                createdAt: '2025-02-08',
-                deletedAt: '2025-02-20',
-                deleteRemark: 'Account merged',
-              },
-            ],
-          },
-        ],
-      },
-      {
-        id: 32,
-        name: 'Sub Area D',
-        branches: [
-          {
-            id: 303,
-            name: 'Branch D1',
-            members: [
-              {
-                id: 13,
-                name: 'Dina',
-                phone: '095555123',
-                createdAt: '2025-02-10',
-              },
-              {
-                id: 14,
-                name: 'Sakda',
-                phone: '086222444',
-                createdAt: '2025-02-14',
-              },
-            ],
-          },
-        ],
-      },
-    ],
-  },
-  {
-    id: 4,
-    name: 'Area 4',
-    branches: [
-      {
-        id: 401,
-        name: 'Branch E1',
-        members: [
-          {
-            id: 15,
-            name: 'Sothy',
-            phone: '088444333',
-            createdAt: '2025-03-02',
-            createRemark: 'Pilot program',
-          },
-          {
-            id: 16,
-            name: 'Vichea',
-            phone: '090777555',
-            createdAt: '2025-03-05',
-          },
-          {
-            id: 17,
-            name: 'Leakhena',
-            phone: '013555777',
-            createdAt: '2025-03-07',
-          },
-        ],
-      },
-      {
-        id: 402,
-        name: 'Branch E2',
-        members: [
-          {
-            id: 18,
-            name: 'Sovann',
-            phone: '093888111',
-            createdAt: '2025-03-09',
-          },
-          {
-            id: 19,
-            name: 'Nika',
-            phone: '082333111',
-            createdAt: '2025-03-12',
-            createRemark: 'Referred by Dina',
-          },
-        ],
-      },
-    ],
-  },
-]
 
 const TOOLTIP_STYLES = {
   content: {
@@ -318,21 +60,6 @@ const TOOLTIP_STYLES = {
     color: '#e2e8f0',
   },
 }
-
-const countMembersInBranch = (branch: Branch) => branch.members.length
-
-const countMembersInSubArea = (subArea: SubArea) => subArea.branches.reduce((sum, branch) => sum + countMembersInBranch(branch), 0)
-
-const countMembersInArea = (area: Area) => {
-  const subAreaMembers = (area.subAreas ?? []).reduce((sum, subArea) => sum + countMembersInSubArea(subArea), 0)
-  const branchMembers = (area.branches ?? []).reduce((sum, branch) => sum + countMembersInBranch(branch), 0)
-  return subAreaMembers + branchMembers
-}
-
-const flattenAreaBranches = (area: Area): Branch[] => [
-  ...(area.branches ?? []),
-  ...(area.subAreas?.flatMap((sub) => sub.branches) ?? []),
-]
 
 const BAR_COLORS = {
   base: '#f97316',
@@ -364,47 +91,63 @@ const buildDateRange = (start: string, end: string) => {
   return days
 }
 
-const flattenMembers = (areas: Area[]): EnrichedMember[] => {
-  const entries: EnrichedMember[] = []
-  areas.forEach((area) => {
-    const areaBranches = area.branches ?? []
-    areaBranches.forEach((branch) => {
-      branch.members.forEach((member) =>
-        entries.push({
-          member,
-          areaId: area.id,
-          areaName: area.name,
-          branchId: branch.id,
-          branchName: branch.name,
-        })
-      )
-    })
+const normalizeDateString = (value?: string | null) => {
+  if (!value) {
+    return null
+  }
+  return value.length > 10 ? value.slice(0, 10) : value
+}
 
-    area.subAreas?.forEach((subArea) =>
-      subArea.branches.forEach((branch) =>
-        branch.members.forEach((member) =>
-          entries.push({
-            member,
-            areaId: area.id,
-            areaName: area.name,
-            subAreaId: subArea.id,
-            subAreaName: subArea.name,
-            branchId: branch.id,
-            branchName: branch.name,
-          })
-        )
-      )
-    )
+const flattenMembers = (
+  members: VipMember[],
+  maps: {
+    areaMap: Map<number, MarketingArea>
+    subAreaMap: Map<number, MarketingSubArea>
+    branchMap: Map<number, MarketingBranch>
+  },
+): EnrichedMember[] => {
+  if (members.length === 0) {
+    return []
+  }
+
+  return members.map((member) => {
+    const branch = maps.branchMap.get(member.branchId)
+    const resolvedAreaId = member.areaId ?? branch?.areaId
+    const resolvedSubAreaId = member.subAreaId ?? branch?.subAreaId ?? null
+    const areaName =
+      member.areaName ??
+      (resolvedAreaId ? maps.areaMap.get(resolvedAreaId)?.name : undefined)
+    const subAreaName =
+      member.subAreaName ??
+      (resolvedSubAreaId ? maps.subAreaMap.get(resolvedSubAreaId)?.name ?? null : null)
+    const branchName = member.branchName ?? branch?.name
+
+    const joinedDate =
+      normalizeDateString(member.memberCreatedAt) ?? normalizeDateString(member.createdAt) ?? null
+    const removedDate = normalizeDateString(member.memberDeletedAt)
+
+    return {
+      member,
+      areaId: resolvedAreaId,
+      areaName,
+      subAreaId: resolvedSubAreaId ?? null,
+      subAreaName,
+      branchId: member.branchId,
+      branchName,
+      joinedDate,
+      removedDate,
+    }
   })
-
-  return entries
 }
 
 const getEarliestCreatedAt = (members: EnrichedMember[]) => {
-  if (members.length === 0) {
+  const joinedDates = members
+    .map((entry) => entry.joinedDate)
+    .filter((value): value is string => !!value)
+  if (joinedDates.length === 0) {
     return new Date().toISOString().split('T')[0]
   }
-  return members.reduce((earliest, item) => (item.member.createdAt < earliest ? item.member.createdAt : earliest), members[0].member.createdAt)
+  return joinedDates.reduce((earliest, current) => (current < earliest ? current : earliest), joinedDates[0])
 }
 
 const formatMonthLabel = (date: Date) =>
@@ -422,57 +165,116 @@ const getWeekNumber = (date: Date) => {
 }
 
 function VIPMembersDashboardPage() {
-  const [selectedAreaId, setSelectedAreaId] = useState<number | 'all'>('all')
-  const [selectedSubAreaId, setSelectedSubAreaId] = useState<number | 'all'>('all')
-  const [selectedBranchId, setSelectedBranchId] = useState<number | 'all'>('all')
-  const allMembers = useMemo(() => flattenMembers(VIP_MEMBER_DATA), [])
-  const [startDate, setStartDate] = useState(() => getEarliestCreatedAt(allMembers))
+  const [areas, setAreas] = useState<MarketingArea[]>([])
+  const [subAreas, setSubAreas] = useState<MarketingSubArea[]>([])
+  const [branches, setBranches] = useState<MarketingBranch[]>([])
+  const [rawMembers, setRawMembers] = useState<VipMember[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  const [selectedAreaId, setSelectedAreaId] = useState<FilterValue>('all')
+  const [selectedSubAreaId, setSelectedSubAreaId] = useState<FilterValue>('all')
+  const [selectedBranchId, setSelectedBranchId] = useState<FilterValue>('all')
+  const [startDate, setStartDate] = useState(() => new Date().toISOString().split('T')[0])
   const [endDate, setEndDate] = useState(() => new Date().toISOString().split('T')[0])
   const [trendView, setTrendView] = useState<TrendView>('day')
 
+  const initialDateAppliedRef = useRef(false)
+
+  const loadData = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const [areaData, subAreaData, branchData, memberData] = await Promise.all([
+        marketingHierarchyService.listAreas(),
+        marketingHierarchyService.listSubAreas(),
+        marketingHierarchyService.listBranches(),
+        vipMemberService.listMembers(),
+      ])
+      setAreas(areaData)
+      setSubAreas(subAreaData)
+      setBranches(branchData)
+      setRawMembers(memberData)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load VIP data')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    void loadData()
+  }, [loadData])
+
+  const areaMap = useMemo(() => new Map(areas.map((area) => [area.id, area])), [areas])
+  const subAreaMap = useMemo(() => new Map(subAreas.map((sub) => [sub.id, sub])), [subAreas])
+  const branchMap = useMemo(() => new Map(branches.map((branch) => [branch.id, branch])), [branches])
+
+  const allMembers = useMemo(
+    () => flattenMembers(rawMembers, { areaMap, subAreaMap, branchMap }),
+    [rawMembers, areaMap, subAreaMap, branchMap],
+  )
+
+  useEffect(() => {
+    if (initialDateAppliedRef.current || allMembers.length === 0) {
+      return
+    }
+    const earliest = getEarliestCreatedAt(allMembers)
+    setStartDate(earliest)
+    setEndDate((prev) => (prev < earliest ? earliest : prev))
+    initialDateAppliedRef.current = true
+  }, [allMembers])
+
   const selectedArea = useMemo(
-    () => (selectedAreaId === 'all' ? null : VIP_MEMBER_DATA.find((area) => area.id === selectedAreaId) ?? null),
-    [selectedAreaId]
-  )
-
-  const allSubAreas = useMemo(
-    () => VIP_MEMBER_DATA.flatMap((area) => area.subAreas ?? []),
-    []
-  )
-
-  const allBranches = useMemo(
-    () => VIP_MEMBER_DATA.flatMap((area) => flattenAreaBranches(area)),
-    []
+    () => (selectedAreaId === 'all' ? null : areaMap.get(selectedAreaId) ?? null),
+    [selectedAreaId, areaMap],
   )
 
   const availableSubAreas = useMemo(() => {
-    if (selectedArea) {
-      return selectedArea.subAreas ?? []
+    if (selectedAreaId === 'all') {
+      return subAreas
     }
-    return allSubAreas
-  }, [selectedArea, allSubAreas])
+    return subAreas.filter((subArea) => subArea.areaId === selectedAreaId)
+  }, [selectedAreaId, subAreas])
+
+  const selectedAreaSubAreas = useMemo(() => {
+    if (!selectedArea) {
+      return []
+    }
+    return subAreas.filter((subArea) => subArea.areaId === selectedArea.id)
+  }, [selectedArea, subAreas])
 
   const availableBranches = useMemo(() => {
-    if (!selectedArea) {
+    return branches.filter((branch) => {
+      if (selectedAreaId !== 'all' && branch.areaId !== selectedAreaId) {
+        return false
+      }
       if (selectedSubAreaId !== 'all') {
-        const subArea = allSubAreas.find((sub) => sub.id === selectedSubAreaId)
-        if (subArea) {
-          return subArea.branches
-        }
+        return (branch.subAreaId ?? null) === selectedSubAreaId
       }
-      return allBranches
-    }
+      return true
+    })
+  }, [branches, selectedAreaId, selectedSubAreaId])
 
-    if ((selectedArea.subAreas?.length ?? 0) > 0) {
-      if (selectedSubAreaId === 'all') {
-        return flattenAreaBranches(selectedArea)
-      }
-      const subArea = selectedArea.subAreas?.find((sub) => sub.id === selectedSubAreaId)
-      return subArea?.branches ?? []
+  useEffect(() => {
+    if (selectedSubAreaId === 'all') {
+      return
     }
+    const exists = availableSubAreas.some((subArea) => subArea.id === selectedSubAreaId)
+    if (!exists) {
+      setSelectedSubAreaId('all')
+    }
+  }, [availableSubAreas, selectedSubAreaId])
 
-    return selectedArea.branches ?? []
-  }, [selectedArea, selectedSubAreaId, allBranches, allSubAreas])
+  useEffect(() => {
+    if (selectedBranchId === 'all') {
+      return
+    }
+    const exists = availableBranches.some((branch) => branch.id === selectedBranchId)
+    if (!exists) {
+      setSelectedBranchId('all')
+    }
+  }, [availableBranches, selectedBranchId])
 
   const normalizedBranchId = selectedBranchId === 'all' ? null : selectedBranchId
 
@@ -483,11 +285,14 @@ function VIPMembersDashboardPage() {
       setEndDate(normalizedEnd)
     }
 
-    return allMembers.filter(({ member }) => {
-      if (member.deletedAt) {
+    return allMembers.filter(({ joinedDate, removedDate }) => {
+      if (!joinedDate) {
         return false
       }
-      return member.createdAt >= normalizedStart && member.createdAt <= normalizedEnd
+      if (removedDate) {
+        return false
+      }
+      return joinedDate >= normalizedStart && joinedDate <= normalizedEnd
     })
   }, [allMembers, startDate, endDate])
 
@@ -497,8 +302,10 @@ function VIPMembersDashboardPage() {
     const branchMap = new Map<number, number>()
 
     filteredMembers.forEach(({ areaId, subAreaId, branchId }) => {
-      areaMap.set(areaId, (areaMap.get(areaId) ?? 0) + 1)
-      if (subAreaId) {
+      if (typeof areaId === 'number') {
+        areaMap.set(areaId, (areaMap.get(areaId) ?? 0) + 1)
+      }
+      if (typeof subAreaId === 'number') {
         subAreaMap.set(subAreaId, (subAreaMap.get(subAreaId) ?? 0) + 1)
       }
       branchMap.set(branchId, (branchMap.get(branchId) ?? 0) + 1)
@@ -513,7 +320,7 @@ function VIPMembersDashboardPage() {
 
   const chartSegments: ChartSegment[] = useMemo(() => {
     if (selectedAreaId === 'all') {
-      return VIP_MEMBER_DATA.map((area) => ({
+      return areas.map((area) => ({
         key: `area-${area.id}`,
         label: area.name,
         members: areaCounts.get(area.id) ?? 0,
@@ -524,12 +331,18 @@ function VIPMembersDashboardPage() {
       return []
     }
 
-    const hasSubAreas = (selectedArea.subAreas?.length ?? 0) > 0
+    const areaSubAreas = selectedAreaSubAreas
+    const areaBranches = branches.filter((branch) => branch.areaId === selectedArea.id)
 
-    if (hasSubAreas) {
-      if (normalizedBranchId !== null) {
-        const branches = flattenAreaBranches(selectedArea)
-        return branches.map((branch) => ({
+    if (areaSubAreas.length > 0) {
+      if (normalizedBranchId !== null || selectedSubAreaId !== 'all') {
+        const branchList = areaBranches.filter((branch) => {
+          if (selectedSubAreaId === 'all') {
+            return true
+          }
+          return (branch.subAreaId ?? null) === selectedSubAreaId
+        })
+        return branchList.map((branch) => ({
           key: `branch-${branch.id}`,
           label: branch.name,
           members: branchCounts.get(branch.id) ?? 0,
@@ -537,34 +350,31 @@ function VIPMembersDashboardPage() {
         }))
       }
 
-      if (selectedSubAreaId === 'all') {
-        return selectedArea.subAreas!.map((subArea) => ({
-          key: `sub-${subArea.id}`,
-          label: subArea.name,
-          members: subAreaCounts.get(subArea.id) ?? 0,
-        }))
-      }
-
-      const subArea = selectedArea.subAreas?.find((sub) => sub.id === selectedSubAreaId)
-      if (!subArea) {
-        return []
-      }
-
-      return subArea.branches.map((branch) => ({
-        key: `branch-${branch.id}`,
-        label: branch.name,
-        members: branchCounts.get(branch.id) ?? 0,
-        highlight: selectedBranchId === branch.id,
+      return areaSubAreas.map((subArea) => ({
+        key: `sub-${subArea.id}`,
+        label: subArea.name,
+        members: subAreaCounts.get(subArea.id) ?? 0,
       }))
     }
 
-    return (selectedArea.branches ?? []).map((branch) => ({
+    return areaBranches.map((branch) => ({
       key: `branch-${branch.id}`,
       label: branch.name,
       members: branchCounts.get(branch.id) ?? 0,
-      highlight: selectedBranchId === branch.id,
+      highlight: branch.id === normalizedBranchId,
     }))
-  }, [selectedAreaId, selectedArea, selectedSubAreaId, selectedBranchId, areaCounts, subAreaCounts, branchCounts, normalizedBranchId])
+  }, [
+    selectedAreaId,
+    selectedArea,
+    selectedSubAreaId,
+    normalizedBranchId,
+    areaCounts,
+    subAreaCounts,
+    branchCounts,
+    areas,
+    subAreas,
+    branches,
+  ])
 
   const totalMembers = filteredMembers.length
 
@@ -574,24 +384,24 @@ function VIPMembersDashboardPage() {
   )
 
   const resolvedSubAreaName = useMemo(() => {
-    if (!selectedArea || selectedSubAreaId === 'all') {
+    if (selectedSubAreaId === 'all') {
       return null
     }
-    return selectedArea.subAreas?.find((sub) => sub.id === selectedSubAreaId)?.name ?? null
-  }, [selectedArea, selectedSubAreaId])
+    return availableSubAreas.find((sub) => sub.id === selectedSubAreaId)?.name ?? null
+  }, [availableSubAreas, selectedSubAreaId])
 
   const summaryTitle = useMemo(() => {
     if (selectedAreaId === 'all') {
       return 'Member distribution across areas'
     }
-    if (selectedArea && (selectedArea.subAreas?.length ?? 0) > 0) {
+    if (selectedArea && selectedAreaSubAreas.length > 0) {
       if (selectedSubAreaId === 'all') {
         return `Sub-area membership in ${selectedArea.name}`
       }
       return `Branch membership in ${resolvedSubAreaName ?? 'selected sub-area'}`
     }
     return `Branch membership in ${selectedArea?.name ?? 'selected area'}`
-  }, [selectedAreaId, selectedArea, selectedSubAreaId, resolvedSubAreaName])
+  }, [selectedAreaId, selectedArea, selectedAreaSubAreas.length, selectedSubAreaId, resolvedSubAreaName])
 
   const chartTotal = useMemo(() => chartSegments.reduce((sum, segment) => sum + segment.members, 0), [chartSegments])
 
@@ -602,9 +412,12 @@ function VIPMembersDashboardPage() {
     }
 
     const baselineIds = new Set<number>()
-    allMembers.forEach(({ member }) => {
-      const createdBeforeStart = member.createdAt < startDate
-      const activeAtStart = !member.deletedAt || member.deletedAt >= startDate
+    allMembers.forEach(({ member, joinedDate, removedDate }) => {
+      if (!joinedDate) {
+        return
+      }
+      const createdBeforeStart = joinedDate < startDate
+      const activeAtStart = !removedDate || removedDate >= startDate
       if (createdBeforeStart && activeAtStart) {
         baselineIds.add(member.id)
       }
@@ -613,18 +426,18 @@ function VIPMembersDashboardPage() {
     const additionsByDay = new Map<string, number[]>()
     const removalsByDay = new Map<string, number[]>()
 
-    allMembers.forEach(({ member }) => {
-      if (member.createdAt >= startDate && member.createdAt <= endDate) {
-        if (!additionsByDay.has(member.createdAt)) {
-          additionsByDay.set(member.createdAt, [])
+    allMembers.forEach(({ member, joinedDate, removedDate }) => {
+      if (joinedDate && joinedDate >= startDate && joinedDate <= endDate) {
+        if (!additionsByDay.has(joinedDate)) {
+          additionsByDay.set(joinedDate, [])
         }
-        additionsByDay.get(member.createdAt)!.push(member.id)
+        additionsByDay.get(joinedDate)!.push(member.id)
       }
-      if (member.deletedAt && member.deletedAt >= startDate && member.deletedAt <= endDate) {
-        if (!removalsByDay.has(member.deletedAt)) {
-          removalsByDay.set(member.deletedAt, [])
+      if (removedDate && removedDate >= startDate && removedDate <= endDate) {
+        if (!removalsByDay.has(removedDate)) {
+          removalsByDay.set(removedDate, [])
         }
-        removalsByDay.get(member.deletedAt)!.push(member.id)
+        removalsByDay.get(removedDate)!.push(member.id)
       }
     })
 
@@ -700,8 +513,8 @@ function VIPMembersDashboardPage() {
     const normalizedEnd = endDate < startDate ? startDate : endDate
     return allMembers
       .filter((entry) => {
-        const { member, areaId, subAreaId, branchId } = entry
-        if (member.createdAt < startDate || member.createdAt > normalizedEnd) {
+        const { joinedDate, areaId, subAreaId, branchId } = entry
+        if (!joinedDate || joinedDate < startDate || joinedDate > normalizedEnd) {
           return false
         }
 
@@ -709,7 +522,7 @@ function VIPMembersDashboardPage() {
           return false
         }
 
-        const areaHasSubAreas = selectedArea && (selectedArea.subAreas?.length ?? 0) > 0
+        const areaHasSubAreas = selectedArea ? selectedAreaSubAreas.length > 0 : false
         if (selectedSubAreaId !== 'all') {
           if (selectedAreaId === 'all') {
             if (subAreaId !== selectedSubAreaId) {
@@ -726,7 +539,11 @@ function VIPMembersDashboardPage() {
 
         return true
       })
-      .sort((a, b) => (a.member.createdAt > b.member.createdAt ? -1 : 1))
+      .sort((a, b) => {
+        const aDate = a.joinedDate ?? ''
+        const bDate = b.joinedDate ?? ''
+        return aDate > bDate ? -1 : 1
+      })
   }, [
     allMembers,
     startDate,
@@ -738,13 +555,13 @@ function VIPMembersDashboardPage() {
   ])
 
   const activeMembers = useMemo(
-    () => memberDetails.filter(({ member }) => !member.deletedAt),
-    [memberDetails]
+    () => memberDetails.filter(({ removedDate }) => !removedDate),
+    [memberDetails],
   )
 
   const removedMembers = useMemo(
-    () => memberDetails.filter(({ member }) => !!member.deletedAt),
-    [memberDetails]
+    () => memberDetails.filter(({ removedDate }) => !!removedDate),
+    [memberDetails],
   )
 
   const handleAreaChange = (value: string) => {
@@ -813,7 +630,7 @@ function VIPMembersDashboardPage() {
                     onChange={(event) => handleAreaChange(event.target.value)}
                   >
                     <option value="all">All areas</option>
-                    {VIP_MEMBER_DATA.map((area) => (
+                    {areas.map((area) => (
                       <option key={area.id} value={area.id}>
                         {area.name}
                       </option>
@@ -830,7 +647,7 @@ function VIPMembersDashboardPage() {
                       onChange={(event) => handleSubAreaChange(event.target.value)}
                     >
                       <option value="all">All sub areas</option>
-                      {selectedArea?.subAreas?.map((subArea) => (
+                      {availableSubAreas.map((subArea) => (
                         <option key={subArea.id} value={subArea.id}>
                           {subArea.name}
                         </option>
@@ -908,7 +725,7 @@ function VIPMembersDashboardPage() {
                 {selectedAreaId === 'all'
                   ? `Total VIP members: ${totalMembers}`
                   : resolvedBranch
-                    ? `${resolvedBranch.members.length} member(s) enrolled in ${resolvedBranch.name}`
+                    ? `${branchCounts.get(resolvedBranch.id) ?? 0} member(s) enrolled in ${resolvedBranch.name}`
                     : `${chartTotal} member(s) within current focus`}
               </p>
             </div>
@@ -1058,7 +875,9 @@ function VIPMembersDashboardPage() {
                       >
                         <td className="px-4 py-3">
                           <p className="font-semibold text-white">{entry.member.name}</p>
-                          <p className="text-xs text-emerald-100/70">Joined {entry.member.createdAt}</p>
+                          <p className="text-xs text-emerald-100/70">
+                            Joined {entry.joinedDate ?? '—'}
+                          </p>
                         </td>
                         <td className="px-4 py-3 text-emerald-50/90">{entry.member.phone}</td>
                         <td className="px-4 py-3 text-emerald-50/90">{entry.areaName}</td>
@@ -1111,7 +930,7 @@ function VIPMembersDashboardPage() {
                         <td className="px-4 py-3">
                           <p className="font-semibold text-white">{entry.member.name}</p>
                           <p className="text-xs text-rose-100/70">
-                            Joined {entry.member.createdAt} · Removed {entry.member.deletedAt}
+                            Joined {entry.joinedDate ?? '—'} · Removed {entry.removedDate ?? '—'}
                           </p>
                         </td>
                         <td className="px-4 py-3 text-rose-50/90">{entry.member.phone}</td>

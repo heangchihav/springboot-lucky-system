@@ -125,6 +125,20 @@ export const MENU_SECTIONS: MenuSection[] = [
         path: "/marketing-service/goods-dashboard",
         menuNumber: "3",
       },
+      {
+        id: "marketing-area-branch",
+        label: "Area · Sub Area · Branch",
+        description: "Manage marketing coverage hierarchy",
+        path: "/marketing-service/area-branch",
+        menuNumber: "4",
+      },
+      {
+        id: "marketing-manage-vip",
+        label: "Manage VIP Members",
+        description: "Create and update VIP member assignments",
+        path: "/marketing-service/manage-user",
+        menuNumber: "5",
+      },
     ],
   },
   {

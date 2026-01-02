@@ -1,14 +1,16 @@
 package com.example.marketingservice.entity.branch;
 
+import com.example.marketingservice.entity.area.MarketingArea;
+import com.example.marketingservice.entity.member.VipMember;
+import com.example.marketingservice.entity.subarea.MarketingSubArea;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
 import java.time.LocalDateTime;
-
-import com.example.marketingservice.entity.area.MarketingArea;
-import com.example.marketingservice.entity.subarea.MarketingSubArea;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "marketing_branches")
@@ -35,6 +37,9 @@ public class MarketingBranch {
     @JoinColumn(name = "area_id", nullable = false)
     @NotNull
     private MarketingArea area;
+
+    @OneToMany(mappedBy = "branch", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<VipMember> vipMembers = new ArrayList<>();
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "sub_area_id")
@@ -105,6 +110,14 @@ public class MarketingBranch {
 
     public void setDescription(String description) {
         this.description = description;
+    }
+
+    public List<VipMember> getVipMembers() {
+        return vipMembers;
+    }
+
+    public void setVipMembers(List<VipMember> vipMembers) {
+        this.vipMembers = vipMembers;
     }
 
     public MarketingArea getArea() {

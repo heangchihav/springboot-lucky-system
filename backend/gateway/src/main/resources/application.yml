@@ -43,6 +43,12 @@ spring:
                 - PreserveHostHeader
               predicates:
                 - Path=/api/deliveries/**
+            - id: marketing-service
+              uri: ${MARKETING_SERVICE_URL:http://demo-marketing-service:8084}
+              filters:
+                - PreserveHostHeader
+              predicates:
+                - Path=/api/marketing/**
 
 # JWT Configuration
 security:
