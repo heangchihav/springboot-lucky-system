@@ -67,7 +67,8 @@ const mapRecordToForm = (record: MarketingGoodsShipmentRecord): EntryFormState =
 })
 
 export default function GoodsInputPage() {
-  const { user } = useAuth()
+  const { user, isAuthenticated, isLoading, hasServiceAccess } = useAuth()
+  const canAccessMarketing = isAuthenticated && hasServiceAccess('marketing')
   const currentUserId = user?.id ?? null
   const [portalRoot, setPortalRoot] = useState<HTMLElement | null>(null)
   const [members, setMembers] = useState<VipMember[]>([])
@@ -103,6 +104,10 @@ export default function GoodsInputPage() {
   }
 
   useEffect(() => {
+    if (!canAccessMarketing || isLoading) {
+      return
+    }
+
     const loadMembers = async () => {
       setLoadingMembers(true)
       try {
@@ -116,9 +121,13 @@ export default function GoodsInputPage() {
     }
 
     void loadMembers()
-  }, [])
+  }, [canAccessMarketing, isLoading])
 
   useEffect(() => {
+    if (!canAccessMarketing || isLoading) {
+      return
+    }
+
     const loadHierarchy = async () => {
       setLoadingHierarchy(true)
       try {
@@ -138,7 +147,7 @@ export default function GoodsInputPage() {
     }
 
     void loadHierarchy()
-  }, [])
+  }, [canAccessMarketing, isLoading])
 
   useEffect(() => {
     if (selectedMemberId && !members.some((member) => member.id === selectedMemberId)) {
@@ -217,6 +226,10 @@ export default function GoodsInputPage() {
   }, [members, selectedMemberId])
 
   const refreshRecentShipments = useCallback(async () => {
+    if (!canAccessMarketing || isLoading) {
+      return
+    }
+
     setLoadingRecent(true)
     try {
       const records = await goodsShipmentService.listRecent({
@@ -233,7 +246,7 @@ export default function GoodsInputPage() {
     } finally {
       setLoadingRecent(false)
     }
-  }, [filterAreaId, filterBranchId, filterSubAreaId, memberQuery, recentScope])
+  }, [canAccessMarketing, filterAreaId, filterBranchId, filterSubAreaId, isLoading, memberQuery, recentScope])
 
   useEffect(() => {
     void refreshRecentShipments()

@@ -9,7 +9,15 @@ type MarketingServiceGuardProps = {
 }
 
 export function MarketingServiceGuard({ children, fallback = null }: MarketingServiceGuardProps) {
-  const { isAuthenticated, hasServiceAccess } = useAuth()
+  const { isAuthenticated, isLoading, hasServiceAccess } = useAuth()
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-[50vh] items-center justify-center rounded-3xl border border-white/10 bg-slate-800/40 p-10 text-center text-slate-200">
+        <p className="text-sm uppercase tracking-[0.3em] text-slate-300">Checking access…</p>
+      </div>
+    )
+  }
 
   if (!isAuthenticated || !hasServiceAccess('marketing')) {
     return (

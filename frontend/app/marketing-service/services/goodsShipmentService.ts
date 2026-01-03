@@ -1,6 +1,7 @@
 'use client'
 
 import { API_BASE_URL } from '@/config/env'
+import { fetchWithAuth } from '@/src/services/httpClient'
 
 const MARKETING_API_BASE = `${API_BASE_URL}/api/marketing`
 
@@ -10,12 +11,11 @@ async function request<T>(
   path: string,
   options: { method?: HttpMethod; body?: unknown } = {},
 ): Promise<T> {
-  const response = await fetch(`${MARKETING_API_BASE}${path}`, {
+  const response = await fetchWithAuth(`${MARKETING_API_BASE}${path}`, {
     method: options.method ?? 'GET',
     headers: {
       'Content-Type': 'application/json',
     },
-    credentials: 'include',
     body: options.body ? JSON.stringify(options.body) : undefined,
   })
 

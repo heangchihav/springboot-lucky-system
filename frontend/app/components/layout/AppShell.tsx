@@ -120,6 +120,7 @@ export function AppShell({ children }: AppShellProps) {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [tabs, setTabs] = useState<TabItem[]>([]);
   const [activeTabPath, setActiveTabPath] = useState(pathname ?? "");
+  const [pendingNavigationPath, setPendingNavigationPath] = useState<string | null>(null);
 
   const findItemByPath = useCallback(
     (path: string | null) => {
@@ -305,8 +306,7 @@ export function AppShell({ children }: AppShellProps) {
                           if (activeTabPath === tab.path) {
                             const fallbackPath =
                               filtered.at(-1)?.path || resolvedItems[0]?.path || "/";
-                            setActiveTabPath(fallbackPath);
-                            router.push(withLocaleQuery(fallbackPath, locale));
+                            setPendingNavigationPath(fallbackPath);
                           }
                           return filtered;
                         });

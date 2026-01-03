@@ -1,4 +1,5 @@
 import { API_BASE_URL } from '@/config/env'
+import { apiFetch, configureHttpClient } from './httpClient'
 
 export interface LoginRequest {
   username: string
@@ -58,6 +59,9 @@ export class ApiError extends Error {
 }
 
 class ApiService {
+  constructor() {
+    configureHttpClient(() => this.refreshToken())
+  }
   private getHeaders(): HeadersInit {
     return {
       'Content-Type': 'application/json',
@@ -95,77 +99,75 @@ class ApiService {
   async login(data: LoginRequest): Promise<AuthResponse> {
     const deviceId = data.deviceId || `web-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
     
-    const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
+    const response = await apiFetch('/api/auth/login', {
       method: 'POST',
       headers: this.getHeaders(),
-      credentials: 'include',
       body: JSON.stringify({
         username: data.username,
         password: data.password,
         deviceId
-      })
+      }),
+      skipAuthRefresh: true
     })
 
     return this.handleResponse<AuthResponse>(response)
   }
 
   async register(data: RegisterRequest): Promise<void> {
-    const response = await fetch(`${API_BASE_URL}/api/auth/register`, {
+    const response = await apiFetch('/api/auth/register', {
       method: 'POST',
       headers: this.getHeaders(),
-      credentials: 'include',
-      body: JSON.stringify(data)
+      body: JSON.stringify(data),
+      skipAuthRefresh: true
     })
 
     await this.handleResponse<void>(response)
   }
 
   async refreshToken(deviceId?: string): Promise<AuthResponse> {
-    const response = await fetch(`${API_BASE_URL}/api/auth/refresh`, {
+    const response = await apiFetch('/api/auth/refresh', {
       method: 'POST',
       headers: this.getHeaders(),
-      credentials: 'include',
-      body: deviceId ? JSON.stringify({ deviceId }) : undefined
+      body: deviceId ? JSON.stringify({ deviceId }) : undefined,
+      skipAuthRefresh: true
     })
 
     return this.handleResponse<AuthResponse>(response)
   }
 
   async logout(): Promise<void> {
-    const response = await fetch(`${API_BASE_URL}/api/auth/logout`, {
+    const response = await apiFetch('/api/auth/logout', {
       method: 'POST',
       headers: this.getHeaders(),
-      credentials: 'include'
+      skipAuthRefresh: true
     })
 
     await this.handleResponse<void>(response)
   }
 
   async logoutAll(): Promise<void> {
-    const response = await fetch(`${API_BASE_URL}/api/auth/logout-all`, {
+    const response = await apiFetch('/api/auth/logout-all', {
       method: 'POST',
       headers: this.getHeaders(),
-      credentials: 'include'
+      skipAuthRefresh: true
     })
 
     await this.handleResponse<void>(response)
   }
 
   async getCurrentUser(): Promise<UserInfo> {
-    const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
+    const response = await apiFetch('/api/auth/me', {
       method: 'GET',
-      headers: this.getHeaders(),
-      credentials: 'include'
+      headers: this.getHeaders()
     })
 
     return this.handleResponse<UserInfo>(response)
   }
 
   async getUserServices(userId: number): Promise<UserServiceEntity[]> {
-    const response = await fetch(`${API_BASE_URL}/api/users/${userId}/services`, {
+    const response = await apiFetch(`/api/users/${userId}/services`, {
       method: 'GET',
-      headers: this.getHeaders(),
-      credentials: 'include'
+      headers: this.getHeaders()
     })
 
     return this.handleResponse<UserServiceEntity[]>(response)

@@ -14,7 +14,7 @@ spring:
             add-to-simple-url-handler-mapping: true
             corsConfigurations:
               '[/**]':
-                allowedOriginPatterns: ${GATEWAY_CORS_ALLOWED_ORIGIN_PATTERNS:http://localhost:*}
+                allowedOriginPatterns: ${GATEWAY_CORS_ALLOWED_ORIGIN_PATTERNS:http://localhost:*,https://test.mooniris.com}
                 allowedMethods:
                   - GET
                   - POST
