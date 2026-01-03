@@ -245,7 +245,7 @@ function VIPMembersDashboardPage() {
   }, [selectedArea, subAreas])
 
   const availableBranches = useMemo(() => {
-    return branches.filter((branch) => {
+    return branches.filter((branch: MarketingBranch) => {
       if (selectedAreaId !== 'all' && branch.areaId !== selectedAreaId) {
         return false
       }

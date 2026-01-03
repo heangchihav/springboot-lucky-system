@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { TooltipProps } from 'recharts'
 import {
   Bar,
@@ -18,6 +18,14 @@ import {
   YAxis,
 } from 'recharts'
 import { MarketingServiceGuard } from '../_components/MarketingServiceGuard'
+import {
+  marketingHierarchyService,
+  MarketingArea,
+  MarketingBranch,
+  MarketingSubArea,
+} from '../services/marketingHierarchyService'
+import { goodsShipmentService, MarketingGoodsShipmentRecord } from '../services/goodsShipmentService'
+import { vipMemberService, VipMember } from '../services/vipMemberService'
 
 const STATUS_META = {
   shipping: { label: 'Shipping', color: '#facc15' },
@@ -156,170 +164,243 @@ const TotalsTooltip = ({ active, payload, label }: TooltipProps<number, string>)
   )
 }
 
-type GoodsType = 'ALL' | 'COD'
-
-type DailyShipping = {
-  date: string
-  total: number
+type CountStats = {
+  shipping: number
   arrived: number
   completed: number
-  goodsType: GoodsType
 }
 
-type VipMember = {
-  id: number
-  name: string
-  phone: string
-  shipping: DailyShipping[]
-}
-
-type Branch = {
-  id: number
-  name: string
-  members: VipMember[]
-}
-
-type SubArea = {
-  id: number
-  name: string
-  branches: Branch[]
-}
-
-type Area = {
-  id: number
-  name: string
-  subAreas?: SubArea[]
-  branches?: Branch[]
-}
-
-type MemberRecord = {
-  areaId: number
-  areaName: string
+type MemberShipmentSummary = {
+  memberId: number
+  memberName: string
+  phone?: string | null
   branchId: number
   branchName: string
-  member: VipMember
+  areaId?: number
+  areaName?: string
+  subAreaId?: number | null
+  subAreaName?: string | null
+  all: CountStats
+  cod: CountStats
+  nonCod: CountStats
+  lastDate: string
 }
 
-const VIP_AREAS: Area[] = [
-  {
-    id: 1,
-    name: 'Area 1',
-    subAreas: [
-      {
-        id: 11,
-        name: 'Sub Area A',
-        branches: [
-          {
-            id: 101,
-            name: 'Branch A1',
-            members: [
-              {
-                id: 1,
-                name: 'Sok Dara',
-                phone: '012345678',
-                shipping: [
-                  { date: '2025-01-10', goodsType: 'ALL', total: 80, arrived: 70, completed: 65 },
-                  { date: '2025-01-10', goodsType: 'COD', total: 50, arrived: 45, completed: 40 },
-                ],
-              },
-            ],
-          },
-        ],
-      },
-    ],
-  },
-  {
-    id: 2,
-    name: 'Area 2',
-    branches: [
-      {
-        id: 201,
-        name: 'Branch B1',
-        members: [
-          {
-            id: 2,
-            name: 'Chan Dara',
-            phone: '098765432',
-            shipping: [
-              { date: '2025-01-10', goodsType: 'ALL', total: 60, arrived: 55, completed: 50 },
-              { date: '2025-01-10', goodsType: 'COD', total: 35, arrived: 30, completed: 28 },
-            ],
-          },
-        ],
-      },
-    ],
-  },
-]
+const SHIPMENT_FETCH_LIMIT = 200
+const compareIsoDatesDesc = (a: string, b: string) => (a === b ? 0 : a > b ? -1 : 1)
+const getCreatedAtTime = (value?: string) => {
+  const time = value ? Date.parse(value) : Number.NaN
+  return Number.isNaN(time) ? 0 : time
+}
 
-const flattenBranches = (area: Area, subAreaId: number | 'all') => {
-  const directBranches = area.branches ?? []
-  const subAreaBranches =
-    area.subAreas
-      ?.filter((sub) => subAreaId === 'all' || sub.id === subAreaId)
-      .flatMap((sub) => sub.branches) ?? []
-  return [...directBranches, ...subAreaBranches]
+const formatDate = (value: string) => {
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) {
+    return value
+  }
+  return parsed.toLocaleDateString()
+}
+
+const getTodayIsoDate = () => new Date().toISOString().split('T')[0]
+const getDaysAgoIsoDate = (days: number) => {
+  const date = new Date()
+  date.setDate(date.getDate() - days)
+  return date.toISOString().split('T')[0]
 }
 
 export default function GoodsDashboardPage() {
+  const [areas, setAreas] = useState<MarketingArea[]>([])
+  const [subAreas, setSubAreas] = useState<MarketingSubArea[]>([])
+  const [branches, setBranches] = useState<MarketingBranch[]>([])
+  const [members, setMembers] = useState<VipMember[]>([])
+  const [shipments, setShipments] = useState<MarketingGoodsShipmentRecord[]>([])
+
   const [selectedAreaId, setSelectedAreaId] = useState<number | 'all'>('all')
   const [selectedSubAreaId, setSelectedSubAreaId] = useState<number | 'all'>('all')
   const [selectedBranchId, setSelectedBranchId] = useState<number | 'all'>('all')
   const [selectedMemberId, setSelectedMemberId] = useState<number | 'all'>('all')
   const [totalsView, setTotalsView] = useState<'area' | 'branch' | 'member'>('area')
   const [shipmentViewMode, setShipmentViewMode] = useState<'goods-type' | 'goods-status'>('goods-type')
+  const [startDate, setStartDate] = useState(getDaysAgoIsoDate(14))
+  const [endDate, setEndDate] = useState(getTodayIsoDate())
 
-  const selectedArea = useMemo(() => VIP_AREAS.find((area) => area.id === selectedAreaId), [selectedAreaId])
+  const [hierarchyLoading, setHierarchyLoading] = useState(false)
+  const [membersLoading, setMembersLoading] = useState(false)
+  const [shipmentsLoading, setShipmentsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const filtersDisabled = hierarchyLoading || membersLoading
 
-  const availableSubAreas = useMemo(() => selectedArea?.subAreas ?? [], [selectedArea])
+  const handleStartDateChange = (value: string) => {
+    if (!value) {
+      return
+    }
+    setStartDate(value)
+    if (value > endDate) {
+      setEndDate(value)
+    }
+  }
+
+  const handleEndDateChange = (value: string) => {
+    if (!value) {
+      return
+    }
+    setEndDate(value < startDate ? startDate : value)
+  }
+
+  const applyRecentRange = (days: number) => {
+    setEndDate(getTodayIsoDate())
+    setStartDate(getDaysAgoIsoDate(days))
+  }
+
+  useEffect(() => {
+    const loadHierarchy = async () => {
+      setHierarchyLoading(true)
+      setError(null)
+      try {
+        const [areaData, subAreaData, branchData] = await Promise.all([
+          marketingHierarchyService.listAreas(),
+          marketingHierarchyService.listSubAreas(),
+          marketingHierarchyService.listBranches(),
+        ])
+        setAreas(areaData)
+        setSubAreas(subAreaData)
+        setBranches(branchData)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to load hierarchy data.')
+      } finally {
+        setHierarchyLoading(false)
+      }
+    }
+
+    void loadHierarchy()
+  }, [])
+
+  useEffect(() => {
+    const loadMembers = async () => {
+      setMembersLoading(true)
+      try {
+        const roster = await vipMemberService.listMembers()
+        setMembers(roster)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to load VIP members.')
+      } finally {
+        setMembersLoading(false)
+      }
+    }
+
+    void loadMembers()
+  }, [])
+
+  const refreshShipments = useCallback(async () => {
+    setShipmentsLoading(true)
+    setError(null)
+    try {
+      const params: {
+        areaId?: number
+        subAreaId?: number
+        branchId?: number
+        memberId?: number
+        limit?: number
+        myOnly?: boolean
+        startDate?: string
+        endDate?: string
+      } = {
+        limit: SHIPMENT_FETCH_LIMIT,
+        myOnly: false,
+        startDate,
+        endDate,
+      }
+
+      if (selectedAreaId !== 'all') {
+        params.areaId = selectedAreaId
+      }
+      if (selectedSubAreaId !== 'all') {
+        params.subAreaId = selectedSubAreaId
+      }
+      if (selectedBranchId !== 'all') {
+        params.branchId = selectedBranchId
+      }
+      if (selectedMemberId !== 'all') {
+        params.memberId = selectedMemberId
+      }
+
+      const records = await goodsShipmentService.listRecent(params)
+
+      const filteredByDate = records.filter((record) => {
+        const matchesStart = !startDate || record.sendDate >= startDate
+        const matchesEnd = !endDate || record.sendDate <= endDate
+        return matchesStart && matchesEnd
+      })
+
+      const latestPerMemberPerDay = Array.from(
+        filteredByDate.reduce((map, record) => {
+          const key = `${record.memberId}-${record.sendDate}`
+          const existing = map.get(key)
+          if (!existing) {
+            map.set(key, record)
+            return map
+          }
+          const existingTime = getCreatedAtTime(existing.createdAt)
+          const currentTime = getCreatedAtTime(record.createdAt)
+          if (currentTime > existingTime || (currentTime === existingTime && record.id > existing.id)) {
+            map.set(key, record)
+          }
+          return map
+        }, new Map<string, MarketingGoodsShipmentRecord>()).values(),
+      ).sort((a, b) => {
+        const dateComparison = compareIsoDatesDesc(a.sendDate, b.sendDate)
+        if (dateComparison !== 0) {
+          return dateComparison
+        }
+        return getCreatedAtTime(b.createdAt) - getCreatedAtTime(a.createdAt)
+      })
+
+      setShipments(latestPerMemberPerDay)
+    } catch (err) {
+      setShipments([])
+      setError(err instanceof Error ? err.message : 'Failed to load shipments.')
+    } finally {
+      setShipmentsLoading(false)
+    }
+  }, [selectedAreaId, selectedSubAreaId, selectedBranchId, selectedMemberId, startDate, endDate])
+
+  useEffect(() => {
+    void refreshShipments()
+  }, [refreshShipments])
+
+  const availableSubAreas = useMemo(() => {
+    if (selectedAreaId === 'all') {
+      return subAreas
+    }
+    return subAreas.filter((subArea) => subArea.areaId === selectedAreaId)
+  }, [subAreas, selectedAreaId])
 
   const availableBranches = useMemo(() => {
-    if (selectedAreaId === 'all') {
-      return VIP_AREAS.flatMap((area) => flattenBranches(area, 'all'))
-    }
-    if (!selectedArea) {
-      return []
-    }
-    return flattenBranches(selectedArea, selectedSubAreaId)
-  }, [selectedAreaId, selectedArea, selectedSubAreaId])
-
-  const eligibleMemberRecords = useMemo(() => {
-    const records: MemberRecord[] = []
-    const shouldFilterSubArea = selectedAreaId !== 'all' && selectedSubAreaId !== 'all'
-
-    const includeBranch = (area: Area, branch: Branch) => {
-      if (selectedBranchId !== 'all' && branch.id !== selectedBranchId) {
-        return
+    return branches.filter((branch) => {
+      if (selectedAreaId !== 'all' && branch.areaId !== selectedAreaId) {
+        return false
       }
-      branch.members.forEach((member) => {
-        records.push({
-          areaId: area.id,
-          areaName: area.name,
-          branchId: branch.id,
-          branchName: branch.name,
-          member,
-        })
-      })
-    }
-
-    VIP_AREAS.forEach((area) => {
-      if (selectedAreaId !== 'all' && area.id !== selectedAreaId) {
-        return
+      if (selectedSubAreaId !== 'all' && (branch.subAreaId ?? null) !== selectedSubAreaId) {
+        return false
       }
-
-      ;(area.branches ?? []).forEach((branch) => includeBranch(area, branch))
-
-      area.subAreas?.forEach((subArea) => {
-        if (shouldFilterSubArea && subArea.id !== selectedSubAreaId) {
-          return
-        }
-        subArea.branches.forEach((branch) => includeBranch(area, branch))
-      })
+      return true
     })
+  }, [branches, selectedAreaId, selectedSubAreaId])
 
-    return records
-  }, [selectedAreaId, selectedSubAreaId, selectedBranchId])
-
-  const availableMembers = useMemo(() => eligibleMemberRecords.map((record) => record.member), [eligibleMemberRecords])
+  const availableMembers = useMemo(() => {
+    return members.filter((member) => {
+      if (selectedAreaId !== 'all' && member.areaId !== selectedAreaId) {
+        return false
+      }
+      if (selectedSubAreaId !== 'all' && member.subAreaId !== selectedSubAreaId) {
+        return false
+      }
+      if (selectedBranchId !== 'all' && member.branchId !== selectedBranchId) {
+        return false
+      }
+      return true
+    })
+  }, [members, selectedAreaId, selectedSubAreaId, selectedBranchId])
 
   const resolvedMember = useMemo(() => {
     if (selectedMemberId === 'all') {
@@ -328,19 +409,105 @@ export default function GoodsDashboardPage() {
     return availableMembers.find((member) => member.id === selectedMemberId) ?? null
   }, [availableMembers, selectedMemberId])
 
+  useEffect(() => {
+    if (selectedMemberId !== 'all' && !availableMembers.some((member) => member.id === selectedMemberId)) {
+      setSelectedMemberId('all')
+    }
+  }, [availableMembers, selectedMemberId])
+
+  const memberMap = useMemo(() => new Map(members.map((member) => [member.id, member])), [members])
+  const branchMap = useMemo(() => new Map(branches.map((branch) => [branch.id, branch])), [branches])
+  const areaMap = useMemo(() => new Map(areas.map((area) => [area.id, area])), [areas])
+  const subAreaMap = useMemo(() => new Map(subAreas.map((subArea) => [subArea.id, subArea])), [subAreas])
+
+  const memberSummaries = useMemo(() => {
+    const summaryMap = new Map<number, MemberShipmentSummary>()
+
+    shipments.forEach((shipment) => {
+      const existing = summaryMap.get(shipment.memberId)
+      const memberInfo = memberMap.get(shipment.memberId)
+      const branch = branchMap.get(shipment.branchId)
+      const areaId = branch?.areaId ?? memberInfo?.areaId ?? undefined
+      const subAreaId = branch?.subAreaId ?? memberInfo?.subAreaId ?? null
+      const area = areaId ? areaMap.get(areaId) : undefined
+      const subArea = subAreaId ? subAreaMap.get(subAreaId) : undefined
+
+      const summary =
+        existing ??
+        {
+          memberId: shipment.memberId,
+          memberName: shipment.memberName,
+          phone: memberInfo?.phone ?? null,
+          branchId: shipment.branchId,
+          branchName: shipment.branchName,
+          areaId,
+          areaName: area?.name ?? memberInfo?.areaName ?? 'Unassigned area',
+          subAreaId,
+          subAreaName: subArea?.name ?? memberInfo?.subAreaName ?? (subAreaId ? 'Unassigned sub-area' : null),
+          all: { shipping: 0, arrived: 0, completed: 0 },
+          cod: { shipping: 0, arrived: 0, completed: 0 },
+          nonCod: { shipping: 0, arrived: 0, completed: 0 },
+          lastDate: '',
+        }
+
+      summary.cod.shipping += shipment.codGoods.shipping
+      summary.cod.arrived += shipment.codGoods.arrived
+      summary.cod.completed += shipment.codGoods.complete
+
+      summary.nonCod.shipping += shipment.nonCodGoods.shipping
+      summary.nonCod.arrived += shipment.nonCodGoods.arrived
+      summary.nonCod.completed += shipment.nonCodGoods.complete
+
+      summary.all.shipping += shipment.codGoods.shipping + shipment.nonCodGoods.shipping
+      summary.all.arrived += shipment.codGoods.arrived + shipment.nonCodGoods.arrived
+      summary.all.completed += shipment.codGoods.complete + shipment.nonCodGoods.complete
+
+      const shipmentDate = new Date(shipment.sendDate).getTime()
+      const recordedDate = summary.lastDate ? new Date(summary.lastDate).getTime() : 0
+      if (shipmentDate > recordedDate) {
+        summary.lastDate = shipment.sendDate
+      }
+
+      summaryMap.set(shipment.memberId, summary)
+    })
+
+    return Array.from(summaryMap.values())
+  }, [shipments, memberMap, branchMap, areaMap, subAreaMap])
+
+  const filteredSummaries = useMemo(() => {
+    let summaries = memberSummaries
+    if (selectedAreaId !== 'all') {
+      summaries = summaries.filter((summary) => summary.areaId === selectedAreaId)
+    }
+    if (selectedSubAreaId !== 'all') {
+      summaries = summaries.filter((summary) => summary.subAreaId === selectedSubAreaId)
+    }
+    if (selectedBranchId !== 'all') {
+      summaries = summaries.filter((summary) => summary.branchId === selectedBranchId)
+    }
+    if (resolvedMember) {
+      summaries = summaries.filter((summary) => summary.memberId === resolvedMember.id)
+    }
+    return summaries
+  }, [memberSummaries, selectedAreaId, selectedSubAreaId, selectedBranchId, resolvedMember])
+
+  const displayedMemberCount = filteredSummaries.length
+
   const chartData = useMemo(() => {
-    const sourceMembers = resolvedMember ? [resolvedMember] : availableMembers
-    if (sourceMembers.length === 0) {
+    if (filteredSummaries.length === 0) {
       return []
     }
 
-    const totals = sourceMembers.reduce(
-      (acc, member) => {
-        member.shipping.forEach((entry) => {
-          acc[entry.goodsType].shipping += entry.total
-          acc[entry.goodsType].arrived += entry.arrived
-          acc[entry.goodsType].completed += entry.completed
-        })
+    const totals = filteredSummaries.reduce(
+      (acc, summary) => {
+        acc.ALL.shipping += summary.all.shipping
+        acc.ALL.arrived += summary.all.arrived
+        acc.ALL.completed += summary.all.completed
+
+        acc.COD.shipping += summary.cod.shipping
+        acc.COD.arrived += summary.cod.arrived
+        acc.COD.completed += summary.cod.completed
+
         return acc
       },
       {
@@ -354,7 +521,7 @@ export default function GoodsDashboardPage() {
       { metric: STATUS_META.arrived.label, statusKey: 'arrived' as StatusKey, ALL: totals.ALL.arrived, COD: totals.COD.arrived },
       { metric: STATUS_META.completed.label, statusKey: 'completed' as StatusKey, ALL: totals.ALL.completed, COD: totals.COD.completed },
     ]
-  }, [availableMembers, resolvedMember])
+  }, [filteredSummaries])
 
   const goodsTypeTotals = useMemo(() => {
     if (chartData.length === 0) {
@@ -429,15 +596,7 @@ export default function GoodsDashboardPage() {
   )
 
   const totalsChartData = useMemo(() => {
-    if (eligibleMemberRecords.length === 0) {
-      return []
-    }
-
-    const records = resolvedMember
-      ? eligibleMemberRecords.filter((record) => record.member.id === resolvedMember.id)
-      : eligibleMemberRecords
-
-    if (records.length === 0) {
+    if (filteredSummaries.length === 0) {
       return []
     }
 
@@ -452,84 +611,59 @@ export default function GoodsDashboardPage() {
       }
     >()
 
-    records.forEach((record) => {
-      const memberTotals = record.member.shipping.reduce(
-        (acc, entry) => {
-          if (entry.goodsType !== 'ALL') {
-            return acc
-          }
-          acc.shipping += entry.total
-          acc.arrived += entry.arrived
-          acc.completed += entry.completed
-          return acc
-        },
-        { shipping: 0, arrived: 0, completed: 0 }
-      )
-
-      if (memberTotals.shipping + memberTotals.arrived + memberTotals.completed === 0) {
-        return
-      }
-
+    filteredSummaries.forEach((summary) => {
       const key =
         totalsView === 'area'
-          ? `area-${record.areaId}`
+          ? `area-${summary.areaId ?? 'none'}`
           : totalsView === 'branch'
-            ? `branch-${record.branchId}`
-            : `member-${record.member.id}`
+            ? `branch-${summary.branchId}`
+            : `member-${summary.memberId}`
       const label =
         totalsView === 'area'
-          ? record.areaName
+          ? summary.areaName ?? 'Unassigned area'
           : totalsView === 'branch'
-            ? record.branchName
-            : record.member.name
+            ? summary.branchName
+            : summary.memberName
 
       if (!grouped.has(key)) {
         grouped.set(key, { label, shipping: 0, arrived: 0, completed: 0, total: 0 })
       }
+
       const bucket = grouped.get(key)!
-      bucket.shipping += memberTotals.shipping
-      bucket.arrived += memberTotals.arrived
-      bucket.completed += memberTotals.completed
+      bucket.shipping += summary.all.shipping
+      bucket.arrived += summary.all.arrived
+      bucket.completed += summary.all.completed
       bucket.total = bucket.shipping + bucket.arrived + bucket.completed
     })
 
     return Array.from(grouped.values()).sort((a, b) => b.total - a.total)
-  }, [eligibleMemberRecords, resolvedMember, totalsView])
+  }, [filteredSummaries, totalsView])
 
-  const shipmentRows = useMemo(() => {
-    const sourceMembers = resolvedMember ? [resolvedMember] : availableMembers
-    return sourceMembers.map((member) => {
-      const summary = member.shipping.reduce(
-        (acc, entry) => {
-          if (entry.goodsType === 'ALL') {
-            acc.all.shipping += entry.total
-            acc.all.arrived += entry.arrived
-            acc.all.completed += entry.completed
-          } else {
-            acc.cod.shipping += entry.total
-            acc.cod.arrived += entry.arrived
-            acc.cod.completed += entry.completed
-          }
-          acc.lastDate = entry.date
-          return acc
-        },
-        {
-          all: { shipping: 0, arrived: 0, completed: 0 },
-          cod: { shipping: 0, arrived: 0, completed: 0 },
-          lastDate: '',
+  const shipmentRows = useMemo(
+    () =>
+      shipments.map((record) => {
+        const memberInfo = memberMap.get(record.memberId)
+        const all = {
+          shipping: record.codGoods.shipping + record.nonCodGoods.shipping,
+          arrived: record.codGoods.arrived + record.nonCodGoods.arrived,
+          completed: record.codGoods.complete + record.nonCodGoods.complete,
         }
-      )
-
-      return {
-        member: member.name,
-        phone: member.phone,
-        date: summary.lastDate,
-        all: summary.all,
-        cod: summary.cod,
-        totalGoods: summary.all.shipping + summary.all.arrived + summary.all.completed,
-      }
-    })
-  }, [availableMembers, resolvedMember])
+        return {
+          id: record.id,
+          member: record.memberName,
+          phone: memberInfo?.phone ?? '—',
+          date: formatDate(record.sendDate),
+          all,
+          cod: {
+            shipping: record.codGoods.shipping,
+            arrived: record.codGoods.arrived,
+            completed: record.codGoods.complete,
+          },
+          totalGoods: all.shipping + all.arrived + all.completed,
+        }
+      }),
+    [shipments, memberMap],
+  )
 
   const handleAreaChange = (value: string) => {
     const next = value === 'all' ? 'all' : Number(value)
@@ -568,75 +702,163 @@ export default function GoodsDashboardPage() {
           </p>
         </header>
 
+        {error && (
+          <div className="rounded-2xl border border-rose-400/40 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">
+            {error}
+          </div>
+        )}
+
         <section className="rounded-3xl border border-white/10 bg-white/5 p-5">
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            <div className="flex flex-col text-sm text-white">
-              <label className="text-[0.65rem] uppercase tracking-[0.3em] text-slate-400">Area</label>
-              <select
-                className="mt-2 rounded-2xl border border-white/10 bg-slate-900/60 px-4 py-2 text-sm text-white focus:border-amber-400/60 focus:outline-none"
-                value={selectedAreaId}
-                onChange={(event) => handleAreaChange(event.target.value)}
-              >
-                <option value="all">All areas</option>
-                {VIP_AREAS.map((area) => (
-                  <option key={area.id} value={area.id}>
-                    {area.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {availableSubAreas.length > 0 && (
-              <div className="flex flex-col text-sm text-white">
-                <label className="text-[0.65rem] uppercase tracking-[0.3em] text-slate-400">Sub area</label>
-                <select
-                  className="mt-2 rounded-2xl border border-white/10 bg-slate-900/60 px-4 py-2 text-sm text-white focus:border-amber-400/60 focus:outline-none"
-                  value={selectedSubAreaId}
-                  onChange={(event) => handleSubAreaChange(event.target.value)}
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-stretch">
+            <div className="flex-1 rounded-2xl border border-white/10 bg-slate-950/40 p-4">
+              <div className="flex items-center justify-between text-xs uppercase tracking-[0.3em] text-amber-200/80">
+                <span>Locations</span>
+                <button
+                  className="rounded-full border border-white/10 px-3 py-1 text-[0.6rem] text-white/70 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                  onClick={() => {
+                    setSelectedAreaId('all')
+                    setSelectedSubAreaId('all')
+                    setSelectedBranchId('all')
+                    setSelectedMemberId('all')
+                  }}
+                  disabled={filtersDisabled}
                 >
-                  <option value="all">All sub areas</option>
-                  {availableSubAreas.map((subArea) => (
-                    <option key={subArea.id} value={subArea.id}>
-                      {subArea.name}
-                    </option>
-                  ))}
-                </select>
+                  Reset
+                </button>
               </div>
-            )}
+              <div className="mt-3 grid gap-3 md:grid-cols-2">
+                <div className="flex flex-col text-xs text-slate-300">
+                  <label className="text-[0.6rem] uppercase tracking-[0.25em] text-slate-400">Area</label>
+                  <select
+                    className="mt-1 rounded-xl border border-white/10 bg-slate-900/60 px-3 py-2 text-sm text-white focus:border-amber-400/60 focus:outline-none"
+                    value={selectedAreaId}
+                    onChange={(event) => handleAreaChange(event.target.value)}
+                    disabled={filtersDisabled}
+                  >
+                    <option value="all">All areas</option>
+                    {areas.map((area) => (
+                      <option key={area.id} value={area.id}>
+                        {area.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
-            <div className="flex flex-col text-sm text-white">
-              <label className="text-[0.65rem] uppercase tracking-[0.3em] text-slate-400">Branch</label>
-              <select
-                className="mt-2 rounded-2xl border border-white/10 bg-slate-900/60 px-4 py-2 text-sm text-white focus:border-amber-400/60 focus:outline-none"
-                value={selectedBranchId}
-                onChange={(event) => handleBranchChange(event.target.value)}
-              >
-                <option value="all">All branches</option>
-                {availableBranches.map((branch) => (
-                  <option key={branch.id} value={branch.id}>
-                    {branch.name}
-                  </option>
-                ))}
-              </select>
+                {availableSubAreas.length > 0 && (
+                  <div className="flex flex-col text-xs text-slate-300">
+                    <label className="text-[0.6rem] uppercase tracking-[0.25em] text-slate-400">Sub area</label>
+                    <select
+                      className="mt-1 rounded-xl border border-white/10 bg-slate-900/60 px-3 py-2 text-sm text-white focus:border-amber-400/60 focus:outline-none"
+                      value={selectedSubAreaId}
+                      onChange={(event) => handleSubAreaChange(event.target.value)}
+                      disabled={filtersDisabled}
+                    >
+                      <option value="all">All sub areas</option>
+                      {availableSubAreas.map((subArea) => (
+                        <option key={subArea.id} value={subArea.id}>
+                          {subArea.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                <div className="flex flex-col text-xs text-slate-300">
+                  <label className="text-[0.6rem] uppercase tracking-[0.25em] text-slate-400">Branch</label>
+                  <select
+                    className="mt-1 rounded-xl border border-white/10 bg-slate-900/60 px-3 py-2 text-sm text-white focus:border-amber-400/60 focus:outline-none"
+                    value={selectedBranchId}
+                    onChange={(event) => handleBranchChange(event.target.value)}
+                    disabled={filtersDisabled}
+                  >
+                    <option value="all">All branches</option>
+                    {availableBranches.map((branch) => (
+                      <option key={branch.id} value={branch.id}>
+                        {branch.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="flex flex-col text-xs text-slate-300">
+                  <label className="text-[0.6rem] uppercase tracking-[0.25em] text-slate-400">Member</label>
+                  <select
+                    className="mt-1 rounded-xl border border-white/10 bg-slate-900/60 px-3 py-2 text-sm text-white focus:border-amber-400/60 focus:outline-none"
+                    value={selectedMemberId}
+                    onChange={(event) => handleMemberChange(event.target.value)}
+                    disabled={filtersDisabled}
+                  >
+                    <option value="all">All members</option>
+                    {availableMembers.map((member) => (
+                      <option key={member.id} value={member.id}>
+                        {member.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
             </div>
 
-            <div className="flex flex-col text-sm text-white">
-              <label className="text-[0.65rem] uppercase tracking-[0.3em] text-slate-400">Member</label>
-              <select
-                className="mt-2 rounded-2xl border border-white/10 bg-slate-900/60 px-4 py-2 text-sm text-white focus:border-amber-400/60 focus:outline-none"
-                value={selectedMemberId}
-                onChange={(event) => handleMemberChange(event.target.value)}
-              >
-                <option value="all">All members</option>
-                {availableMembers.map((member) => (
-                  <option key={member.id} value={member.id}>
-                    {member.name}
-                  </option>
-                ))}
-              </select>
+            <div className="rounded-2xl border border-white/10 bg-slate-950/40 p-4 text-white lg:w-80">
+              <div className="flex items-center justify-between text-xs uppercase tracking-[0.3em] text-amber-200/80">
+                <span>Date range</span>
+                <div className="flex gap-2">
+                  {[7, 14, 30].map((days) => (
+                    <button
+                      key={days}
+                      className="rounded-full border border-white/10 px-3 py-1 text-[0.6rem] text-white/70 hover:text-white"
+                      onClick={() => applyRecentRange(days)}
+                    >
+                      {days}d
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="mt-3 space-y-3 text-xs">
+                <div className="flex flex-col">
+                  <label className="text-[0.6rem] uppercase tracking-[0.25em] text-slate-400">Start date</label>
+                  <input
+                    type="date"
+                    className="mt-1 rounded-xl border border-white/10 bg-slate-900/60 px-3 py-2 text-sm text-white focus:border-amber-400/60 focus:outline-none"
+                    value={startDate}
+                    max={endDate}
+                    onChange={(event) => handleStartDateChange(event.target.value)}
+                  />
+                </div>
+                <div className="flex flex-col">
+                  <label className="text-[0.6rem] uppercase tracking-[0.25em] text-slate-400">End date</label>
+                  <input
+                    type="date"
+                    className="mt-1 rounded-xl border border-white/10 bg-slate-900/60 px-3 py-2 text-sm text-white focus:border-amber-400/60 focus:outline-none"
+                    value={endDate}
+                    min={startDate}
+                    max={getTodayIsoDate()}
+                    onChange={(event) => handleEndDateChange(event.target.value)}
+                  />
+                </div>
+                <div className="flex flex-wrap gap-2 text-[0.6rem] uppercase tracking-[0.25em] text-slate-400">
+                  <button
+                    className="rounded-full border border-white/10 px-3 py-1 text-white/70 hover:text-white"
+                    onClick={() => {
+                      setStartDate(getTodayIsoDate())
+                      setEndDate(getTodayIsoDate())
+                    }}
+                  >
+                    Today
+                  </button>
+                  <button
+                    className="rounded-full border border-white/10 px-3 py-1 text-white/70 hover:text-white"
+                    onClick={() => {
+                      setStartDate(getDaysAgoIsoDate(90))
+                      setEndDate(getTodayIsoDate())
+                    }}
+                  >
+                    90d
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
-
         </section>
 
         <section className="rounded-3xl border border-white/10 bg-white/5 p-6">
@@ -648,12 +870,16 @@ export default function GoodsDashboardPage() {
               </h2>
               <p className="text-sm text-slate-300">
                 {resolvedMember
-                  ? `Tracking ${resolvedMember.name} (${resolvedMember.phone})`
-                  : `Aggregated across ${availableMembers.length} VIP member(s)`}
+                  ? `Tracking ${resolvedMember.name} (${resolvedMember.phone ?? 'no phone'})`
+                  : `Aggregated across ${displayedMemberCount} VIP member(s)`}
               </p>
             </div>
-            <div className="flex items-center gap-3 text-sm text-slate-300">
-              <span className="text-[0.65rem] uppercase tracking-[0.3em] text-slate-500">View by</span>
+            <div className="flex flex-col items-start gap-2 text-sm text-slate-300 lg:items-end">
+              {shipmentsLoading && (
+                <span className="text-[0.6rem] uppercase tracking-[0.3em] text-slate-500">Refreshing shipments…</span>
+              )}
+              <div className="flex items-center gap-3">
+                <span className="text-[0.65rem] uppercase tracking-[0.3em] text-slate-500">View by</span>
               <div className="rounded-full border border-white/10 bg-slate-900/60 p-1">
                 {(
                   [
@@ -671,6 +897,7 @@ export default function GoodsDashboardPage() {
                     {mode.label}
                   </button>
                 ))}
+              </div>
               </div>
             </div>
           </div>
@@ -842,7 +1069,10 @@ export default function GoodsDashboardPage() {
               <p className="text-xs uppercase tracking-[0.3em] text-amber-300/70">Shipment log</p>
               <h2 className="text-xl font-semibold text-white">VIP member manifest</h2>
             </div>
-            <span className="rounded-full border border-white/10 px-3 py-1 text-xs text-slate-200">{shipmentRows.length} rows</span>
+            <div className="flex items-center gap-3 text-xs uppercase tracking-[0.3em] text-slate-400">
+              {shipmentsLoading && <span>Refreshing…</span>}
+              <span className="rounded-full border border-white/10 px-3 py-1 text-xs text-slate-200">{shipmentRows.length} rows</span>
+            </div>
           </div>
           <div className="mt-6 overflow-x-auto">
             <table className="min-w-full text-left text-sm text-slate-200">

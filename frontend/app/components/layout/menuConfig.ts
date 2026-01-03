@@ -126,6 +126,13 @@ export const MENU_SECTIONS: MenuSection[] = [
         menuNumber: "3",
       },
       {
+        id: "marketing-goods-input",
+        label: "Record Goods Data",
+        description: "Insert shipment metrics for VIP members",
+        path: "/marketing-service/goods-input",
+        menuNumber: "3.1",
+      },
+      {
         id: "marketing-area-branch",
         label: "Area · Sub Area · Branch",
         description: "Manage marketing coverage hierarchy",
