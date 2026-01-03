@@ -10,6 +10,8 @@ import {
   Label,
   LabelList,
   Legend,
+  Line,
+  LineChart,
   Pie,
   PieChart,
   ResponsiveContainer,
@@ -56,6 +58,14 @@ const TOOLTIP_STYLES = {
     color: '#e2e8f0',
   },
 }
+
+const TREND_VIEW_OPTIONS = [
+  { key: 'day', label: 'Daily' },
+  { key: 'week', label: 'Weekly' },
+  { key: 'month', label: 'Monthly' },
+] as const
+
+type TrendView = (typeof TREND_VIEW_OPTIONS)[number]['key']
 
 type GoodsTypeLabel = keyof typeof GOODS_TYPE_COLORS
 type SplitDatum = {
@@ -208,6 +218,22 @@ const getDaysAgoIsoDate = (days: number) => {
   return date.toISOString().split('T')[0]
 }
 
+const parseIsoDate = (value: string) => new Date(`${value}T00:00:00`)
+
+const getIsoWeekNumber = (date: Date) => {
+  const temp = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()))
+  const dayNum = temp.getUTCDay() || 7
+  temp.setUTCDate(temp.getUTCDate() + 4 - dayNum)
+  const yearStart = new Date(Date.UTC(temp.getUTCFullYear(), 0, 1))
+  return Math.ceil(((temp.getTime() - yearStart.getTime()) / 86400000 + 1) / 7)
+}
+
+const formatMonthLabel = (date: Date) =>
+  date.toLocaleDateString('en-US', {
+    month: 'short',
+    year: 'numeric',
+  })
+
 export default function GoodsDashboardPage() {
   const [areas, setAreas] = useState<MarketingArea[]>([])
   const [subAreas, setSubAreas] = useState<MarketingSubArea[]>([])
@@ -223,6 +249,7 @@ export default function GoodsDashboardPage() {
   const [shipmentViewMode, setShipmentViewMode] = useState<'goods-type' | 'goods-status'>('goods-type')
   const [startDate, setStartDate] = useState(getDaysAgoIsoDate(14))
   const [endDate, setEndDate] = useState(getTodayIsoDate())
+  const [trendView, setTrendView] = useState<TrendView>('day')
 
   const [hierarchyLoading, setHierarchyLoading] = useState(false)
   const [membersLoading, setMembersLoading] = useState(false)
@@ -638,6 +665,75 @@ export default function GoodsDashboardPage() {
 
     return Array.from(grouped.values()).sort((a, b) => b.total - a.total)
   }, [filteredSummaries, totalsView])
+
+  const dailyGoodsTrend = useMemo(() => {
+    if (shipments.length === 0) {
+      return []
+    }
+
+    const totalsByDate = shipments.reduce((map, record) => {
+      const totalGoods =
+        record.codGoods.shipping +
+        record.codGoods.arrived +
+        record.codGoods.complete +
+        record.nonCodGoods.shipping +
+        record.nonCodGoods.arrived +
+        record.nonCodGoods.complete
+      map.set(record.sendDate, (map.get(record.sendDate) ?? 0) + totalGoods)
+      return map
+    }, new Map<string, number>())
+
+    const baseSeries = Array.from(totalsByDate.entries())
+      .sort(([a], [b]) => (a === b ? 0 : a < b ? -1 : 1))
+      .map(([date, total]) => ({
+        date,
+        label: formatDate(date),
+        total,
+      }))
+
+    if (trendView === 'day') {
+      return baseSeries
+    }
+
+    if (trendView === 'week') {
+      const grouped = new Map<string, { total: number; count: number; label: string }>()
+      baseSeries.forEach((item) => {
+        const parsed = parseIsoDate(item.date)
+        const year = parsed.getUTCFullYear()
+        const week = getIsoWeekNumber(parsed)
+        const key = `${year}-W${week}`
+        const label = `W${week} ${year}`
+        const bucket = grouped.get(key) ?? { total: 0, count: 0, label }
+        bucket.total += item.total
+        bucket.count += 1
+        grouped.set(key, bucket)
+      })
+      return Array.from(grouped.entries())
+        .sort(([a], [b]) => (a === b ? 0 : a < b ? -1 : 1))
+        .map(([key, bucket]) => ({
+          date: key,
+          label: bucket.label,
+          total: bucket.total,
+        }))
+    }
+
+    // trendView === 'month'
+    const grouped = new Map<string, { total: number; label: string }>()
+    baseSeries.forEach((item) => {
+      const parsed = parseIsoDate(item.date)
+      const key = `${parsed.getUTCFullYear()}-${parsed.getUTCMonth()}`
+      const bucket = grouped.get(key) ?? { total: 0, label: formatMonthLabel(parsed) }
+      bucket.total += item.total
+      grouped.set(key, bucket)
+    })
+    return Array.from(grouped.entries())
+      .sort(([a], [b]) => (a === b ? 0 : a < b ? -1 : 1))
+      .map(([key, bucket]) => ({
+        date: key,
+        label: bucket.label,
+        total: bucket.total,
+      }))
+  }, [shipments, trendView])
 
   const shipmentRows = useMemo(
     () =>
@@ -1062,6 +1158,56 @@ export default function GoodsDashboardPage() {
             )}
           </div>
         </section>
+
+        {dailyGoodsTrend.length > 0 && (
+          <section className="rounded-3xl border border-white/10 bg-white/5 p-6">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <p className="text-xs uppercase tracking-[0.3em] text-amber-300/70">Trend</p>
+                <h2 className="text-xl font-semibold text-white">Total goods per day</h2>
+                <p className="text-sm text-slate-300">
+                  Visualize how combined COD and non-COD goods fluctuate inside your selected date range.
+                </p>
+              </div>
+              <div className="rounded-full border border-white/10 bg-slate-900/60 p-1 text-xs uppercase tracking-[0.2em] text-slate-400">
+                {TREND_VIEW_OPTIONS.map((option) => (
+                  <button
+                    key={option.key}
+                    className={`rounded-full px-4 py-1 ${
+                      trendView === option.key ? 'bg-amber-400/30 text-white' : 'text-slate-400 hover:text-white'
+                    }`}
+                    onClick={() => setTrendView(option.key)}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="mt-6 h-72 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={dailyGoodsTrend} margin={{ top: 16, left: 8, right: 16, bottom: 8 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#475569" opacity={0.2} />
+                  <XAxis dataKey="label" stroke="#94a3b8" tickMargin={12} />
+                  <YAxis stroke="#94a3b8" allowDecimals={false} />
+                  <Tooltip
+                    cursor={{ stroke: '#f97316', strokeWidth: 2 }}
+                    contentStyle={TOOLTIP_STYLES.content}
+                    labelStyle={TOOLTIP_STYLES.label}
+                    itemStyle={TOOLTIP_STYLES.item}
+                    formatter={(value: number) => [`${value.toLocaleString()} goods`, 'Total goods']}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="total"
+                    stroke="#fb923c"
+                    strokeWidth={3}
+                    dot={{ stroke: '#fed7aa', strokeWidth: 2 }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </section>
+        )}
 
         <section className="rounded-3xl border border-white/10 bg-white/5 p-6">
           <div className="flex items-center justify-between">
