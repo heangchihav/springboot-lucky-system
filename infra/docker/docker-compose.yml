@@ -4,15 +4,16 @@ services:
     container_name: demo-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_DB: mydb
+      POSTGRES_DB: postgres
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
     ports:
       - "5433:5432"  # Use 5433 externally to avoid conflict with local postgres
     volumes:
       - db-data:/var/lib/postgresql/data
+      - ./initdb:/docker-entrypoint-initdb.d
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d mydb"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -62,7 +63,7 @@ services:
     env_file:
       - ./.env
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/mydb
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/user_service_db
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: postgres
       REDIS_HOST: redis
@@ -87,7 +88,7 @@ services:
     env_file:
       - ./.env
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/mydb
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/call_service_db
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: postgres
       REDIS_HOST: redis
@@ -113,7 +114,7 @@ services:
     env_file:
       - ./.env
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/mydb
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/marketing_service_db
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: postgres
       REDIS_HOST: redis
@@ -139,7 +140,7 @@ services:
     env_file:
       - ./.env
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/mydb
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/delivery_service_db
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: postgres
       REDIS_HOST: redis

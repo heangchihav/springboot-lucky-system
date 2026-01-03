@@ -28,8 +28,9 @@ infra/
     ├── kustomization.yaml   # Kustomize entry point
     ├── namespace.yaml       # demo namespace
     ├── secrets.yaml         # DB & Cloudflare credentials (uses envsubst)
-    ├── configmap.yaml       # Spring Boot config
-    ├── postgres.yaml        # PostgreSQL deployment + service
+    ├── configmap.yaml       # Spring Boot config (per-service datasource URLs)
+    ├── postgres-init-configmap.yaml  # SQL to create per-service databases
+    ├── postgres.yaml        # PostgreSQL deployment + service (mounts init SQL)
     ├── app.yaml             # Spring Boot deployment + service
     ├── cloudflared.yaml     # Cloudflare tunnel deployment
     └── ingress.yaml         # Nginx ingress
@@ -70,7 +71,7 @@ infra/
 
 | Service | Port | Description |
 |---------|------|-------------|
-| PostgreSQL | 5432 | Database |
+| PostgreSQL | 5432 | Database (auto-creates `user_service_db`, `call_service_db`, `marketing_service_db`, `delivery_service_db`) |
 | Nginx | 80 | Reverse proxy → Spring Boot :8080 |
 | Cloudflared | - | Exposes app via Cloudflare tunnel |
 
@@ -117,7 +118,7 @@ docker compose logs -f
 
 2. **Update secrets** in `infra/k8s/secrets.yaml`:
    - Set your Cloudflare tunnel token
-   - Update database credentials if needed
+   - Update database credentials if needed (`POSTGRES_DB` is no longer required)
 
 3. **Update image** in `infra/k8s/app.yaml` if using a registry:
    ```yaml

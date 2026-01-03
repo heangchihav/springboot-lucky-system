@@ -1,0 +1,4 @@
+CREATE DATABASE user_service_db;
+CREATE DATABASE call_service_db;
+CREATE DATABASE marketing_service_db;
+CREATE DATABASE delivery_service_db;

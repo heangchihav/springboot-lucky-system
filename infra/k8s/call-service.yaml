@@ -29,7 +29,7 @@ spec:
               valueFrom:
                 configMapKeyRef:
                   name: demo-config
-                  key: SPRING_DATASOURCE_URL
+                  key: SPRING_DATASOURCE_URL_CALL_SERVICE
             - name: SPRING_DATASOURCE_USERNAME
               valueFrom:
                 secretKeyRef:

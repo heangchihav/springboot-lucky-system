@@ -45,13 +45,13 @@ spec:
                   name: demo-secrets
                   key: POSTGRES_PASSWORD
             - name: POSTGRES_DB
-              valueFrom:
-                secretKeyRef:
-                  name: demo-secrets
-                  key: POSTGRES_DB
+              value: postgres
           volumeMounts:
             - name: postgres-storage
               mountPath: /var/lib/postgresql/data
+            - name: postgres-init-sql
+              mountPath: /docker-entrypoint-initdb.d/create-databases.sql
+              subPath: create-databases.sql
           resources:
             requests:
               memory: "256Mi"
@@ -63,6 +63,9 @@ spec:
         - name: postgres-storage
           persistentVolumeClaim:
             claimName: postgres-pvc
+        - name: postgres-init-sql
+          configMap:
+            name: postgres-init-sql
 
 ---
 apiVersion: v1

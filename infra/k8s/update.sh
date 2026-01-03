@@ -11,7 +11,7 @@ BACKEND_DIR="${PROJECT_ROOT}/backend"
 NAMESPACE="${NAMESPACE:-demo}"
 DOCKER_HUB_USERNAME="${DOCKER_HUB_USERNAME:-}"
 IMAGE_TAG="${IMAGE_TAG:-latest}"
-MODULES=("gateway" "user-service" "call-service" "delivery-service")
+MODULES=("gateway" "user-service" "call-service" "delivery-service" "marketing-service")
 
 if [[ -z "$DOCKER_HUB_USERNAME" ]]; then
   echo -e "${RED}Error: DOCKER_HUB_USERNAME is not set.${NC}"

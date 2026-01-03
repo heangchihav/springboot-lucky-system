@@ -24,6 +24,22 @@ spec:
           envFrom:
             - secretRef:
                 name: demo-secrets
+          env:
+            - name: SPRING_DATASOURCE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: demo-config
+                  key: SPRING_DATASOURCE_URL_DELIVERY_SERVICE
+            - name: SPRING_DATASOURCE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: demo-secrets
+                  key: POSTGRES_USER
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: demo-secrets
+                  key: POSTGRES_PASSWORD
           readinessProbe:
             httpGet:
               path: /actuator/health
