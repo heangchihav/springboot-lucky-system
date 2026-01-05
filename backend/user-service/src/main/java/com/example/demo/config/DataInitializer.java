@@ -53,6 +53,8 @@ public class DataInitializer implements CommandLineRunner {
         
         if (existingServices.isEmpty()) {
             logger.info("Creating default services...");
+            // Create marketing-service
+            userServiceManagementService.createService("marketing-service", "Marketing Service", "Marketing management operations");
             
             // Create call-service
             userServiceManagementService.createService("call-service", "Call Service", "Call management operations");
