@@ -135,7 +135,7 @@ export default function MarketingAreaBranchPage() {
 
   const upsertSubArea = async () => {
     if (!subAreaForm.name || !subAreaForm.areaId) {
-      showToast("Sub area name and parent area are required", "error");
+      showToast("Sub area/Province name and parent area are required", "error");
       return;
     }
     setLoading(true);
@@ -152,17 +152,17 @@ export default function MarketingAreaBranchPage() {
           editingSubArea.id,
           payload,
         );
-        showToast("Sub area updated");
+        showToast("Sub area/Province updated");
       } else {
         await marketingHierarchyService.createSubArea(payload);
-        showToast("Sub area created");
+        showToast("Sub area/Province created");
       }
       setSubAreaForm(defaultSubAreaForm);
       setEditingSubArea(null);
       await loadAll();
     } catch (error) {
       showToast(
-        error instanceof Error ? error.message : "Failed to save sub area",
+        error instanceof Error ? error.message : "Failed to save sub area/Province",
         "error",
       );
     } finally {
@@ -219,7 +219,7 @@ export default function MarketingAreaBranchPage() {
         await marketingHierarchyService.deleteSubArea(id);
       if (entity === "branch") await marketingHierarchyService.deleteBranch(id);
       showToast(
-        `${entity === "branch" ? "Branch" : entity === "subArea" ? "Sub area" : "Area"} removed`,
+        `${entity === "branch" ? "Branch" : entity === "subArea" ? "Sub area/Province" : "Area"} removed`,
       );
       await loadAll();
     } catch (error) {
@@ -243,10 +243,10 @@ export default function MarketingAreaBranchPage() {
             Marketing · Coverage
           </p>
           <h1 className="text-3xl font-semibold text-white">
-            Area, sub area & branch manager
+            Region Management
           </h1>
           <p className="text-sm text-slate-300">
-            Create your marketing footprint. Sub areas are scoped inside areas,
+            Create your marketing footprint. Sub area/Province are scoped inside areas,
             while branches can link to either the parent area or a specific sub
             area for more granular routing.
           </p>
@@ -360,10 +360,10 @@ export default function MarketingAreaBranchPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs uppercase tracking-[0.3em] text-slate-400">
-                  Sub area
+                  Sub area/Province
                 </p>
                 <h2 className="text-xl font-semibold text-white">
-                  {editingSubArea ? "Edit sub area" : "Create sub area"}
+                  {editingSubArea ? "Edit sub area/Province" : "Create sub area/Province"}
                 </h2>
               </div>
               {editingSubArea && (
@@ -461,8 +461,8 @@ export default function MarketingAreaBranchPage() {
                 {loading
                   ? "Saving..."
                   : editingSubArea
-                    ? "Update sub area"
-                    : "Add sub area"}
+                    ? "Update sub area/Province"
+                    : "Add sub area/Province"}
               </button>
             </div>
           </section>
@@ -513,7 +513,7 @@ export default function MarketingAreaBranchPage() {
                 </select>
               </label>
               <label className="text-sm text-slate-300">
-                Sub area (optional)
+                Sub area/Province (optional)
                 <select
                   className="mt-1 w-full rounded-2xl border border-white/10 bg-slate-900/60 px-4 py-2 text-white focus:border-amber-400/60 focus:outline-none"
                   value={branchForm.subAreaId ?? ""}
@@ -523,7 +523,7 @@ export default function MarketingAreaBranchPage() {
                   }}
                   disabled={!branchForm.areaId || filteredSubAreas.length === 0}
                 >
-                  <option value="">No sub area</option>
+                  <option value="">No sub area/Province</option>
                   {filteredSubAreas.map((subArea) => (
                     <option key={subArea.id} value={subArea.id}>
                       {subArea.name}
@@ -696,7 +696,7 @@ export default function MarketingAreaBranchPage() {
               <header className="flex items-center justify-between border-b border-white/5 px-4 py-3">
                 <div>
                   <p className="text-xs uppercase tracking-[0.3em] text-slate-400">
-                    Sub areas
+                    Sub area/Province
                   </p>
                   <p className="text-2xl font-semibold text-white">
                     {subAreas.length}
@@ -768,7 +768,7 @@ export default function MarketingAreaBranchPage() {
                 })}
                 {subAreas.length === 0 && (
                   <p className="text-center text-slate-500">
-                    No sub areas yet.
+                    No sub area/Province yet.
                   </p>
                 )}
               </div>

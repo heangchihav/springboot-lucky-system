@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import "./globals.css";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { PreferencesProvider } from "@/contexts/PreferencesContext";
-import { AppShell } from "@/components/layout/AppShell";
+import { AppShellWrapper } from "@/components/layout/AppShellWrapper";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -33,7 +33,7 @@ export default function RootLayout({
       >
         <PreferencesProvider>
           <AuthProvider>
-            <AppShell>{children}</AppShell>
+            <AppShellWrapper>{children}</AppShellWrapper>
           </AuthProvider>
         </PreferencesProvider>
       </body>
