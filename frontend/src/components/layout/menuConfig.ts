@@ -146,6 +146,13 @@ export const MENU_SECTIONS: MenuSection[] = [
         path: "/marketing-service/manage-user",
         menuNumber: "5",
       },
+      {
+        id: "marketing-manage-problems",
+        label: "Manage Problems",
+        description: "Track and manage marketing operation problems",
+        path: "/marketing-service/manage-problems",
+        menuNumber: "6",
+      },
     ],
   },
   {
