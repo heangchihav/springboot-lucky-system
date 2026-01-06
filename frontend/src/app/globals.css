@@ -1,29 +1,58 @@
 @import "tailwindcss";
 
+@keyframes gradient-shift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.animate-gradient-shift {
+  background-size: 200% 200%;
+  animation: gradient-shift 15s ease infinite;
+}
+
+/* Scrollbar hide utility */
+.scrollbar-hide {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;  /* Chrome, Safari and Opera */
+}
+
+
 :root {
   --background: #f85402;
   --foreground: #fef4ec;
-  --surface: rgba(28, 8, 0, 0.7);
-  --surface-strong: rgba(25, 7, 0, 0.8);
-  --surface-card: rgba(0, 0, 0, 0.2);
+  --surface: rgba(23, 23, 23, 0.6);
+  --surface-strong: rgba(23, 23, 23, 0.8);
+  --surface-card: rgba(31, 31, 31, 0.3);
   --brand-primary: #f97316;
-  --brand-secondary: #f59e0b;
+  --brand-secondary: #3b82f6;
   --brand-muted: #fef3c7;
   --border-color: rgba(255, 255, 255, 0.1);
-  --background-gradient: radial-gradient(circle at top, #1f1208, #090402 60%);
+  --background-gradient: linear-gradient(135deg, #f59e0b30, #3b82f630, #ec489930);
+  --glass-bg: rgba(23, 23, 23, 0.6);
+  --glass-border: rgba(255, 255, 255, 0.1);
+  --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+  --backdrop-blur: blur(10px);
 }
 
 html[data-theme="light"] {
   --background: #fdfaf6;
   --foreground: #1a1a1a;
-  --surface: rgba(255, 255, 255, 0.85);
-  --surface-strong: rgba(255, 255, 255, 0.95);
-  --surface-card: rgba(255, 255, 255, 0.6);
+  --surface: rgba(255, 255, 255, 0.7);
+  --surface-strong: rgba(255, 255, 255, 0.9);
+  --surface-card: rgba(255, 255, 255, 0.5);
   --brand-primary: #f97316;
-  --brand-secondary: #fb923c;
+  --brand-secondary: #3b82f6;
   --brand-muted: #7c2d12;
   --border-color: rgba(15, 15, 15, 0.1);
-  --background-gradient: radial-gradient(circle at top, #fff3e0, #fde8d6 60%);
+  --background-gradient: linear-gradient(135deg, #f59e0b15, #3b82f615, #ec489915);
+  --glass-bg: rgba(255, 255, 255, 0.5);
+  --glass-border: rgba(0, 0, 0, 0.1);
+  --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.1);
+  --backdrop-blur: blur(10px);
 }
 
 body {

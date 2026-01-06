@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  Fragment,
   useCallback,
   useEffect,
   useMemo,
@@ -10,13 +9,13 @@ import {
 } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   MENU_SECTIONS,
   type MenuSection,
   type SubMenuItem,
 } from "./menuConfig";
 import { useAuth } from "@/contexts/AuthContext";
-import { LocaleSwitcher } from "./LocaleSwitcher";
 import { useCurrentLocale, withLocaleQuery } from "@/i18n/useLocale";
 
 type AppShellProps = {
@@ -133,11 +132,21 @@ export function AppShell({ children }: AppShellProps) {
     deriveSectionId(pathname, accessibleSections),
   );
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [tabs, setTabs] = useState<TabItem[]>([]);
   const [activeTabPath, setActiveTabPath] = useState(pathname ?? "");
   const [pendingNavigationPath, setPendingNavigationPath] = useState<
     string | null
   >(null);
+  const [navigationDirection, setNavigationDirection] = useState<'left' | 'right'>('right');
+
+  const handleTabNavigation = (newPath: string) => {
+    const currentIndex = tabs.findIndex(tab => tab.path === activeTabPath);
+    const newIndex = tabs.findIndex(tab => tab.path === newPath);
+    setNavigationDirection(newIndex > currentIndex ? 'right' : 'left');
+    setActiveTabPath(newPath);
+    router.push(withLocaleQuery(newPath, locale));
+  };
 
   const findItemByPath = useCallback(
     (path: string | null) => {
@@ -173,6 +182,14 @@ export function AppShell({ children }: AppShellProps) {
     upsertTabForPath(pathname ?? null);
   }, [pathname, accessibleSections, upsertTabForPath]);
 
+  // Handle pending navigation after tab close
+  useEffect(() => {
+    if (pendingNavigationPath) {
+      router.push(withLocaleQuery(pendingNavigationPath, locale));
+      setPendingNavigationPath(null);
+    }
+  }, [pendingNavigationPath, router, locale]);
+
   const activeSection: MenuSection | undefined = useMemo(
     () => accessibleSections.find((section) => section.id === activeSectionId),
     [activeSectionId, accessibleSections],
@@ -192,10 +209,22 @@ export function AppShell({ children }: AppShellProps) {
 
   if (isLoading) {
     return (
-      <main className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center">
-        <span className="text-sm text-slate-400 animate-pulse">
-          Loading session…
-        </span>
+      <main className="min-h-screen bg-gradient-to-br from-blue-50 via-orange-50 to-blue-100 text-slate-800 flex items-center justify-center relative overflow-hidden">
+        {/* Animated Background Orbs */}
+        <div className="absolute inset-0 overflow-hidden">
+          <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-orange-400/30 rounded-full blur-3xl animate-pulse"></div>
+          <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-blue-600/30 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }}></div>
+        </div>
+
+        <div className="flex flex-col items-center gap-4 relative z-10">
+          <div className="relative w-16 h-16">
+            <div className="absolute inset-0 rounded-full border-4 border-blue-200 animate-pulse"></div>
+            <div className="absolute inset-0 rounded-full border-4 border-t-orange-500 border-r-transparent border-b-transparent border-l-transparent animate-spin"></div>
+          </div>
+          <span className="text-sm text-slate-600 animate-pulse font-medium">
+            Loading session…
+          </span>
+        </div>
       </main>
     );
   }
@@ -206,157 +235,282 @@ export function AppShell({ children }: AppShellProps) {
     }
 
     return (
-      <main className="min-h-screen bg-slate-950 text-slate-100">
-        {children}
-      </main>
+      <AnimatePresence mode="wait">
+        <motion.main
+          key={pathname}
+          initial={{ opacity: 0, x: 50 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: -50 }}
+          transition={{ duration: 0.3, ease: "easeInOut" }}
+          className="flex-1 flex flex-col overflow-hidden"
+        >
+          {children}
+        </motion.main>
+      </AnimatePresence>
     );
   }
 
   return (
-    <div className="flex min-h-screen bg-linear-to-br from-slate-950 via-slate-900 to-slate-950 text-slate-100">
-      <MobileSidebar
-        open={mobileSidebarOpen}
-        onClose={() => setMobileSidebarOpen(false)}
-        sections={accessibleSections}
-        activeSectionId={activeSectionId}
-        activePathname={pathname ?? ""}
-        onSelectSection={setActiveSectionId}
-        onOpenItem={(item, sectionId) => {
-          setActiveTabPath(item.path);
-          setTabs((prev) => {
-            if (prev.some((tab) => tab.path === item.path)) {
-              return prev;
-            }
-            return [...prev, { path: item.path, label: item.label, sectionId }];
-          });
-          router.push(withLocaleQuery(item.path, locale));
-        }}
-      />
-      <Sidebar
-        sections={accessibleSections}
-        activeSectionId={activeSectionId}
-        onSelectSection={setActiveSectionId}
-        activePathname={pathname ?? ""}
-        onOpenItem={(item, sectionId) => {
-          setActiveTabPath(item.path);
-          setMobileSidebarOpen(false);
-          setTabs((prev) => {
-            if (prev.some((tab) => tab.path === item.path)) {
-              return prev;
-            }
-            return [...prev, { path: item.path, label: item.label, sectionId }];
-          });
-          router.push(withLocaleQuery(item.path, locale));
-        }}
-        className="hidden lg:flex lg:flex-col lg:gap-10"
-      />
-      <main className="flex-1 border-l border-white/10 bg-slate-950/70 p-4 sm:p-8 lg:p-10">
-        <div className="mx-auto max-w-6xl space-y-10">
-          <header className="flex flex-col gap-4 border-b border-white/10 pb-6">
-            <div className="flex flex-wrap items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={() => setMobileSidebarOpen(true)}
-                  className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-white/10 bg-white/0 text-white transition-all duration-300 ease-out hover:border-orange-500/60 hover:bg-orange-500/10 lg:hidden"
-                  aria-label="Open navigation"
-                >
-                  <span className="space-y-1.5">
-                    <span className="block h-0.5 w-6 bg-white"></span>
-                    <span className="block h-0.5 w-6 bg-white"></span>
-                    <span className="block h-0.5 w-6 bg-white"></span>
-                  </span>
-                </button>
-                <div>
-                  <p className="text-xs uppercase tracking-[0.4em] text-amber-400">
-                    {t("VET_System")}
-                  </p>
-                  <h1 className="text-3xl font-semibold text-white">
-                    {t("controlCenter")}
-                  </h1>
+    <div className="flex h-screen overflow-hidden bg-slate-900 text-slate-100 relative">
+      {/* Animated Background Orbs */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-blue-950 to-slate-900"></div>
+
+        {/* Shine Layer */}
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.07),transparent_70%)"></div>
+
+        {/* Large Orange Orb */}
+        <div
+          className="absolute top-1/4 left-1/4 w-[600px] h-[600px] bg-orange-400/30 rounded-full blur-3xl animate-pulse"
+          style={{
+            animationDuration: '8s',
+            boxShadow: '0 0 150px 100px rgba(251, 146, 60, 0.2)'
+          }}
+        ></div>
+
+        {/* Large Blue Orb */}
+        <div
+          className="absolute bottom-1/4 right-1/4 w-[700px] h-[700px] bg-blue-400/30 rounded-full blur-3xl animate-pulse"
+          style={{
+            animationDuration: '10s',
+            animationDelay: '2s',
+            boxShadow: '0 0 200px 120px rgba(96, 165, 250, 0.2)'
+          }}
+        ></div>
+
+        {/* Medium Purple Orb */}
+        <div
+          className="absolute top-1/3 right-1/3 w-[400px] h-[400px] bg-purple-400/25 rounded-full blur-3xl animate-pulse"
+          style={{
+            animationDuration: '12s',
+            animationDelay: '4s',
+            boxShadow: '0 0 100px 60px rgba(168, 85, 247, 0.15)'
+          }}
+        ></div>
+
+        {/* Glowing Particles */}
+        {[...Array(15)].map((_, i) => (
+          <div
+            key={i}
+            className="absolute rounded-full bg-white/10 backdrop-blur-sm"
+            style={{
+              width: `${Math.random() * 8 + 3}px`,
+              height: `${Math.random() * 8 + 3}px`,
+              left: `${Math.random() * 100}%`,
+              top: `${Math.random() * 100}%`,
+              animation: `float ${Math.random() * 15 + 10}s linear infinite`,
+              animationDelay: `${Math.random() * 5}s`,
+              boxShadow: '0 0 15px 2px rgba(255, 255, 255, 0.5)',
+              transform: 'translateZ(0)'
+            }}
+          />
+        ))}
+      </div>
+
+      {/* Mobile Sidebar Overlay */}
+      {mobileSidebarOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm lg:hidden transition-opacity duration-300 ease-in-out"
+          onClick={() => setMobileSidebarOpen(false)}
+        />
+      )}
+
+      {/* Mobile Sidebar */}
+      <div
+        className={`fixed inset-y-0 left-0 z-50 w-80 lg:hidden transform transition-transform duration-300 ease-in-out ${mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'
+          }`}
+      >
+        <Sidebar
+          sections={accessibleSections}
+          activeSectionId={activeSectionId}
+          activePathname={pathname ?? ""}
+          onSelectSection={setActiveSectionId}
+          onOpenItem={(item, sectionId) => {
+            setActiveTabPath(item.path);
+            setTabs((prev) => {
+              if (prev.some((tab) => tab.path === item.path)) {
+                return prev;
+              }
+              return [...prev, { path: item.path, label: item.label, sectionId }];
+            });
+            router.push(withLocaleQuery(item.path, locale));
+            setMobileSidebarOpen(false);
+          }}
+          onClose={() => setMobileSidebarOpen(false)}
+          isMobile={true}
+          user={user}
+          isAuthenticated={isAuthenticated}
+          logout={logout}
+        />
+      </div>
+
+      {/* Desktop Sidebar */}
+      <div
+        className={`hidden lg:block fixed left-0 top-0 h-full z-30 transition-transform duration-300 ease-in-out ${sidebarCollapsed ? '-translate-x-full' : 'translate-x-0'
+          }`}
+      >
+        <Sidebar
+          sections={accessibleSections}
+          activeSectionId={activeSectionId}
+          activePathname={pathname ?? ""}
+          onSelectSection={setActiveSectionId}
+          onOpenItem={(item, sectionId) => {
+            setActiveTabPath(item.path);
+            setTabs((prev) => {
+              if (prev.some((tab) => tab.path === item.path)) {
+                return prev;
+              }
+              return [...prev, { path: item.path, label: item.label, sectionId }];
+            });
+            router.push(withLocaleQuery(item.path, locale));
+          }}
+          isMobile={false}
+          user={user}
+          isAuthenticated={isAuthenticated}
+          logout={logout}
+        />
+      </div>
+
+      {/* Sidebar Toggle Button */}
+      <button
+        onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+        className={`hidden lg:flex fixed top-4 z-50 h-10 w-10 items-center justify-center rounded-r-xl bg-slate-800/80 backdrop-blur-md border border-slate-700/50 text-slate-300 hover:bg-orange-500 hover:text-white hover:border-orange-600 transition-all duration-300 ease-in-out shadow-lg ${sidebarCollapsed ? 'left-0' : 'left-80'
+          }`}
+        aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+      >
+        {sidebarCollapsed ? (
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+            <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+          </svg>
+        ) : (
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+            <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
+          </svg>
+        )}
+      </button>
+
+      {/* Main Content */}
+      <main
+        className={`flex-1 overflow-y-auto transition-all duration-300 ease-in-out relative z-10 ${sidebarCollapsed ? 'lg:pl-12' : 'lg:pl-[336px]'
+          }`}
+      >
+        <div className="w-full min-h-full lg:px-10 lg:pr-18">
+          {/* Combined Header with Tabs */}
+          <div className="rounded-b-lg mb-5 bg-slate-900/70 backdrop-blur-xl border border-slate-700/50 shadow-xl overflow-hidden">
+            {/* Header Section - Just the menu button */}
+            <div>
+              <button
+                type="button"
+                onClick={() => setMobileSidebarOpen(true)}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-slate-800/60 backdrop-blur-md border border-slate-700/50 text-slate-300 transition-all duration-200 hover:bg-orange-500 hover:text-white hover:border-orange-600 active:scale-95 lg:hidden shadow"
+                aria-label="Open navigation"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Tabs Section - Fixed at the top */}
+            {tabs.length > 0 && (
+              <div className="sticky top-0 z-40 bg-slate-900/90 backdrop-blur-md border-b border-slate-700/50">
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 w-8 bg-gradient-to-r from-slate-900 to-transparent z-10 pointer-events-none"></div>
+                  <div className="absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-slate-900 to-transparent z-10 pointer-events-none"></div>
+                  <nav className="flex items-center gap-2 px-4 py-3 overflow-x-auto scrollbar-hide whitespace-nowrap">
+                    {tabs.map((tab) => {
+                      const isActive = activeTabPath.startsWith(tab.path);
+                      return (
+                        <div
+                          key={tab.path}
+                          className={`flex items-center gap-2 rounded-xl px-3 py-2 transition-all duration-200 cursor-pointer ${isActive
+                              ? "bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-lg shadow-orange-500/50"
+                              : "bg-slate-700/50 text-slate-300 hover:bg-slate-700 border border-slate-600/50"
+                            }`}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => handleTabNavigation(tab.path)}
+                            className="text-sm font-semibold transition-colors cursor-pointer"
+                          >
+                            {tab.label}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setTabs((prev) => {
+                                const filtered = prev.filter(
+                                  (existing) => existing.path !== tab.path,
+                                );
+                                if (filtered.length === prev.length) {
+                                  return prev;
+                                }
+                                if (activeTabPath === tab.path) {
+                                  const fallbackPath =
+                                    filtered.at(-1)?.path ||
+                                    resolvedItems[0]?.path ||
+                                    "/";
+                                  setPendingNavigationPath(fallbackPath);
+                                }
+                                return filtered;
+                              });
+                            }}
+                            aria-label={`Close ${tab.label}`}
+                            className={`rounded-full p-1 transition-all duration-200 active:scale-90 cursor-pointer ${isActive
+                                ? "hover:bg-white/20 text-white"
+                                : "hover:bg-slate-600 text-slate-400"
+                              }`}
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </nav>
                 </div>
               </div>
-              <div className="flex flex-wrap items-center gap-3">
-         
-                <AccountQuickAccess
-                  name={user?.fullName ?? user?.username ?? "Operator"}
-                  isAuthenticated={isAuthenticated}
-                  onLogout={logout}
-                />
-              </div>
-            </div>
-           
-          </header>
-          {tabs.length > 0 ? (
-            <nav className="flex flex-wrap items-center gap-2 rounded-3xl border border-white/10 bg-white/5 px-4 py-3">
-              {tabs.map((tab) => {
-                const isActive = activeTabPath.startsWith(tab.path);
-                return (
-                  <div
-                    key={tab.path}
-                    className={`flex items-center gap-2 rounded-2xl border px-2 py-1 ${
-                      isActive
-                        ? "border-orange-400/70 bg-orange-400/10 text-white"
-                        : "border-white/10 bg-white/0 text-slate-300"
-                    }`}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setActiveTabPath(tab.path);
-                        router.push(withLocaleQuery(tab.path, locale));
-                      }}
-                      className="flex items-center gap-2 rounded-2xl px-3 py-1 text-sm font-semibold transition-all duration-300 ease-out focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-400"
-                    >
-                      {tab.label}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setTabs((prev) => {
-                          const filtered = prev.filter(
-                            (existing) => existing.path !== tab.path,
-                          );
-                          if (filtered.length === prev.length) {
-                            return prev;
-                          }
-                          if (activeTabPath === tab.path) {
-                            const fallbackPath =
-                              filtered.at(-1)?.path ||
-                              resolvedItems[0]?.path ||
-                              "/";
-                            setPendingNavigationPath(fallbackPath);
-                          }
-                          return filtered;
-                        });
-                      }}
-                      aria-label={`Close ${tab.label}`}
-                      className="rounded-full border border-white/10 px-2 py-1 text-xs text-white/70 transition-all duration-300 ease-out hover:border-orange-400/60 hover:bg-orange-400/20"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                );
-              })}
-            </nav>
-          ) : null}
-          <section className="rounded-3xl border border-white/10 bg-slate-900/60 p-6 shadow-2xl shadow-orange-500/10 backdrop-blur">
-            {children}
-          </section>
+            )}
+          </div>
+
+          {/* Content Area - Glassmorphism with Page Transitions */}
+          <AnimatePresence mode="wait" custom={navigationDirection}>
+            <motion.div
+              key={pathname}
+              custom={navigationDirection}
+              initial={{ opacity: 0, x: navigationDirection === 'right' ? 50 : -50 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: navigationDirection === 'right' ? -50 : 50 }}
+              transition={{ duration: 0.3, ease: "easeInOut" }}
+              className="w-full"
+            >
+              <section className="rounded-2xl bg-slate-900/70 backdrop-blur-xl border border-slate-700/50 p-6 shadow-2xl shadow-blue-900/10 transition-all duration-300 hover:shadow-blue-900/20">
+                <div className="relative z-10">
+                  {children}
+                </div>
+                <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-orange-500/10 via-blue-500/10 to-purple-500/10 opacity-50 -z-10"></div>
+              </section>
+            </motion.div>
+          </AnimatePresence>
         </div>
       </main>
     </div>
   );
 }
 
-type SidebarProps = {
+interface SidebarProps {
   sections: MenuSection[];
   activeSectionId: string;
   activePathname: string;
   onSelectSection: (id: string) => void;
   onOpenItem: (item: SubMenuItem, sectionId: string) => void;
-  className?: string;
-};
+  onClose?: () => void;
+  isMobile?: boolean;
+  user: any; // Consider creating a proper User type
+  isAuthenticated: boolean;
+  logout: () => Promise<void>;
+}
 
 function Sidebar({
   sections,
@@ -364,41 +518,63 @@ function Sidebar({
   onSelectSection,
   activePathname,
   onOpenItem,
-  className = "",
+  onClose,
+  isMobile = false,
+  user,
+  isAuthenticated,
+  logout,
 }: SidebarProps) {
   const activeSection = sections.find(
     (section) => section.id === activeSectionId,
   );
 
   return (
-    <aside
-      className={`w-80 shrink-0 border-r border-white/10 bg-slate-950/80 ${className}`}
-    >
-      <div className="px-6 py-8 flex h-full flex-col gap-10">
+    <aside className="w-80 h-full bg-slate-900/90 backdrop-blur-xl border-r border-slate-700/50 shadow-2xl flex flex-col">
+      {/* Header */}
+      <div className="flex items-center justify-between p-6 border-b border-slate-700/50">
+        <h2 className="text-xl font-bold text-white">Navigation</h2>
+        {isMobile && onClose && (
+          <button
+            onClick={onClose}
+            className="p-2 rounded-lg hover:bg-slate-800/50 transition-all duration-200 active:scale-95"
+            aria-label="Close menu"
+          >
+            <svg className="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        )}
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 display overflow-y-auto p-6 space-y-8 scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-transparent">
+        {/* Services Section */}
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.4em] text-amber-400">
+          <p className="text-xs font-bold uppercase tracking-[0.3em] text-orange-500 mb-4">
             Services
           </p>
-          <div className="mt-4 space-y-3">
-            {sections.map((section) => (
+          <div className="overflow-hidden rounded-xl border border-slate-700/50 divide-y divide-slate-700/50">
+            {sections.map((section, index) => (
               <button
                 key={section.id}
                 type="button"
                 onClick={() => onSelectSection(section.id)}
-                className={`w-full rounded-2xl border px-4 py-4 text-left transition-all duration-300 ease-out focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-400 ${
-                  section.id === activeSectionId
-                    ? "border-orange-400/70 bg-orange-400/10 text-white shadow-lg shadow-orange-500/20"
-                    : "border-white/10 bg-white/0 text-slate-300 hover:border-orange-400/40 hover:bg-white/5"
-                }`}
+                className={`w-full px-4 py-3 text-left transition-all duration-200 ${section.id === activeSectionId
+                    ? "bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-lg shadow-orange-500/50 scale-[1.02]"
+                    : "bg-slate-800/50 backdrop-blur-sm text-slate-300 hover:bg-slate-800 hover:scale-[1.01]"
+                  } ${index === 0 ? 'rounded-t-xl' : ''} ${index === sections.length - 1 ? 'rounded-b-xl' : 'border-b border-slate-700/50'}`}
               >
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-semibold">{section.label}</p>
-                    <p className="text-xs text-slate-400">
+                    <p className="text-sm font-bold">{section.label}</p>
+                    <p className={`text-xs mt-0.5 ${section.id === activeSectionId ? 'text-orange-100' : 'text-slate-400'}`}>
                       {section.description}
                     </p>
                   </div>
-                  <span className="text-xs font-semibold uppercase tracking-[0.4em] text-amber-300/70">
+                  <span className={`text-xs font-bold px-2 py-1 rounded-full ${section.id === activeSectionId
+                      ? 'bg-white/20 text-white'
+                      : 'bg-orange-500/20 text-orange-400'
+                    }`}>
                     {section.items.length}
                   </span>
                 </div>
@@ -407,32 +583,48 @@ function Sidebar({
           </div>
         </div>
 
-        <div className="flex-1">
-          <div className="flex items-center justify-between">
-            <p className="text-xs uppercase tracking-[0.35em] text-amber-400">
-              {activeSection?.label ?? "Menu"}
+        {/* Modules Section */}
+        <div>
+          <div className="flex items-center justify-between mb-4">
+            <p className="text-xs uppercase tracking-[0.3em] text-blue-400 font-bold">
+              {activeSection?.label ?? "Modules"}
             </p>
-            <span className="text-[10px] uppercase tracking-[0.4em] text-slate-500">
-              Modules
-            </span>
           </div>
-          <div className="mt-4 space-y-2">
+          <div className="divide-y divide-slate-700/50 rounded-xl border border-slate-700/50">
             {activeSection ? (
-              activeSection.items.map((item) => (
-                <SidebarItem
-                  key={item.id}
-                  item={item}
-                  active={activePathname.startsWith(item.path)}
-                  onOpen={() => onOpenItem(item, activeSectionId)}
-                />
+              activeSection.items.map((item, index) => (
+                <div key={item.id} className="hover:bg-slate-800/50 transition-colors duration-200">
+                  <SidebarItem
+                    key={item.id}
+                    item={item}
+                    active={activePathname.startsWith(item.path)}
+                    onOpen={() => onOpenItem(item, activeSectionId)}
+                    isFirst={index === 0}
+                    isLast={index === activeSection.items.length - 1}
+                  />
+                </div>
               ))
             ) : (
-              <div className="rounded-2xl border border-dashed border-white/20 px-4 py-6 text-center text-sm text-slate-400">
-                Select a service to see its modules.
+              <div className="rounded-xl border-2 border-dashed border-slate-700 bg-slate-800/30 backdrop-blur-sm px-4 py-8 text-center">
+                <svg className="w-12 h-12 mx-auto mb-3 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <p className="text-sm text-slate-400 font-medium">
+                  Select a service to view modules
+                </p>
               </div>
             )}
           </div>
         </div>
+      </div>
+
+      {/* Account Section */}
+      <div className="p-4 border-t border-slate-700/50 bg-slate-900/70">
+        <AccountQuickAccess
+          name={user?.fullName ?? user?.username ?? "Operator"}
+          isAuthenticated={isAuthenticated}
+          onLogout={logout}
+        />
       </div>
     </aside>
   );
@@ -442,63 +634,33 @@ type SidebarItemProps = {
   item: SubMenuItem;
   active: boolean;
   onOpen: () => void;
+  isFirst?: boolean;
+  isLast?: boolean;
 };
 
-function SidebarItem({ item, active, onOpen }: SidebarItemProps) {
+function SidebarItem({ item, active, onOpen, isFirst = false, isLast = false }: SidebarItemProps) {
   return (
     <button
       type="button"
       onClick={onOpen}
-      className={`group flex w-full items-start gap-3 rounded-2xl border px-4 py-3 text-left transition-all duration-300 ease-out ${
-        active
-          ? "border-orange-400/70 bg-orange-400/10 text-white"
-          : "border-white/10 bg-white/0 text-slate-300 hover:border-orange-400/40 hover:bg-white/5"
-      }`}
+      className={`group flex w-full items-center gap-3 px-4 py-3 text-left transition-all duration-200 ${active
+          ? "bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-lg shadow-blue-500/50 scale-[1.02]"
+          : "bg-slate-800/50 backdrop-blur-sm text-slate-300 hover:bg-slate-800/70"
+        } ${isFirst ? 'rounded-t-xl' : ''} ${isLast ? 'rounded-b-xl' : ''}`}
     >
-      <span className="mt-1 flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-xs font-semibold uppercase tracking-[0.3em] text-white/80">
-        {item.menuNumber || item.label.slice(0, 2)}
+      <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-xs font-bold transition-all duration-200 ${active
+          ? "bg-white/20 text-white"
+          : "bg-blue-500/20 text-blue-400 group-hover:bg-blue-500/30"
+        }`}>
+        {item.menuNumber || item.label.slice(0, 2).toUpperCase()}
       </span>
-      <div className="flex-1">
-        <p className="font-semibold text-white">{item.label}</p>
-        <p className="text-sm text-slate-400">{item.description}</p>
-        <p className="text-[10px] uppercase tracking-[0.4em] text-orange-300/60">
-          {item.path}
+      <div className="flex-1 min-w-0">
+        <p className="font-semibold text-sm truncate">{item.label}</p>
+        <p className={`text-xs truncate ${active ? 'text-blue-100' : 'text-slate-400'}`}>
+          {item.description}
         </p>
       </div>
     </button>
-  );
-}
-
-type MobileSidebarProps = SidebarProps & {
-  open: boolean;
-  onClose: () => void;
-};
-
-function MobileSidebar({ open, onClose, ...sidebarProps }: MobileSidebarProps) {
-  if (!open) return null;
-
-  return (
-    <div className="fixed inset-0 z-40 lg:hidden">
-      <button
-        type="button"
-        className="absolute inset-0 bg-black/60"
-        aria-label="Close navigation overlay"
-        onClick={onClose}
-      />
-      <div className="relative flex h-full w-80 flex-col border-r border-white/10 bg-slate-950/95 shadow-2xl shadow-black/70">
-        <div className="flex items-center justify-between border-b border-white/10 px-6 py-4">
-          <p className="text-sm font-semibold text-white">Navigation</p>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-full border border-white/10 px-3 py-1 text-sm text-white transition hover:border-orange-400/60 hover:bg-orange-400/10"
-          >
-            Close
-          </button>
-        </div>
-        <Sidebar {...sidebarProps} className="flex-1 overflow-y-auto" />
-      </div>
-    </div>
   );
 }
 
@@ -517,7 +679,7 @@ function AccountQuickAccess({
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const handleLogout = async () => {
-    if (isLoggingOut) return; // Prevent multiple clicks
+    if (isLoggingOut) return;
 
     setIsLoggingOut(true);
     try {
@@ -525,7 +687,6 @@ function AccountQuickAccess({
       router.push("/auth/login");
     } catch (error) {
       console.error("Logout error:", error);
-      // Still redirect even if logout fails
       router.push("/auth/login");
     } finally {
       setIsLoggingOut(false);
@@ -536,87 +697,41 @@ function AccountQuickAccess({
     return (
       <Link
         href="/auth/login"
-        className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-white transition hover:border-blue-400/60 hover:bg-blue-400/10"
+        className="flex items-center gap-3 rounded-xl bg-slate-800/60 backdrop-blur-md border border-slate-700/50 px-4 py-2 text-sm text-slate-300 transition-all duration-200 hover:bg-blue-600 hover:text-white hover:border-blue-700 hover:scale-105 active:scale-95 shadow-lg"
       >
-        <div className="flex h-11 w-11 items-center justify-center rounded-full border border-blue-400/60 bg-linear-to-br from-blue-500 to-blue-400">
-          <svg
-            className="h-6 w-6 text-white"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"
-            />
+        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-blue-700 shadow-lg">
+          <svg className="h-5 w-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
           </svg>
         </div>
         <div className="flex flex-col text-left">
-          <span className="text-xs uppercase tracking-[0.4em] text-blue-300/80">
+          <span className="text-xs uppercase tracking-wider text-blue-400 font-bold">
             Login
           </span>
-          <span className="font-semibold">Sign In</span>
+          <span className="font-bold">Sign In</span>
         </div>
       </Link>
     );
   }
 
   return (
-    <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white">
-      <div className="flex h-11 w-11 items-center justify-center rounded-full border border-orange-400/60 bg-linear-to-br from-orange-500 to-amber-400 text-base font-semibold text-slate-950">
+    <div className="flex items-center gap-3 rounded-xl bg-slate-800/60 backdrop-blur-md border border-slate-700/50 px-3 py-2 text-sm text-slate-300 shadow-xl">
+      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-orange-500 to-orange-700 text-base font-bold text-white shadow-lg">
         {name.slice(0, 2).toUpperCase()}
       </div>
       <div className="flex flex-col text-left">
-        <span className="text-xs uppercase tracking-[0.4em] text-amber-300/80">
+        <span className="text-xs uppercase tracking-wider text-orange-400 font-bold">
           Account
         </span>
-        <span className="font-semibold">{name}</span>
+        <span className="font-bold truncate max-w-[120px] text-white">{name}</span>
       </div>
-      <div className="ml-4 flex gap-2">
+      <div className="ml-auto">
         <Link
           href="/account"
-          className="rounded-full border border-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-amber-200/80 transition hover:border-orange-400/60 hover:bg-orange-400/10"
+          className="inline-flex items-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-bold text-white transition-all duration-200 hover:bg-blue-700 hover:scale-105 active:scale-95 shadow-md whitespace-nowrap"
         >
-          Settings
+          Center
         </Link>
-        <button
-          onClick={handleLogout}
-          disabled={isLoggingOut}
-          className={`rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-[0.3em] transition ${
-            isLoggingOut
-              ? "border-gray-600 bg-gray-600/20 text-gray-400 cursor-not-allowed"
-              : "border-white/10 text-amber-200/60 hover:border-red-500/70 hover:bg-red-500/10"
-          }`}
-        >
-          {isLoggingOut ? (
-            <span className="flex items-center gap-2">
-              <svg
-                className="animate-spin h-3 w-3"
-                fill="none"
-                viewBox="0 0 24 24"
-              >
-                <circle
-                  className="opacity-25"
-                  cx="12"
-                  cy="12"
-                  r="10"
-                  stroke="currentColor"
-                  strokeWidth="4"
-                ></circle>
-                <path
-                  className="opacity-75"
-                  fill="currentColor"
-                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                ></path>
-              </svg>
-              Logging out...
-            </span>
-          ) : (
-            "Logout"
-          )}
-        </button>
       </div>
     </div>
   );
