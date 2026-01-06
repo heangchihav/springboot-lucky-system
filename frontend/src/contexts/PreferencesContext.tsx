@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import {
   createContext,
@@ -19,7 +19,7 @@ type PreferencesContextType = {
 };
 
 const PreferencesContext = createContext<PreferencesContextType | undefined>(
-  undefined
+  undefined,
 );
 
 const THEME_STORAGE_KEY = "lucky:theme";
@@ -29,7 +29,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const storedTheme = window.localStorage.getItem(
-      THEME_STORAGE_KEY
+      THEME_STORAGE_KEY,
     ) as Theme | null;
     if (storedTheme) {
       setTheme(storedTheme);
@@ -51,7 +51,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
       toggleTheme,
       setTheme,
     }),
-    [theme, toggleTheme]
+    [theme, toggleTheme],
   );
 
   return (
@@ -64,9 +64,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
 export function usePreferences() {
   const context = useContext(PreferencesContext);
   if (!context) {
-    throw new Error(
-      "usePreferences must be used within a PreferencesProvider"
-    );
+    throw new Error("usePreferences must be used within a PreferencesProvider");
   }
   return context;
 }

@@ -5,6 +5,8 @@ const nextConfig: NextConfig = {
     locales: ["en", "km"],
     defaultLocale: "en",
   },
+  /* config options here */
+  reactCompiler: true,
 };
 
 export default nextConfig;

@@ -1,276 +1,296 @@
-'use client'
+"use client";
 
-import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react'
-import { apiService, UserInfo, LoginRequest, RegisterRequest, ApiError, UserServiceEntity } from '../services/api'
-import { API_BASE_URL } from '@/config/env'
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  ReactNode,
+} from "react";
+import {
+  apiService,
+  UserInfo,
+  LoginRequest,
+  RegisterRequest,
+  ApiError,
+  UserServiceEntity,
+} from "@/services/api";
+import { API_BASE_URL } from "@/config/env";
 
 interface AuthContextType {
-  user: UserInfo | null
-  isLoading: boolean
-  isAuthenticated: boolean
-  login: (data: LoginRequest) => Promise<void>
-  register: (data: RegisterRequest) => Promise<void>
-  logout: () => Promise<void>
-  logoutAll: () => Promise<void>
-  refreshUser: () => Promise<void>
-  error: string | null
-  clearError: () => void
-  hasServiceAccess: (serviceKey: string) => boolean
-  getAccessibleServices: () => string[]
-  hasPermission: (permissionCode: string) => Promise<boolean>
+  user: UserInfo | null;
+  isLoading: boolean;
+  isAuthenticated: boolean;
+  login: (data: LoginRequest) => Promise<void>;
+  register: (data: RegisterRequest) => Promise<void>;
+  logout: () => Promise<void>;
+  logoutAll: () => Promise<void>;
+  refreshUser: () => Promise<void>;
+  error: string | null;
+  clearError: () => void;
+  hasServiceAccess: (serviceKey: string) => boolean;
+  getAccessibleServices: () => string[];
+  hasPermission: (permissionCode: string) => Promise<boolean>;
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined)
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function useAuth() {
-  const context = useContext(AuthContext)
+  const context = useContext(AuthContext);
   if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider')
+    throw new Error("useAuth must be used within an AuthProvider");
   }
-  return context
+  return context;
 }
 
 interface AuthProviderProps {
-  children: ReactNode
+  children: ReactNode;
 }
 
 export function AuthProvider({ children }: AuthProviderProps) {
-  const [user, setUser] = useState<UserInfo | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [permissionCache, setPermissionCache] = useState<Record<string, boolean>>({})
+  const [user, setUser] = useState<UserInfo | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [permissionCache, setPermissionCache] = useState<
+    Record<string, boolean>
+  >({});
 
-  const clearError = () => setError(null)
+  const clearError = () => setError(null);
 
   const refreshUser = async () => {
     try {
-      const userInfo = await apiService.getCurrentUser()
-      
+      const userInfo = await apiService.getCurrentUser();
+
       // Fetch user services separately and add them to user info
       if (userInfo.id) {
         try {
-          const userServices = await apiService.getUserServices(userInfo.id)
+          const userServices = await apiService.getUserServices(userInfo.id);
           // Transform backend services to frontend UserRole format
           const userRoles = userServices.map((service: UserServiceEntity) => ({
             id: service.id,
             userId: userInfo.id,
             roleId: service.id, // Using service.id as roleId for now
-            serviceKey: service.code.replace('-service', ''), // Convert "call-service" to "call"
+            serviceKey: service.code.replace("-service", ""), // Convert "call-service" to "call"
             active: service.active,
             assignedAt: service.createdAt || new Date().toISOString(),
-            assignedBy: 0 // Default value as number (system user ID)
-          }))
-          
+            assignedBy: 0, // Default value as number (system user ID)
+          }));
+
           setUser({
             ...userInfo,
-            userRoles
-          })
+            userRoles,
+          });
         } catch (serviceError) {
-          console.error('Failed to fetch user services:', serviceError)
+          console.error("Failed to fetch user services:", serviceError);
           // Still set user info even if services fail
-          setUser(userInfo)
+          setUser(userInfo);
         }
       } else {
-        setUser(userInfo)
+        setUser(userInfo);
       }
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
-        setUser(null)
+        setUser(null);
       } else {
-        console.error('Failed to refresh user:', err)
+        console.error("Failed to refresh user:", err);
       }
     }
-  }
+  };
 
   const login = async (data: LoginRequest) => {
-    setIsLoading(true)
-    clearError()
-    
+    setIsLoading(true);
+    clearError();
+
     try {
-      await apiService.login(data)
-      await refreshUser()
+      await apiService.login(data);
+      await refreshUser();
     } catch (err: unknown) {
       if (err instanceof ApiError) {
-        const message = err.response?.error || err.message
-        setError(message)
+        const message = err.response?.error || err.message;
+        setError(message);
       } else {
-        setError('Login failed')
+        setError("Login failed");
       }
-      throw err
+      throw err;
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   const register = async (data: RegisterRequest) => {
-    setIsLoading(true)
-    clearError()
-    
+    setIsLoading(true);
+    clearError();
+
     try {
-      await apiService.register(data)
+      await apiService.register(data);
     } catch (err: unknown) {
       if (err instanceof ApiError) {
-        const message = err.response?.error || err.message
-        setError(message)
+        const message = err.response?.error || err.message;
+        setError(message);
       } else {
-        setError('Registration failed')
+        setError("Registration failed");
       }
-      throw err
+      throw err;
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   const logout = async () => {
-    setIsLoading(true)
-    clearError()
-    
+    setIsLoading(true);
+    clearError();
+
     try {
-      await apiService.logout()
-      setUser(null)
+      await apiService.logout();
+      setUser(null);
     } catch (err: unknown) {
-      console.error('Logout failed:', err)
+      console.error("Logout failed:", err);
       // Still clear user state even if logout request fails
-      setUser(null)
+      setUser(null);
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   const logoutAll = async () => {
-    setIsLoading(true)
-    clearError()
-    
+    setIsLoading(true);
+    clearError();
+
     try {
-      await apiService.logoutAll()
-      setUser(null)
+      await apiService.logoutAll();
+      setUser(null);
     } catch (err: unknown) {
-      console.error('Logout all failed:', err)
+      console.error("Logout all failed:", err);
       // Still clear user state even if logout request fails
-      setUser(null)
+      setUser(null);
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   // Service access methods
   const hasServiceAccess = (serviceKey: string): boolean => {
     // Root user has access to all services
-    if (user?.username === 'root') {
-      return true
+    if (user?.username === "root") {
+      return true;
     }
-    
-    if (!user?.userRoles) return false
-    
+
+    if (!user?.userRoles) return false;
+
     // Map service keys to menu section IDs
     const serviceKeyToSectionMap: Record<string, string> = {
-      'call': 'call-service',
-      'call-service': 'call-service',
-      'delivery': 'delivery-service',
-      'delivery-service': 'delivery-service',
-      'user': 'user-service',
-      'marketing': 'marketing-service',
-      'marketing-service': 'marketing-service'
-    }
-    
-    const sectionId = serviceKeyToSectionMap[serviceKey]
-    if (!sectionId) return false
-    
-    return user.userRoles.some(role => 
-      role.serviceKey === serviceKey && role.active
-    )
-  }
+      call: "call-service",
+      "call-service": "call-service",
+      delivery: "delivery-service",
+      "delivery-service": "delivery-service",
+      user: "user-service",
+      marketing: "marketing-service",
+      "marketing-service": "marketing-service",
+    };
+
+    const sectionId = serviceKeyToSectionMap[serviceKey];
+    if (!sectionId) return false;
+
+    return user.userRoles.some(
+      (role) => role.serviceKey === serviceKey && role.active,
+    );
+  };
 
   const getAccessibleServices = (): string[] => {
     // Root user has access to all services
-    if (user?.username === 'root') {
-      return ['call-service', 'delivery-service', 'user-service', 'marketing-service']
+    if (user?.username === "root") {
+      return [
+        "call-service",
+        "delivery-service",
+        "user-service",
+        "marketing-service",
+      ];
     }
-    
-    if (!user?.userRoles) return []
-    
+
+    if (!user?.userRoles) return [];
+
     // Map service keys to menu section IDs
     const serviceKeyToSectionMap: Record<string, string> = {
-      'call': 'call-service',
-      'call-service': 'call-service',
-      'delivery': 'delivery-service',
-      'delivery-service': 'delivery-service',
-      'user': 'user-service',
-      'marketing': 'marketing-service',
-      'marketing-service': 'marketing-service'
-    }
-    
+      call: "call-service",
+      "call-service": "call-service",
+      delivery: "delivery-service",
+      "delivery-service": "delivery-service",
+      user: "user-service",
+      marketing: "marketing-service",
+      "marketing-service": "marketing-service",
+    };
+
     return user.userRoles
-      .filter(role => role.active)
-      .map(role => serviceKeyToSectionMap[role.serviceKey])
-      .filter(Boolean)
-  }
+      .filter((role) => role.active)
+      .map((role) => serviceKeyToSectionMap[role.serviceKey])
+      .filter(Boolean);
+  };
 
   const hasPermission = async (permissionCode: string): Promise<boolean> => {
     if (!user?.id) {
-      return false
+      return false;
     }
 
-    if (user.username === 'root') {
-      return true
+    if (user.username === "root") {
+      return true;
     }
 
-    const cached = permissionCache[permissionCode]
+    const cached = permissionCache[permissionCode];
     if (cached !== undefined) {
-      return cached
+      return cached;
     }
 
     try {
       const response = await fetch(
         `${API_BASE_URL}/api/calls/permissions/user/${user.id}/check/${encodeURIComponent(permissionCode)}`,
         {
-          credentials: 'include'
-        }
-      )
+          credentials: "include",
+        },
+      );
 
       if (!response.ok) {
-        return false
+        return false;
       }
 
-      const result = await response.json()
-      const hasPerm = !!result?.hasPermission
+      const result = await response.json();
+      const hasPerm = !!result?.hasPermission;
 
-      setPermissionCache(prev => ({
+      setPermissionCache((prev) => ({
         ...prev,
-        [permissionCode]: hasPerm
-      }))
+        [permissionCode]: hasPerm,
+      }));
 
-      return hasPerm
+      return hasPerm;
     } catch (err) {
-      console.error('Permission check failed:', err)
-      return false
+      console.error("Permission check failed:", err);
+      return false;
     }
-  }
+  };
 
   useEffect(() => {
     // Clear cached permission results whenever the authenticated user changes
-    setPermissionCache({})
-  }, [user?.id])
+    setPermissionCache({});
+  }, [user?.id]);
 
   useEffect(() => {
     const initializeAuth = async () => {
       try {
-        const isAuth = await apiService.isAuthenticated()
+        const isAuth = await apiService.isAuthenticated();
         if (isAuth) {
-          await refreshUser()
+          await refreshUser();
         } else {
-          setUser(null)
+          setUser(null);
         }
       } catch (err: unknown) {
-        console.error('Auth initialization failed:', err)
-        setUser(null)
+        console.error("Auth initialization failed:", err);
+        setUser(null);
       } finally {
-        setIsLoading(false)
+        setIsLoading(false);
       }
-    }
+    };
 
-    initializeAuth()
-  }, [])
+    initializeAuth();
+  }, []);
 
   const value: AuthContextType = {
     user,
@@ -285,12 +305,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
     clearError,
     hasServiceAccess,
     getAccessibleServices,
-    hasPermission
-  }
+    hasPermission,
+  };
 
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
-  )
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

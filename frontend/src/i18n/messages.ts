@@ -1,13 +1,14 @@
 export const messages = {
   en: {
-    luckySystem: "Lucky System",
+    VET_System: "VET System",
     controlCenter: "Control Center",
     staffMode: "Staff Mode",
     executive: "Executive",
     microserviceStatus: "Microservice Status",
     activePrograms: "Active Programs",
     strategicWorkbench: "Strategic Workbench",
-    activeProgramsSubtitle: "Pin any module from the left to monitor it in real time.",
+    activeProgramsSubtitle:
+      "Pin any module from the left to monitor it in real time.",
     breadcrumbsHome: "home",
     pulse: "Pulse",
     stabilityCopy: "Stability score across the module in the past 24h.",
@@ -29,7 +30,7 @@ export const messages = {
     operationalCoverage: "Operational coverage",
   },
   km: {
-    luckySystem: "ប្រព័ន្ធ Lucky",
+    VET_System: "ប្រព័ន្ធធ្វើរបាយការណ៍",
     controlCenter: "មជ្ឈមណ្ឌលបញ្ជា",
     staffMode: "របៀបបុគ្គលិក",
     executive: "អ្នកគ្រប់គ្រង",

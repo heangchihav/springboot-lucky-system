@@ -1,0 +1,1162 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  LabelList,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+import { MarketingServiceGuard } from "@/components/marketing-service/MarketingServiceGuard";
+import {
+  marketingHierarchyService,
+  MarketingArea,
+  MarketingBranch,
+  MarketingSubArea,
+} from "@/services/marketing-service/marketingHierarchyService";
+import {
+  vipMemberService,
+  VipMember,
+} from "@/services/marketing-service/vipMemberService";
+
+type FilterValue = number | "all";
+
+type ChartSegment = {
+  key: string;
+  label: string;
+  members: number;
+  highlight?: boolean;
+};
+
+type EnrichedMember = {
+  member: VipMember;
+  areaId?: number;
+  areaName?: string;
+  subAreaId?: number | null;
+  subAreaName?: string | null;
+  branchId: number;
+  branchName?: string;
+  joinedDate: string | null;
+  removedDate: string | null;
+};
+
+const TOOLTIP_STYLES = {
+  content: {
+    backgroundColor: "#0f172a",
+    borderRadius: 12,
+    border: "1px solid rgba(255,255,255,0.15)",
+  },
+  label: {
+    color: "#f8fafc",
+    fontSize: 12,
+    letterSpacing: "0.12em",
+    textTransform: "uppercase" as const,
+  },
+  item: {
+    color: "#e2e8f0",
+  },
+};
+
+const BAR_COLORS = {
+  base: "#f97316",
+  highlight: "#34d399",
+};
+
+const TREND_VIEW_OPTIONS = [
+  { key: "day", label: "Daily" },
+  { key: "week", label: "Weekly" },
+  { key: "month", label: "Monthly" },
+] as const;
+
+type TrendView = (typeof TREND_VIEW_OPTIONS)[number]["key"];
+
+const toISODate = (date: Date) => date.toISOString().split("T")[0];
+
+const parseDate = (value: string) => new Date(`${value}T00:00:00`);
+
+const buildDateRange = (start: string, end: string) => {
+  const days: string[] = [];
+  const cursor = parseDate(start);
+  const last = parseDate(end);
+
+  while (cursor <= last) {
+    days.push(toISODate(cursor));
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+
+  return days;
+};
+
+const normalizeDateString = (value?: string | null) => {
+  if (!value) {
+    return null;
+  }
+  return value.length > 10 ? value.slice(0, 10) : value;
+};
+
+const flattenMembers = (
+  members: VipMember[],
+  maps: {
+    areaMap: Map<number, MarketingArea>;
+    subAreaMap: Map<number, MarketingSubArea>;
+    branchMap: Map<number, MarketingBranch>;
+  },
+): EnrichedMember[] => {
+  if (members.length === 0) {
+    return [];
+  }
+
+  return members.map((member) => {
+    const branch = maps.branchMap.get(member.branchId);
+    const resolvedAreaId = member.areaId ?? branch?.areaId;
+    const resolvedSubAreaId = member.subAreaId ?? branch?.subAreaId ?? null;
+    const areaName =
+      member.areaName ??
+      (resolvedAreaId ? maps.areaMap.get(resolvedAreaId)?.name : undefined);
+    const subAreaName =
+      member.subAreaName ??
+      (resolvedSubAreaId
+        ? (maps.subAreaMap.get(resolvedSubAreaId)?.name ?? null)
+        : null);
+    const branchName = member.branchName ?? branch?.name;
+
+    const joinedDate =
+      normalizeDateString(member.memberCreatedAt) ??
+      normalizeDateString(member.createdAt) ??
+      null;
+    const removedDate = normalizeDateString(member.memberDeletedAt);
+
+    return {
+      member,
+      areaId: resolvedAreaId,
+      areaName,
+      subAreaId: resolvedSubAreaId ?? null,
+      subAreaName,
+      branchId: member.branchId,
+      branchName,
+      joinedDate,
+      removedDate,
+    };
+  });
+};
+
+const getEarliestCreatedAt = (members: EnrichedMember[]) => {
+  const joinedDates = members
+    .map((entry) => entry.joinedDate)
+    .filter((value): value is string => !!value);
+  if (joinedDates.length === 0) {
+    return new Date().toISOString().split("T")[0];
+  }
+  return joinedDates.reduce(
+    (earliest, current) => (current < earliest ? current : earliest),
+    joinedDates[0],
+  );
+};
+
+const formatMonthLabel = (date: Date) =>
+  date.toLocaleDateString("en-US", {
+    month: "short",
+    year: "numeric",
+  });
+
+const getWeekNumber = (date: Date) => {
+  const temp = new Date(
+    Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()),
+  );
+  const dayNum = temp.getUTCDay() || 7;
+  temp.setUTCDate(temp.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(temp.getUTCFullYear(), 0, 1));
+  return Math.ceil(((temp.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
+};
+
+function VIPMembersDashboardPage() {
+  const [areas, setAreas] = useState<MarketingArea[]>([]);
+  const [subAreas, setSubAreas] = useState<MarketingSubArea[]>([]);
+  const [branches, setBranches] = useState<MarketingBranch[]>([]);
+  const [rawMembers, setRawMembers] = useState<VipMember[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const [selectedAreaId, setSelectedAreaId] = useState<FilterValue>("all");
+  const [selectedSubAreaId, setSelectedSubAreaId] =
+    useState<FilterValue>("all");
+  const [selectedBranchId, setSelectedBranchId] = useState<FilterValue>("all");
+  const [startDate, setStartDate] = useState(
+    () => new Date().toISOString().split("T")[0],
+  );
+  const [endDate, setEndDate] = useState(
+    () => new Date().toISOString().split("T")[0],
+  );
+  const [trendView, setTrendView] = useState<TrendView>("day");
+
+  const initialDateAppliedRef = useRef(false);
+
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [areaData, subAreaData, branchData, memberData] = await Promise.all(
+        [
+          marketingHierarchyService.listAreas(),
+          marketingHierarchyService.listSubAreas(),
+          marketingHierarchyService.listBranches(),
+          vipMemberService.listMembers(),
+        ],
+      );
+      setAreas(areaData);
+      setSubAreas(subAreaData);
+      setBranches(branchData);
+      setRawMembers(memberData);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load VIP data");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadData();
+  }, [loadData]);
+
+  const areaMap = useMemo(
+    () => new Map(areas.map((area) => [area.id, area])),
+    [areas],
+  );
+  const subAreaMap = useMemo(
+    () => new Map(subAreas.map((sub) => [sub.id, sub])),
+    [subAreas],
+  );
+  const branchMap = useMemo(
+    () => new Map(branches.map((branch) => [branch.id, branch])),
+    [branches],
+  );
+
+  const allMembers = useMemo(
+    () => flattenMembers(rawMembers, { areaMap, subAreaMap, branchMap }),
+    [rawMembers, areaMap, subAreaMap, branchMap],
+  );
+
+  useEffect(() => {
+    if (initialDateAppliedRef.current || allMembers.length === 0) {
+      return;
+    }
+    const earliest = getEarliestCreatedAt(allMembers);
+    setStartDate(earliest);
+    setEndDate((prev) => (prev < earliest ? earliest : prev));
+    initialDateAppliedRef.current = true;
+  }, [allMembers]);
+
+  const selectedArea = useMemo(
+    () =>
+      selectedAreaId === "all" ? null : (areaMap.get(selectedAreaId) ?? null),
+    [selectedAreaId, areaMap],
+  );
+
+  const availableSubAreas = useMemo(() => {
+    if (selectedAreaId === "all") {
+      return subAreas;
+    }
+    return subAreas.filter((subArea) => subArea.areaId === selectedAreaId);
+  }, [selectedAreaId, subAreas]);
+
+  const selectedAreaSubAreas = useMemo(() => {
+    if (!selectedArea) {
+      return [];
+    }
+    return subAreas.filter((subArea) => subArea.areaId === selectedArea.id);
+  }, [selectedArea, subAreas]);
+
+  const availableBranches = useMemo(() => {
+    return branches.filter((branch: MarketingBranch) => {
+      if (selectedAreaId !== "all" && branch.areaId !== selectedAreaId) {
+        return false;
+      }
+      if (selectedSubAreaId !== "all") {
+        return (branch.subAreaId ?? null) === selectedSubAreaId;
+      }
+      return true;
+    });
+  }, [branches, selectedAreaId, selectedSubAreaId]);
+
+  useEffect(() => {
+    if (selectedSubAreaId === "all") {
+      return;
+    }
+    const exists = availableSubAreas.some(
+      (subArea) => subArea.id === selectedSubAreaId,
+    );
+    if (!exists) {
+      setSelectedSubAreaId("all");
+    }
+  }, [availableSubAreas, selectedSubAreaId]);
+
+  useEffect(() => {
+    if (selectedBranchId === "all") {
+      return;
+    }
+    const exists = availableBranches.some(
+      (branch) => branch.id === selectedBranchId,
+    );
+    if (!exists) {
+      setSelectedBranchId("all");
+    }
+  }, [availableBranches, selectedBranchId]);
+
+  const normalizedBranchId =
+    selectedBranchId === "all" ? null : selectedBranchId;
+
+  const filteredMembers = useMemo(() => {
+    const normalizedStart = startDate;
+    const normalizedEnd = endDate < startDate ? startDate : endDate;
+    if (normalizedEnd !== endDate) {
+      setEndDate(normalizedEnd);
+    }
+
+    return allMembers.filter(({ joinedDate, removedDate }) => {
+      if (!joinedDate) {
+        return false;
+      }
+      if (removedDate) {
+        return false;
+      }
+      return joinedDate >= normalizedStart && joinedDate <= normalizedEnd;
+    });
+  }, [allMembers, startDate, endDate]);
+
+  const { areaCounts, subAreaCounts, branchCounts } = useMemo(() => {
+    const areaMap = new Map<number, number>();
+    const subAreaMap = new Map<number, number>();
+    const branchMap = new Map<number, number>();
+
+    filteredMembers.forEach(({ areaId, subAreaId, branchId }) => {
+      if (typeof areaId === "number") {
+        areaMap.set(areaId, (areaMap.get(areaId) ?? 0) + 1);
+      }
+      if (typeof subAreaId === "number") {
+        subAreaMap.set(subAreaId, (subAreaMap.get(subAreaId) ?? 0) + 1);
+      }
+      branchMap.set(branchId, (branchMap.get(branchId) ?? 0) + 1);
+    });
+
+    return {
+      areaCounts: areaMap,
+      subAreaCounts: subAreaMap,
+      branchCounts: branchMap,
+    };
+  }, [filteredMembers]);
+
+  const chartSegments: ChartSegment[] = useMemo(() => {
+    if (selectedAreaId === "all") {
+      return areas.map((area) => ({
+        key: `area-${area.id}`,
+        label: area.name,
+        members: areaCounts.get(area.id) ?? 0,
+      }));
+    }
+
+    if (!selectedArea) {
+      return [];
+    }
+
+    const areaSubAreas = selectedAreaSubAreas;
+    const areaBranches = branches.filter(
+      (branch) => branch.areaId === selectedArea.id,
+    );
+
+    if (areaSubAreas.length > 0) {
+      if (normalizedBranchId !== null || selectedSubAreaId !== "all") {
+        const branchList = areaBranches.filter((branch) => {
+          if (selectedSubAreaId === "all") {
+            return true;
+          }
+          return (branch.subAreaId ?? null) === selectedSubAreaId;
+        });
+        return branchList.map((branch) => ({
+          key: `branch-${branch.id}`,
+          label: branch.name,
+          members: branchCounts.get(branch.id) ?? 0,
+          highlight: branch.id === normalizedBranchId,
+        }));
+      }
+
+      return areaSubAreas.map((subArea) => ({
+        key: `sub-${subArea.id}`,
+        label: subArea.name,
+        members: subAreaCounts.get(subArea.id) ?? 0,
+      }));
+    }
+
+    return areaBranches.map((branch) => ({
+      key: `branch-${branch.id}`,
+      label: branch.name,
+      members: branchCounts.get(branch.id) ?? 0,
+      highlight: branch.id === normalizedBranchId,
+    }));
+  }, [
+    selectedAreaId,
+    selectedArea,
+    selectedSubAreaId,
+    normalizedBranchId,
+    areaCounts,
+    subAreaCounts,
+    branchCounts,
+    areas,
+    subAreas,
+    branches,
+  ]);
+
+  const totalMembers = filteredMembers.length;
+
+  const resolvedBranch = useMemo(
+    () =>
+      normalizedBranchId === null
+        ? null
+        : (availableBranches.find(
+            (branch) => branch.id === normalizedBranchId,
+          ) ?? null),
+    [availableBranches, normalizedBranchId],
+  );
+
+  const resolvedSubAreaName = useMemo(() => {
+    if (selectedSubAreaId === "all") {
+      return null;
+    }
+    return (
+      availableSubAreas.find((sub) => sub.id === selectedSubAreaId)?.name ??
+      null
+    );
+  }, [availableSubAreas, selectedSubAreaId]);
+
+  const summaryTitle = useMemo(() => {
+    if (selectedAreaId === "all") {
+      return "Member distribution across areas";
+    }
+    if (selectedArea && selectedAreaSubAreas.length > 0) {
+      if (selectedSubAreaId === "all") {
+        return `Sub-area membership in ${selectedArea.name}`;
+      }
+      return `Branch membership in ${resolvedSubAreaName ?? "selected sub-area"}`;
+    }
+    return `Branch membership in ${selectedArea?.name ?? "selected area"}`;
+  }, [
+    selectedAreaId,
+    selectedArea,
+    selectedAreaSubAreas.length,
+    selectedSubAreaId,
+    resolvedSubAreaName,
+  ]);
+
+  const chartTotal = useMemo(
+    () => chartSegments.reduce((sum, segment) => sum + segment.members, 0),
+    [chartSegments],
+  );
+
+  const timelineData = useMemo(() => {
+    const timelineDates = buildDateRange(startDate, endDate);
+    if (timelineDates.length === 0) {
+      return [];
+    }
+
+    const baselineIds = new Set<number>();
+    allMembers.forEach(({ member, joinedDate, removedDate }) => {
+      if (!joinedDate) {
+        return;
+      }
+      const createdBeforeStart = joinedDate < startDate;
+      const activeAtStart = !removedDate || removedDate >= startDate;
+      if (createdBeforeStart && activeAtStart) {
+        baselineIds.add(member.id);
+      }
+    });
+
+    const additionsByDay = new Map<string, number[]>();
+    const removalsByDay = new Map<string, number[]>();
+
+    allMembers.forEach(({ member, joinedDate, removedDate }) => {
+      if (joinedDate && joinedDate >= startDate && joinedDate <= endDate) {
+        if (!additionsByDay.has(joinedDate)) {
+          additionsByDay.set(joinedDate, []);
+        }
+        additionsByDay.get(joinedDate)!.push(member.id);
+      }
+      if (removedDate && removedDate >= startDate && removedDate <= endDate) {
+        if (!removalsByDay.has(removedDate)) {
+          removalsByDay.set(removedDate, []);
+        }
+        removalsByDay.get(removedDate)!.push(member.id);
+      }
+    });
+
+    const activityLine = timelineDates.map((date, index) => {
+      if (index === 0) {
+        return { date, total: baselineIds.size };
+      }
+      return { date, total: 0 };
+    });
+
+    const activeSet = new Set<number>(baselineIds);
+    activityLine.forEach((point) => {
+      additionsByDay.get(point.date)?.forEach((id) => activeSet.add(id));
+      removalsByDay.get(point.date)?.forEach((id) => activeSet.delete(id));
+      point.total = activeSet.size;
+    });
+
+    if (trendView === "day") {
+      return activityLine.map((entry) => ({
+        key: entry.date,
+        label: new Date(entry.date).toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+        }),
+        count: entry.total,
+      }));
+    }
+
+    if (trendView === "week") {
+      const weekBuckets = new Map<
+        string,
+        {
+          key: string;
+          label: string;
+          count: number;
+        }
+      >();
+      activityLine.forEach((entry) => {
+        const date = new Date(entry.date);
+        const week = getWeekNumber(date).toString().padStart(2, "0");
+        const key = `${date.getUTCFullYear()}-W${week}`;
+        if (
+          !weekBuckets.has(key) ||
+          entry.total > weekBuckets.get(key)!.count
+        ) {
+          weekBuckets.set(key, {
+            key,
+            label: `Week ${week} (${date.getUTCFullYear()})`,
+            count: entry.total,
+          });
+        }
+      });
+      return Array.from(weekBuckets.values()).sort((a, b) =>
+        a.key > b.key ? 1 : -1,
+      );
+    }
+
+    const monthBuckets = new Map<
+      string,
+      {
+        key: string;
+        label: string;
+        count: number;
+      }
+    >();
+    activityLine.forEach((entry) => {
+      const date = new Date(entry.date);
+      const monthKey = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
+      if (
+        !monthBuckets.has(monthKey) ||
+        entry.total > monthBuckets.get(monthKey)!.count
+      ) {
+        monthBuckets.set(monthKey, {
+          key: monthKey,
+          label: formatMonthLabel(date),
+          count: entry.total,
+        });
+      }
+    });
+    return Array.from(monthBuckets.values()).sort((a, b) =>
+      a.key > b.key ? 1 : -1,
+    );
+  }, [allMembers, startDate, endDate, trendView]);
+
+  const memberDetails = useMemo(() => {
+    const normalizedEnd = endDate < startDate ? startDate : endDate;
+    return allMembers
+      .filter((entry) => {
+        const { joinedDate, areaId, subAreaId, branchId } = entry;
+        if (
+          !joinedDate ||
+          joinedDate < startDate ||
+          joinedDate > normalizedEnd
+        ) {
+          return false;
+        }
+
+        if (selectedAreaId !== "all" && areaId !== selectedAreaId) {
+          return false;
+        }
+
+        const areaHasSubAreas = selectedArea
+          ? selectedAreaSubAreas.length > 0
+          : false;
+        if (selectedSubAreaId !== "all") {
+          if (selectedAreaId === "all") {
+            if (subAreaId !== selectedSubAreaId) {
+              return false;
+            }
+          } else if (areaHasSubAreas && subAreaId !== selectedSubAreaId) {
+            return false;
+          }
+        }
+
+        if (normalizedBranchId !== null && branchId !== normalizedBranchId) {
+          return false;
+        }
+
+        return true;
+      })
+      .sort((a, b) => {
+        const aDate = a.joinedDate ?? "";
+        const bDate = b.joinedDate ?? "";
+        return aDate > bDate ? -1 : 1;
+      });
+  }, [
+    allMembers,
+    startDate,
+    endDate,
+    selectedAreaId,
+    selectedArea,
+    selectedSubAreaId,
+    normalizedBranchId,
+  ]);
+
+  const activeMembers = useMemo(
+    () => memberDetails.filter(({ removedDate }) => !removedDate),
+    [memberDetails],
+  );
+
+  const removedMembers = useMemo(
+    () => memberDetails.filter(({ removedDate }) => !!removedDate),
+    [memberDetails],
+  );
+
+  const handleAreaChange = (value: string) => {
+    const next = value === "all" ? "all" : Number(value);
+    setSelectedAreaId(next);
+    setSelectedSubAreaId("all");
+    setSelectedBranchId("all");
+  };
+
+  const handleSubAreaChange = (value: string) => {
+    const next = value === "all" ? "all" : Number(value);
+    setSelectedSubAreaId(next);
+    setSelectedBranchId("all");
+  };
+
+  const handleBranchChange = (value: string) => {
+    setSelectedBranchId(value === "all" ? "all" : Number(value));
+  };
+
+  const handleStartDateChange = (value: string) => {
+    if (!value) return;
+    setStartDate(value);
+    if (value > endDate) {
+      setEndDate(value);
+    }
+  };
+
+  const handleEndDateChange = (value: string) => {
+    if (!value) return;
+    setEndDate(value < startDate ? startDate : value);
+  };
+
+  return (
+    <MarketingServiceGuard>
+      <div className="space-y-8">
+        <header className="space-y-2">
+          <p className="text-xs uppercase tracking-[0.4em] text-amber-300/70">
+            Marketing ◦ VIP network
+          </p>
+          <h1 className="text-3xl font-semibold text-white">
+            VIP member footprint
+          </h1>
+          <p className="text-sm text-slate-300">
+            Explore how VIP members are distributed across areas, sub-areas, and
+            branches to understand where growth is concentrated.
+          </p>
+        </header>
+
+        <section className="rounded-3xl border border-white/10 bg-white/5 p-4">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-stretch">
+            <div className="flex-1 rounded-2xl border border-white/10 bg-slate-950/40 p-4">
+              <div className="flex items-center justify-between text-xs uppercase tracking-[0.3em] text-amber-200/80">
+                <span>Locations</span>
+                <button
+                  className="rounded-full border border-white/10 px-3 py-1 text-[0.6rem] text-white/70 hover:text-white"
+                  onClick={() => {
+                    setSelectedAreaId("all");
+                    setSelectedSubAreaId("all");
+                    setSelectedBranchId("all");
+                  }}
+                >
+                  Reset
+                </button>
+              </div>
+              <div className="mt-3 grid gap-3 md:grid-cols-2">
+                <div className="flex flex-col text-xs text-slate-300">
+                  <label className="text-[0.6rem] uppercase tracking-[0.25em] text-slate-400">
+                    Area
+                  </label>
+                  <select
+                    className="mt-1 rounded-xl border border-white/10 bg-slate-900/60 px-3 py-2 text-sm text-white focus:border-amber-400/60 focus:outline-none"
+                    value={selectedAreaId}
+                    onChange={(event) => handleAreaChange(event.target.value)}
+                  >
+                    <option value="all">All areas</option>
+                    {areas.map((area) => (
+                      <option key={area.id} value={area.id}>
+                        {area.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {availableSubAreas.length > 0 && (
+                  <div className="flex flex-col text-xs text-slate-300">
+                    <label className="text-[0.6rem] uppercase tracking-[0.25em] text-slate-400">
+                      Sub area
+                    </label>
+                    <select
+                      className="mt-1 rounded-xl border border-white/10 bg-slate-900/60 px-3 py-2 text-sm text-white focus:border-amber-400/60 focus:outline-none"
+                      value={selectedSubAreaId}
+                      onChange={(event) =>
+                        handleSubAreaChange(event.target.value)
+                      }
+                    >
+                      <option value="all">All sub areas</option>
+                      {availableSubAreas.map((subArea) => (
+                        <option key={subArea.id} value={subArea.id}>
+                          {subArea.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {availableBranches.length > 0 && (
+                  <div className="flex flex-col text-xs text-slate-300 md:col-span-2">
+                    <label className="text-[0.6rem] uppercase tracking-[0.25em] text-slate-400">
+                      Branch
+                    </label>
+                    <select
+                      className="mt-1 rounded-xl border border-white/10 bg-slate-900/60 px-3 py-2 text-sm text-white focus:border-amber-400/60 focus:outline-none"
+                      value={selectedBranchId}
+                      onChange={(event) =>
+                        handleBranchChange(event.target.value)
+                      }
+                    >
+                      <option value="all">All branches</option>
+                      {availableBranches.map((branch) => (
+                        <option key={branch.id} value={branch.id}>
+                          {branch.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-slate-950/40 p-4 text-white lg:w-72">
+              <div className="flex items-center justify-between text-xs uppercase tracking-[0.3em] text-amber-200/80">
+                <span>Date range</span>
+                <button
+                  className="rounded-full border border-white/10 px-3 py-1 text-[0.6rem] text-white/70 hover:text-white"
+                  onClick={() => {
+                    const earliest = getEarliestCreatedAt(allMembers);
+                    setStartDate(earliest);
+                    setEndDate(new Date().toISOString().split("T")[0]);
+                  }}
+                >
+                  Today
+                </button>
+              </div>
+              <div className="mt-3 space-y-3 text-xs">
+                <div className="flex flex-col">
+                  <label className="text-[0.6rem] uppercase tracking-[0.25em] text-slate-400">
+                    Start date
+                  </label>
+                  <input
+                    type="date"
+                    className="mt-1 rounded-xl border border-white/10 bg-slate-900/60 px-3 py-2 text-sm text-white focus:border-amber-400/60 focus:outline-none"
+                    value={startDate}
+                    max={endDate}
+                    onChange={(event) =>
+                      handleStartDateChange(event.target.value)
+                    }
+                  />
+                </div>
+                <div className="flex flex-col">
+                  <label className="text-[0.6rem] uppercase tracking-[0.25em] text-slate-400">
+                    End date
+                  </label>
+                  <input
+                    type="date"
+                    className="mt-1 rounded-xl border border-white/10 bg-slate-900/60 px-3 py-2 text-sm text-white focus:border-amber-400/60 focus:outline-none"
+                    value={endDate}
+                    min={startDate}
+                    onChange={(event) =>
+                      handleEndDateChange(event.target.value)
+                    }
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="rounded-3xl border border-white/10 bg-white/5 p-6">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <p className="text-xs uppercase tracking-[0.3em] text-amber-300/70">
+                Members overview
+              </p>
+              <h2 className="text-xl font-semibold text-white">
+                {summaryTitle}
+              </h2>
+              <p className="text-sm text-slate-300">
+                {selectedAreaId === "all"
+                  ? `Total VIP members: ${totalMembers}`
+                  : resolvedBranch
+                    ? `${branchCounts.get(resolvedBranch.id) ?? 0} member(s) enrolled in ${resolvedBranch.name}`
+                    : `${chartTotal} member(s) within current focus`}
+              </p>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-slate-900/50 px-4 py-3 text-right text-sm text-slate-300">
+              <p className="text-xs uppercase tracking-[0.3em] text-slate-400">
+                Total members shown
+              </p>
+              <p className="text-2xl font-semibold text-white">
+                {chartTotal.toLocaleString()}
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-6 h-96 w-full">
+            {chartSegments.length === 0 ? (
+              <div className="flex h-full items-center justify-center text-sm text-slate-400">
+                No members in the selected segment.
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={chartSegments}
+                  margin={{ top: 24, left: 16, right: 16, bottom: 8 }}
+                >
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                    stroke="#475569"
+                    opacity={0.2}
+                  />
+                  <XAxis
+                    dataKey="label"
+                    stroke="#94a3b8"
+                    interval={0}
+                    angle={chartSegments.length > 5 ? -20 : 0}
+                    height={chartSegments.length > 5 ? 70 : 40}
+                    tickMargin={12}
+                  />
+                  <YAxis stroke="#94a3b8" allowDecimals={false} />
+                  <Tooltip
+                    cursor={{ fill: "rgba(255,255,255,0.05)" }}
+                    contentStyle={TOOLTIP_STYLES.content}
+                    labelStyle={TOOLTIP_STYLES.label}
+                    itemStyle={TOOLTIP_STYLES.item}
+                    formatter={(value: number, name) => [
+                      `${value.toLocaleString()} member(s)`,
+                      name ?? "Members",
+                    ]}
+                  />
+                  <Bar dataKey="members" radius={[12, 12, 0, 0]} barSize={48}>
+                    {chartSegments.map((segment) => (
+                      <Cell
+                        key={segment.key}
+                        fill={
+                          segment.highlight
+                            ? BAR_COLORS.highlight
+                            : BAR_COLORS.base
+                        }
+                      />
+                    ))}
+                    <LabelList
+                      dataKey="members"
+                      position="top"
+                      fill="#f1f5f9"
+                      fontSize={12}
+                      formatter={(value: number) => value.toLocaleString()}
+                    />
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+        </section>
+
+        <section className="rounded-3xl border border-white/10 bg-white/5 p-6">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <p className="text-xs uppercase tracking-[0.3em] text-amber-300/70">
+                Momentum
+              </p>
+              <h2 className="text-xl font-semibold text-white">
+                New VIPs over time
+              </h2>
+              <p className="text-sm text-slate-300">
+                Visualize how many members registered in the selected period.
+                Deleted members are excluded automatically.
+              </p>
+            </div>
+            <div className="rounded-full border border-white/10 bg-slate-900/60 p-1 text-xs uppercase tracking-[0.2em] text-slate-400">
+              {TREND_VIEW_OPTIONS.map((view) => (
+                <button
+                  key={view.key}
+                  className={`rounded-full px-4 py-1 ${
+                    trendView === view.key
+                      ? "bg-amber-400/20 text-white"
+                      : "text-slate-400 hover:text-white"
+                  }`}
+                  onClick={() => setTrendView(view.key)}
+                >
+                  {view.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="mt-6 h-72 w-full">
+            {timelineData.length === 0 ? (
+              <div className="flex h-full items-center justify-center text-sm text-slate-400">
+                No members in this period.
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart
+                  data={timelineData}
+                  margin={{ top: 16, left: 8, right: 16, bottom: 8 }}
+                >
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                    stroke="#475569"
+                    opacity={0.2}
+                  />
+                  <XAxis dataKey="label" stroke="#94a3b8" tickMargin={12} />
+                  <YAxis stroke="#94a3b8" allowDecimals={false} />
+                  <Tooltip
+                    cursor={{ stroke: "#f97316", strokeWidth: 2 }}
+                    contentStyle={TOOLTIP_STYLES.content}
+                    labelStyle={TOOLTIP_STYLES.label}
+                    itemStyle={TOOLTIP_STYLES.item}
+                    formatter={(value: number) => [
+                      `${value.toLocaleString()} total member(s)`,
+                      "Total Members",
+                    ]}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="count"
+                    stroke="#fb923c"
+                    strokeWidth={3}
+                    dot={{ stroke: "#fed7aa", strokeWidth: 2 }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+        </section>
+
+        <section className="rounded-3xl border border-white/10 bg-white/5 p-6">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <p className="text-xs uppercase tracking-[0.3em] text-amber-300/70">
+                Member details
+              </p>
+              <h2 className="text-xl font-semibold text-white">
+                Individual VIP records
+              </h2>
+              <p className="text-sm text-slate-300">
+                {memberDetails.length === 0
+                  ? "No members match the current filters."
+                  : `${memberDetails.length} member${memberDetails.length === 1 ? "" : "s"} shown with their registration and removal remarks.`}
+              </p>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-slate-900/60 px-4 py-3 text-right text-sm text-slate-300">
+              <p className="text-xs uppercase tracking-[0.3em] text-slate-400">
+                Active filters
+              </p>
+              <p className="text-white">
+                {selectedAreaId === "all"
+                  ? "All areas"
+                  : (selectedArea?.name ?? "Custom")}{" "}
+                ·{" "}
+                {selectedSubAreaId === "all"
+                  ? "All sub areas"
+                  : (resolvedSubAreaName ?? "N/A")}{" "}
+                ·{" "}
+                {normalizedBranchId === null
+                  ? "All branches"
+                  : (resolvedBranch?.name ?? "Custom")}
+              </p>
+            </div>
+          </div>
+          <div className="mt-6 space-y-6">
+            <div className="max-h-112 overflow-auto rounded-2xl border border-emerald-400/40 bg-emerald-950/20 shadow-inner shadow-emerald-900/30 ring-1 ring-emerald-400/30">
+              <div className="flex items-center justify-between border-b border-emerald-400/30 px-4 py-3">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.3em] text-emerald-300/80">
+                    Active members
+                  </p>
+                  <p className="text-sm text-emerald-100/80">
+                    {activeMembers.length === 0
+                      ? "No active members"
+                      : `${activeMembers.length} active member${activeMembers.length === 1 ? "" : "s"}`}
+                  </p>
+                </div>
+                <span className="rounded-full bg-emerald-400/20 px-3 py-1 text-xs font-semibold text-emerald-100">
+                  Live
+                </span>
+              </div>
+              <table className="min-w-full divide-y divide-emerald-400/15 text-sm">
+                <thead className="sticky top-0 z-10 bg-emerald-950/90 backdrop-blur text-xs uppercase tracking-[0.3em] text-emerald-100">
+                  <tr>
+                    <th className="px-4 py-3 text-left font-medium">Name</th>
+                    <th className="px-4 py-3 text-left font-medium">Phone</th>
+                    <th className="px-4 py-3 text-left font-medium">Area</th>
+                    <th className="px-4 py-3 text-left font-medium">Branch</th>
+                    <th className="px-4 py-3 text-left font-medium">
+                      Registration Remark
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {activeMembers.length === 0 ? (
+                    <tr>
+                      <td
+                        className="px-4 py-6 text-center text-emerald-200/70"
+                        colSpan={5}
+                      >
+                        No active members for the selected filters.
+                      </td>
+                    </tr>
+                  ) : (
+                    activeMembers.map((entry, index) => (
+                      <tr
+                        key={`${entry.member.id}-active-${index}`}
+                        className={
+                          index % 2 === 0
+                            ? "bg-emerald-400/5"
+                            : "bg-emerald-400/10"
+                        }
+                      >
+                        <td className="px-4 py-3">
+                          <p className="font-semibold text-white">
+                            {entry.member.name}
+                          </p>
+                          <p className="text-xs text-emerald-100/70">
+                            Joined {entry.joinedDate ?? "—"}
+                          </p>
+                        </td>
+                        <td className="px-4 py-3 text-emerald-50/90">
+                          {entry.member.phone}
+                        </td>
+                        <td className="px-4 py-3 text-emerald-50/90">
+                          {entry.areaName}
+                        </td>
+                        <td className="px-4 py-3 text-emerald-50/90">
+                          {entry.branchName}
+                        </td>
+                        <td className="px-4 py-3 text-emerald-50/90">
+                          {entry.member.createRemark ?? "—"}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="max-h-112 overflow-auto rounded-2xl border border-rose-400/40 bg-rose-950/20 shadow-inner shadow-rose-900/30 ring-1 ring-rose-400/30">
+              <div className="flex items-center justify-between border-b border-rose-400/30 px-4 py-3">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.3em] text-rose-300/80">
+                    Removed members
+                  </p>
+                  <p className="text-sm text-rose-100/80">
+                    {removedMembers.length === 0
+                      ? "No removed members"
+                      : `${removedMembers.length} removed member${removedMembers.length === 1 ? "" : "s"}`}
+                  </p>
+                </div>
+                <span className="rounded-full bg-rose-400/20 px-3 py-1 text-xs font-semibold text-rose-100">
+                  Archived
+                </span>
+              </div>
+              <table className="min-w-full divide-y divide-rose-400/15 text-sm">
+                <thead className="sticky top-0 z-10 bg-rose-950/90 backdrop-blur text-xs uppercase tracking-[0.3em] text-rose-100">
+                  <tr>
+                    <th className="px-4 py-3 text-left font-medium">Name</th>
+                    <th className="px-4 py-3 text-left font-medium">Phone</th>
+                    <th className="px-4 py-3 text-left font-medium">Area</th>
+                    <th className="px-4 py-3 text-left font-medium">Branch</th>
+                    <th className="px-4 py-3 text-left font-medium">
+                      Removed Remark
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {removedMembers.length === 0 ? (
+                    <tr>
+                      <td
+                        className="px-4 py-6 text-center text-rose-200/70"
+                        colSpan={5}
+                      >
+                        No removed members for the selected filters.
+                      </td>
+                    </tr>
+                  ) : (
+                    removedMembers.map((entry, index) => (
+                      <tr
+                        key={`${entry.member.id}-removed-${index}`}
+                        className={
+                          index % 2 === 0 ? "bg-rose-400/5" : "bg-rose-400/10"
+                        }
+                      >
+                        <td className="px-4 py-3">
+                          <p className="font-semibold text-white">
+                            {entry.member.name}
+                          </p>
+                          <p className="text-xs text-rose-100/70">
+                            Joined {entry.joinedDate ?? "—"} · Removed{" "}
+                            {entry.removedDate ?? "—"}
+                          </p>
+                        </td>
+                        <td className="px-4 py-3 text-rose-50/90">
+                          {entry.member.phone}
+                        </td>
+                        <td className="px-4 py-3 text-rose-50/90">
+                          {entry.areaName}
+                        </td>
+                        <td className="px-4 py-3 text-rose-50/90">
+                          {entry.branchName}
+                        </td>
+                        <td className="px-4 py-3 text-rose-50/90">
+                          {entry.member.deleteRemark ?? "Removed without note"}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+      </div>
+    </MarketingServiceGuard>
+  );
+}
+
+export default VIPMembersDashboardPage;

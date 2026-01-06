@@ -1,17 +1,13 @@
-'use client';
+"use client";
 
 import { useMemo } from "react";
 import { useSearchParams } from "next/navigation";
-import {
-  messages,
-  SUPPORTED_LOCALES,
-  type SupportedLocale,
-} from "./messages";
+import { messages, SUPPORTED_LOCALES, type SupportedLocale } from "./messages";
 
 export const DEFAULT_LOCALE: SupportedLocale = "en";
 
 export const isSupportedLocale = (
-  value: string | null | undefined
+  value: string | null | undefined,
 ): value is SupportedLocale =>
   Boolean(value && SUPPORTED_LOCALES.includes(value as SupportedLocale));
 
@@ -25,8 +21,11 @@ export function useCurrentLocale() {
 
   return useMemo(() => {
     const paramLocale = searchParams?.get("lang");
-    const locale = isSupportedLocale(paramLocale) ? paramLocale : DEFAULT_LOCALE;
-    const dictionary = (messages[locale] ?? messages[DEFAULT_LOCALE]) as Dictionary;
+    const locale = isSupportedLocale(paramLocale)
+      ? paramLocale
+      : DEFAULT_LOCALE;
+    const dictionary = (messages[locale] ??
+      messages[DEFAULT_LOCALE]) as Dictionary;
     const t = (key: string) => dictionary[key] ?? key;
     return { locale, dictionary, t };
   }, [searchParams]);
