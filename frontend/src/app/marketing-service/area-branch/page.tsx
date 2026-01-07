@@ -11,6 +11,8 @@ import {
   SubAreaPayload,
   BranchPayload,
 } from "@/services/marketing-service/marketingHierarchyService";
+import { marketingUserAssignmentService, MarketingUserAssignment } from "@/services/marketingUserAssignmentService";
+import { API_BASE_URL } from "@/config/env";
 
 type FormState<T> = Partial<T> & { active?: boolean };
 
@@ -42,6 +44,8 @@ export default function MarketingAreaBranchPage() {
   const [areas, setAreas] = useState<MarketingArea[]>([]);
   const [subAreas, setSubAreas] = useState<MarketingSubArea[]>([]);
   const [branches, setBranches] = useState<MarketingBranch[]>([]);
+  const [currentUserAssignment, setCurrentUserAssignment] = useState<MarketingUserAssignment | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<number | null>(null);
 
   const [areaForm, setAreaForm] = useState(defaultAreaForm);
   const [editingArea, setEditingArea] = useState<MarketingArea | null>(null);
@@ -62,10 +66,52 @@ export default function MarketingAreaBranchPage() {
     tone: "success" | "error";
   } | null>(null);
 
+  // Filter areas based on user assignment
+  const accessibleAreas = useMemo(() => {
+    if (!currentUserAssignment) return areas;
+    if (currentUserAssignment.assignmentType === "AREA" && currentUserAssignment.areaId) {
+      return areas.filter(area => area.id === currentUserAssignment.areaId);
+    }
+    if (currentUserAssignment.assignmentType === "SUB_AREA" && currentUserAssignment.areaId) {
+      return areas.filter(area => area.id === currentUserAssignment.areaId);
+    }
+    return areas;
+  }, [areas, currentUserAssignment]);
+
+  // Filter sub-areas based on user assignment
+  const accessibleSubAreas = useMemo(() => {
+    if (!currentUserAssignment) return subAreas;
+    if (currentUserAssignment.assignmentType === "SUB_AREA" && currentUserAssignment.subAreaId) {
+      return subAreas.filter(subArea => subArea.id === currentUserAssignment.subAreaId);
+    }
+    if (currentUserAssignment.assignmentType === "AREA" && currentUserAssignment.areaId) {
+      return subAreas.filter(subArea => subArea.areaId === currentUserAssignment.areaId);
+    }
+    return subAreas;
+  }, [subAreas, currentUserAssignment]);
+
   const filteredSubAreas = useMemo(() => {
     if (!branchForm.areaId) return [];
-    return subAreas.filter((subArea) => subArea.areaId === branchForm.areaId);
-  }, [branchForm.areaId, subAreas]);
+    return accessibleSubAreas.filter((subArea) => subArea.areaId === branchForm.areaId);
+  }, [branchForm.areaId, accessibleSubAreas]);
+
+  // Permission checks based on assignment type
+  const canCreateArea = useMemo(() => {
+    // Only users without assignment can create areas (admin level)
+    return !currentUserAssignment;
+  }, [currentUserAssignment]);
+
+  const canCreateSubArea = useMemo(() => {
+    // Users without assignment (admin) or area-assigned users can create sub-areas
+    if (!currentUserAssignment) return true;
+    return currentUserAssignment.assignmentType === "AREA";
+  }, [currentUserAssignment]);
+
+  const canCreateBranch = useMemo(() => {
+    // Users without assignment (admin), area-assigned, or sub-area-assigned can create branches
+    if (!currentUserAssignment) return true;
+    return currentUserAssignment.assignmentType === "AREA" || currentUserAssignment.assignmentType === "SUB_AREA";
+  }, [currentUserAssignment]);
 
   const showToast = (
     message: string,
@@ -98,7 +144,31 @@ export default function MarketingAreaBranchPage() {
 
   useEffect(() => {
     void loadAll();
+    void fetchCurrentUserAssignment();
   }, []);
+
+  const fetchCurrentUserAssignment = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        return;
+      }
+
+      const user = await response.json();
+      if (user?.id) {
+        setCurrentUserId(user.id);
+        const assignments = await marketingUserAssignmentService.getUserAssignments(user.id);
+        if (assignments && assignments.length > 0) {
+          setCurrentUserAssignment(assignments[0]);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to fetch user assignment:", error);
+    }
+  };
 
   const upsertArea = async () => {
     if (!areaForm.name) {
@@ -254,11 +324,10 @@ export default function MarketingAreaBranchPage() {
 
         {toast && (
           <div
-            className={`rounded-2xl border px-4 py-3 text-sm ${
-              toast.tone === "success"
-                ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-200"
-                : "border-red-500/30 bg-red-500/10 text-red-200"
-            }`}
+            className={`rounded-2xl border px-4 py-3 text-sm ${toast.tone === "success"
+              ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-200"
+              : "border-red-500/30 bg-red-500/10 text-red-200"
+              }`}
           >
             {toast.message}
           </div>
@@ -287,11 +356,16 @@ export default function MarketingAreaBranchPage() {
                 </button>
               )}
             </div>
+            {!canCreateArea && (
+              <div className="mt-4 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+                You don't have permission to create areas. Only administrators can create areas.
+              </div>
+            )}
             <div className="mt-4 space-y-4">
               <label className="text-sm text-slate-300">
                 Name
                 <input
-                  className="mt-1 w-full rounded-2xl border border-white/10 bg-slate-900/60 px-4 py-2 text-white focus:border-amber-400/60 focus:outline-none"
+                  className="mt-1 w-full rounded-2xl border border-white/10 bg-slate-900/60 px-4 py-2 text-white focus:border-amber-400/60 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
                   value={areaForm.name ?? ""}
                   onChange={(event) =>
                     setAreaForm((prev) => ({
@@ -299,12 +373,13 @@ export default function MarketingAreaBranchPage() {
                       name: event.target.value,
                     }))
                   }
+                  disabled={!canCreateArea}
                 />
               </label>
               <label className="text-sm text-slate-300">
                 Code
                 <input
-                  className="mt-1 w-full rounded-2xl border border-white/10 bg-slate-900/60 px-4 py-2 text-white focus:border-amber-400/60 focus:outline-none"
+                  className="mt-1 w-full rounded-2xl border border-white/10 bg-slate-900/60 px-4 py-2 text-white focus:border-amber-400/60 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
                   value={areaForm.code ?? ""}
                   onChange={(event) =>
                     setAreaForm((prev) => ({
@@ -312,12 +387,13 @@ export default function MarketingAreaBranchPage() {
                       code: event.target.value,
                     }))
                   }
+                  disabled={!canCreateArea}
                 />
               </label>
               <label className="text-sm text-slate-300">
                 Description
                 <textarea
-                  className="mt-1 w-full rounded-2xl border border-white/10 bg-slate-900/60 px-4 py-2 text-white focus:border-amber-400/60 focus:outline-none"
+                  className="mt-1 w-full rounded-2xl border border-white/10 bg-slate-900/60 px-4 py-2 text-white focus:border-amber-400/60 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
                   rows={3}
                   value={areaForm.description ?? ""}
                   onChange={(event) =>
@@ -326,6 +402,7 @@ export default function MarketingAreaBranchPage() {
                       description: event.target.value,
                     }))
                   }
+                  disabled={!canCreateArea}
                 />
               </label>
               <label className="flex items-center gap-2 text-sm text-slate-200">
@@ -338,14 +415,15 @@ export default function MarketingAreaBranchPage() {
                       active: event.target.checked,
                     }))
                   }
-                  className="h-4 w-4 rounded border-white/20 bg-slate-900/60 text-amber-400 focus:ring-amber-400/50"
+                  className="h-4 w-4 rounded border-white/20 bg-slate-900/60 text-amber-400 focus:ring-amber-400/50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={!canCreateArea}
                 />
                 Active
               </label>
               <button
-                className="w-full rounded-2xl bg-linear-to-r from-amber-500/90 to-orange-500/90 px-4 py-2 text-sm font-semibold text-white hover:from-amber-400 hover:to-orange-400 disabled:opacity-60"
+                className="w-full rounded-2xl bg-linear-to-r from-amber-500/90 to-orange-500/90 px-4 py-2 text-sm font-semibold text-white hover:from-amber-400 hover:to-orange-400 disabled:opacity-60 disabled:cursor-not-allowed"
                 onClick={upsertArea}
-                disabled={loading}
+                disabled={loading || !canCreateArea}
               >
                 {loading
                   ? "Saving..."
@@ -378,11 +456,16 @@ export default function MarketingAreaBranchPage() {
                 </button>
               )}
             </div>
+            {!canCreateSubArea && (
+              <div className="mt-4 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+                You don't have permission to create sub-areas. Only area-assigned users or administrators can create sub-areas.
+              </div>
+            )}
             <div className="mt-4 space-y-4">
               <label className="text-sm text-slate-300">
                 Parent area
                 <select
-                  className="mt-1 w-full rounded-2xl border border-white/10 bg-slate-900/60 px-4 py-2 text-white focus:border-amber-400/60 focus:outline-none"
+                  className="mt-1 w-full rounded-2xl border border-white/10 bg-slate-900/60 px-4 py-2 text-white focus:border-amber-400/60 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
                   value={subAreaForm.areaId ?? ""}
                   onChange={(event) =>
                     setSubAreaForm((prev) => ({
@@ -390,9 +473,10 @@ export default function MarketingAreaBranchPage() {
                       areaId: Number(event.target.value) || undefined,
                     }))
                   }
+                  disabled={!canCreateSubArea}
                 >
                   <option value="">Select area</option>
-                  {areas.map((area) => (
+                  {accessibleAreas.map((area) => (
                     <option key={area.id} value={area.id}>
                       {area.name}
                     </option>
@@ -402,7 +486,7 @@ export default function MarketingAreaBranchPage() {
               <label className="text-sm text-slate-300">
                 Name
                 <input
-                  className="mt-1 w-full rounded-2xl border border-white/10 bg-slate-900/60 px-4 py-2 text-white focus:border-amber-400/60 focus:outline-none"
+                  className="mt-1 w-full rounded-2xl border border-white/10 bg-slate-900/60 px-4 py-2 text-white focus:border-amber-400/60 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
                   value={subAreaForm.name ?? ""}
                   onChange={(event) =>
                     setSubAreaForm((prev) => ({
@@ -410,12 +494,13 @@ export default function MarketingAreaBranchPage() {
                       name: event.target.value,
                     }))
                   }
+                  disabled={!canCreateSubArea}
                 />
               </label>
               <label className="text-sm text-slate-300">
                 Code
                 <input
-                  className="mt-1 w-full rounded-2xl border border-white/10 bg-slate-900/60 px-4 py-2 text-white focus:border-amber-400/60 focus:outline-none"
+                  className="mt-1 w-full rounded-2xl border border-white/10 bg-slate-900/60 px-4 py-2 text-white focus:border-amber-400/60 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
                   value={subAreaForm.code ?? ""}
                   onChange={(event) =>
                     setSubAreaForm((prev) => ({
@@ -423,12 +508,13 @@ export default function MarketingAreaBranchPage() {
                       code: event.target.value,
                     }))
                   }
+                  disabled={!canCreateSubArea}
                 />
               </label>
               <label className="text-sm text-slate-300">
                 Description
                 <textarea
-                  className="mt-1 w-full rounded-2xl border border-white/10 bg-slate-900/60 px-4 py-2 text-white focus:border-amber-400/60 focus:outline-none"
+                  className="mt-1 w-full rounded-2xl border border-white/10 bg-slate-900/60 px-4 py-2 text-white focus:border-amber-400/60 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
                   rows={3}
                   value={subAreaForm.description ?? ""}
                   onChange={(event) =>
@@ -437,6 +523,7 @@ export default function MarketingAreaBranchPage() {
                       description: event.target.value,
                     }))
                   }
+                  disabled={!canCreateSubArea}
                 />
               </label>
               <label className="flex items-center gap-2 text-sm text-slate-200">
@@ -449,14 +536,15 @@ export default function MarketingAreaBranchPage() {
                       active: event.target.checked,
                     }))
                   }
-                  className="h-4 w-4 rounded border-white/20 bg-slate-900/60 text-amber-400 focus:ring-amber-400/50"
+                  className="h-4 w-4 rounded border-white/20 bg-slate-900/60 text-amber-400 focus:ring-amber-400/50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={!canCreateSubArea}
                 />
                 Active
               </label>
               <button
-                className="w-full rounded-2xl bg-linear-to-r from-blue-500/90 to-indigo-500/90 px-4 py-2 text-sm font-semibold text-white hover:from-blue-400 hover:to-indigo-400 disabled:opacity-60"
+                className="w-full rounded-2xl bg-linear-to-r from-blue-500/90 to-indigo-500/90 px-4 py-2 text-sm font-semibold text-white hover:from-blue-400 hover:to-indigo-400 disabled:opacity-60 disabled:cursor-not-allowed"
                 onClick={upsertSubArea}
-                disabled={loading}
+                disabled={loading || !canCreateSubArea}
               >
                 {loading
                   ? "Saving..."
@@ -489,11 +577,16 @@ export default function MarketingAreaBranchPage() {
                 </button>
               )}
             </div>
+            {!canCreateBranch && (
+              <div className="mt-4 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+                You don't have permission to create branches. Only area-assigned, sub-area-assigned users, or administrators can create branches.
+              </div>
+            )}
             <div className="mt-4 space-y-4">
               <label className="text-sm text-slate-300">
                 Area
                 <select
-                  className="mt-1 w-full rounded-2xl border border-white/10 bg-slate-900/60 px-4 py-2 text-white focus:border-amber-400/60 focus:outline-none"
+                  className="mt-1 w-full rounded-2xl border border-white/10 bg-slate-900/60 px-4 py-2 text-white focus:border-amber-400/60 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
                   value={branchForm.areaId ?? ""}
                   onChange={(event) => {
                     const nextAreaId = Number(event.target.value) || undefined;
@@ -503,9 +596,10 @@ export default function MarketingAreaBranchPage() {
                       subAreaId: undefined,
                     }));
                   }}
+                  disabled={!canCreateBranch}
                 >
                   <option value="">Select area</option>
-                  {areas.map((area) => (
+                  {accessibleAreas.map((area) => (
                     <option key={area.id} value={area.id}>
                       {area.name}
                     </option>
@@ -515,13 +609,13 @@ export default function MarketingAreaBranchPage() {
               <label className="text-sm text-slate-300">
                 Sub area/Province (optional)
                 <select
-                  className="mt-1 w-full rounded-2xl border border-white/10 bg-slate-900/60 px-4 py-2 text-white focus:border-amber-400/60 focus:outline-none"
+                  className="mt-1 w-full rounded-2xl border border-white/10 bg-slate-900/60 px-4 py-2 text-white focus:border-amber-400/60 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
                   value={branchForm.subAreaId ?? ""}
                   onChange={(event) => {
                     const next = Number(event.target.value) || undefined;
                     setBranchForm((prev) => ({ ...prev, subAreaId: next }));
                   }}
-                  disabled={!branchForm.areaId || filteredSubAreas.length === 0}
+                  disabled={!canCreateBranch || !branchForm.areaId || filteredSubAreas.length === 0}
                 >
                   <option value="">No sub area/Province</option>
                   {filteredSubAreas.map((subArea) => (
@@ -534,7 +628,7 @@ export default function MarketingAreaBranchPage() {
               <label className="text-sm text-slate-300">
                 Name
                 <input
-                  className="mt-1 w-full rounded-2xl border border-white/10 bg-slate-900/60 px-4 py-2 text-white focus:border-amber-400/60 focus:outline-none"
+                  className="mt-1 w-full rounded-2xl border border-white/10 bg-slate-900/60 px-4 py-2 text-white focus:border-amber-400/60 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
                   value={branchForm.name ?? ""}
                   onChange={(event) =>
                     setBranchForm((prev) => ({
@@ -542,12 +636,13 @@ export default function MarketingAreaBranchPage() {
                       name: event.target.value,
                     }))
                   }
+                  disabled={!canCreateBranch}
                 />
               </label>
               <label className="text-sm text-slate-300">
                 Code
                 <input
-                  className="mt-1 w-full rounded-2xl border border-white/10 bg-slate-900/60 px-4 py-2 text-white focus:border-amber-400/60 focus:outline-none"
+                  className="mt-1 w-full rounded-2xl border border-white/10 bg-slate-900/60 px-4 py-2 text-white focus:border-amber-400/60 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
                   value={branchForm.code ?? ""}
                   onChange={(event) =>
                     setBranchForm((prev) => ({
@@ -555,12 +650,13 @@ export default function MarketingAreaBranchPage() {
                       code: event.target.value,
                     }))
                   }
+                  disabled={!canCreateBranch}
                 />
               </label>
               <label className="text-sm text-slate-300">
                 Description
                 <textarea
-                  className="mt-1 w-full rounded-2xl border border-white/10 bg-slate-900/60 px-4 py-2 text-white focus:border-amber-400/60 focus:outline-none"
+                  className="mt-1 w-full rounded-2xl border border-white/10 bg-slate-900/60 px-4 py-2 text-white focus:border-amber-400/60 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
                   rows={3}
                   value={branchForm.description ?? ""}
                   onChange={(event) =>
@@ -569,6 +665,7 @@ export default function MarketingAreaBranchPage() {
                       description: event.target.value,
                     }))
                   }
+                  disabled={!canCreateBranch}
                 />
               </label>
               <label className="flex items-center gap-2 text-sm text-slate-200">
@@ -581,14 +678,15 @@ export default function MarketingAreaBranchPage() {
                       active: event.target.checked,
                     }))
                   }
-                  className="h-4 w-4 rounded border-white/20 bg-slate-900/60 text-amber-400 focus:ring-amber-400/50"
+                  className="h-4 w-4 rounded border-white/20 bg-slate-900/60 text-amber-400 focus:ring-amber-400/50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={!canCreateBranch}
                 />
                 Active
               </label>
               <button
-                className="w-full rounded-2xl bg-linear-to-r from-emerald-500/90 to-teal-500/90 px-4 py-2 text-sm font-semibold text-white hover:from-emerald-400 hover:to-teal-400 disabled:opacity-60"
+                className="w-full rounded-2xl bg-linear-to-r from-emerald-500/90 to-teal-500/90 px-4 py-2 text-sm font-semibold text-white hover:from-emerald-400 hover:to-teal-400 disabled:opacity-60 disabled:cursor-not-allowed"
                 onClick={upsertBranch}
-                disabled={loading}
+                disabled={loading || !canCreateBranch}
               >
                 {loading
                   ? "Saving..."
@@ -647,11 +745,10 @@ export default function MarketingAreaBranchPage() {
                         </p>
                       </div>
                       <span
-                        className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                          area.active
-                            ? "bg-emerald-500/20 text-emerald-200"
-                            : "bg-slate-600/40 text-slate-300"
-                        }`}
+                        className={`rounded-full px-3 py-1 text-xs font-semibold ${area.active
+                          ? "bg-emerald-500/20 text-emerald-200"
+                          : "bg-slate-600/40 text-slate-300"
+                          }`}
                       >
                         {area.active ? "Active" : "Inactive"}
                       </span>
@@ -723,11 +820,10 @@ export default function MarketingAreaBranchPage() {
                           </p>
                         </div>
                         <span
-                          className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                            subArea.active
-                              ? "bg-emerald-500/20 text-emerald-200"
-                              : "bg-slate-600/40 text-slate-300"
-                          }`}
+                          className={`rounded-full px-3 py-1 text-xs font-semibold ${subArea.active
+                            ? "bg-emerald-500/20 text-emerald-200"
+                            : "bg-slate-600/40 text-slate-300"
+                            }`}
                         >
                           {subArea.active ? "Active" : "Inactive"}
                         </span>
@@ -792,8 +888,8 @@ export default function MarketingAreaBranchPage() {
                   );
                   const parentSubArea = branch.subAreaId
                     ? subAreas.find(
-                        (subArea) => subArea.id === branch.subAreaId,
-                      )
+                      (subArea) => subArea.id === branch.subAreaId,
+                    )
                     : undefined;
                   return (
                     <article
@@ -811,11 +907,10 @@ export default function MarketingAreaBranchPage() {
                           </p>
                         </div>
                         <span
-                          className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                            branch.active
-                              ? "bg-emerald-500/20 text-emerald-200"
-                              : "bg-slate-600/40 text-slate-300"
-                          }`}
+                          className={`rounded-full px-3 py-1 text-xs font-semibold ${branch.active
+                            ? "bg-emerald-500/20 text-emerald-200"
+                            : "bg-slate-600/40 text-slate-300"
+                            }`}
                         >
                           {branch.active ? "Active" : "Inactive"}
                         </span>

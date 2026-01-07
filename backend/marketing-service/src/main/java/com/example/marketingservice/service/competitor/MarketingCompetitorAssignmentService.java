@@ -10,9 +10,12 @@ import com.example.marketingservice.repository.area.MarketingAreaRepository;
 import com.example.marketingservice.repository.competitor.MarketingCompetitorAssignmentRepository;
 import com.example.marketingservice.repository.competitor.MarketingCompetitorRepository;
 import com.example.marketingservice.repository.subarea.MarketingSubAreaRepository;
+import com.example.marketingservice.service.shared.MarketingAuthorizationService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.HashMap;
 import java.util.List;
@@ -35,8 +38,36 @@ public class MarketingCompetitorAssignmentService {
     @Autowired
     private MarketingCompetitorRepository competitorRepository;
 
+    @Autowired
+    private MarketingAuthorizationService authorizationService;
+
     public List<MarketingCompetitorAssignmentResponse> getAllAssignments() {
         return assignmentRepository.findAll().stream()
+                .map(MarketingCompetitorAssignmentResponse::from)
+                .collect(Collectors.toList());
+    }
+
+    public List<MarketingCompetitorAssignmentResponse> getAllAssignmentsForUser(Long userId) {
+        List<Long> accessibleAreaIds = authorizationService.getAccessibleAreaIds(userId);
+        List<Long> accessibleSubAreaIds = authorizationService.getAccessibleSubAreaIds(userId);
+
+        if (accessibleAreaIds == null && accessibleSubAreaIds == null) {
+            return assignmentRepository.findAll().stream()
+                    .map(MarketingCompetitorAssignmentResponse::from)
+                    .collect(Collectors.toList());
+        }
+
+        return assignmentRepository.findAll().stream()
+                .filter(assignment -> {
+                    if (accessibleSubAreaIds != null && !accessibleSubAreaIds.isEmpty()) {
+                        return assignment.getSubArea() != null &&
+                                accessibleSubAreaIds.contains(assignment.getSubArea().getId());
+                    }
+                    if (accessibleAreaIds != null && !accessibleAreaIds.isEmpty()) {
+                        return accessibleAreaIds.contains(assignment.getArea().getId());
+                    }
+                    return false;
+                })
                 .map(MarketingCompetitorAssignmentResponse::from)
                 .collect(Collectors.toList());
     }
@@ -47,13 +78,46 @@ public class MarketingCompetitorAssignmentService {
                 .collect(Collectors.toList());
     }
 
+    public List<MarketingCompetitorAssignmentResponse> getAssignmentsByAreaAndSubAreaForUser(Long areaId,
+            Long subAreaId, Long userId) {
+        List<Long> accessibleAreaIds = authorizationService.getAccessibleAreaIds(userId);
+        List<Long> accessibleSubAreaIds = authorizationService.getAccessibleSubAreaIds(userId);
+
+        if (accessibleAreaIds == null && accessibleSubAreaIds == null) {
+            return assignmentRepository.findByAreaAndSubArea(areaId, subAreaId).stream()
+                    .map(MarketingCompetitorAssignmentResponse::from)
+                    .collect(Collectors.toList());
+        }
+
+        return assignmentRepository.findByAreaAndSubArea(areaId, subAreaId).stream()
+                .filter(assignment -> {
+                    if (accessibleSubAreaIds != null && !accessibleSubAreaIds.isEmpty()) {
+                        return assignment.getSubArea() != null &&
+                                accessibleSubAreaIds.contains(assignment.getSubArea().getId());
+                    }
+                    if (accessibleAreaIds != null && !accessibleAreaIds.isEmpty()) {
+                        return accessibleAreaIds.contains(assignment.getArea().getId());
+                    }
+                    return false;
+                })
+                .map(MarketingCompetitorAssignmentResponse::from)
+                .collect(Collectors.toList());
+    }
+
     public MarketingCompetitorAssignmentResponse getAssignmentById(Long id) {
         MarketingCompetitorAssignment assignment = assignmentRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Assignment not found with id: " + id));
         return MarketingCompetitorAssignmentResponse.from(assignment);
     }
 
-    public MarketingCompetitorAssignmentResponse createAssignment(MarketingCompetitorAssignmentRequest request, Long userId) {
+    public MarketingCompetitorAssignmentResponse createAssignment(MarketingCompetitorAssignmentRequest request,
+            Long userId) {
+        // Check authorization
+        if (!authorizationService.canCreateSubArea(userId, request.getAreaId())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                    "You don't have permission to create competitor assignments in this area.");
+        }
+
         // Validate area exists
         MarketingArea area = areaRepository.findById(request.getAreaId())
                 .orElseThrow(() -> new ResourceNotFoundException("Area not found with id: " + request.getAreaId()));
@@ -62,7 +126,8 @@ public class MarketingCompetitorAssignmentService {
         MarketingSubArea subArea = null;
         if (request.getSubAreaId() != null) {
             subArea = subAreaRepository.findById(request.getSubAreaId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Sub-area not found with id: " + request.getSubAreaId()));
+                    .orElseThrow(() -> new ResourceNotFoundException(
+                            "Sub-area not found with id: " + request.getSubAreaId()));
         }
 
         // Convert competitor profiles
@@ -71,13 +136,13 @@ public class MarketingCompetitorAssignmentService {
             request.getCompetitorProfiles().forEach((competitorId, profileRequest) -> {
                 // Validate competitor exists
                 competitorRepository.findById(competitorId)
-                        .orElseThrow(() -> new ResourceNotFoundException("Competitor not found with id: " + competitorId));
+                        .orElseThrow(
+                                () -> new ResourceNotFoundException("Competitor not found with id: " + competitorId));
 
                 // Create price range
                 com.example.marketingservice.entity.competitor.CompetitorPriceRange priceRange = new com.example.marketingservice.entity.competitor.CompetitorPriceRange(
                         profileRequest.getPriceRange().getLowestPrice(),
-                        profileRequest.getPriceRange().getHighestPrice()
-                );
+                        profileRequest.getPriceRange().getHighestPrice());
 
                 // Create competitor profile
                 com.example.marketingservice.entity.competitor.CompetitorProfile profile = new com.example.marketingservice.entity.competitor.CompetitorProfile(
@@ -85,8 +150,7 @@ public class MarketingCompetitorAssignmentService {
                         profileRequest.getStrengths(),
                         profileRequest.getWeaknesses(),
                         profileRequest.getRemarks(),
-                        profileRequest.getBranchCount()
-                );
+                        profileRequest.getBranchCount());
 
                 competitorProfiles.put(competitorId, profile);
             });
@@ -96,16 +160,22 @@ public class MarketingCompetitorAssignmentService {
                 area,
                 subArea,
                 competitorProfiles,
-                userId
-        );
+                userId);
 
         MarketingCompetitorAssignment savedAssignment = assignmentRepository.save(assignment);
         return MarketingCompetitorAssignmentResponse.from(savedAssignment);
     }
 
-    public MarketingCompetitorAssignmentResponse updateAssignment(Long id, MarketingCompetitorAssignmentRequest request, Long userId) {
+    public MarketingCompetitorAssignmentResponse updateAssignment(Long id, MarketingCompetitorAssignmentRequest request,
+            Long userId) {
         MarketingCompetitorAssignment existingAssignment = assignmentRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Assignment not found with id: " + id));
+
+        // Check authorization
+        if (!authorizationService.canCreateSubArea(userId, request.getAreaId())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                    "You don't have permission to update competitor assignments in this area.");
+        }
 
         // Validate area exists
         MarketingArea area = areaRepository.findById(request.getAreaId())
@@ -115,7 +185,8 @@ public class MarketingCompetitorAssignmentService {
         MarketingSubArea subArea = null;
         if (request.getSubAreaId() != null) {
             subArea = subAreaRepository.findById(request.getSubAreaId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Sub-area not found with id: " + request.getSubAreaId()));
+                    .orElseThrow(() -> new ResourceNotFoundException(
+                            "Sub-area not found with id: " + request.getSubAreaId()));
         }
 
         // Convert competitor profiles
@@ -124,13 +195,13 @@ public class MarketingCompetitorAssignmentService {
             request.getCompetitorProfiles().forEach((competitorId, profileRequest) -> {
                 // Validate competitor exists
                 competitorRepository.findById(competitorId)
-                        .orElseThrow(() -> new ResourceNotFoundException("Competitor not found with id: " + competitorId));
+                        .orElseThrow(
+                                () -> new ResourceNotFoundException("Competitor not found with id: " + competitorId));
 
                 // Create price range
                 com.example.marketingservice.entity.competitor.CompetitorPriceRange priceRange = new com.example.marketingservice.entity.competitor.CompetitorPriceRange(
                         profileRequest.getPriceRange().getLowestPrice(),
-                        profileRequest.getPriceRange().getHighestPrice()
-                );
+                        profileRequest.getPriceRange().getHighestPrice());
 
                 // Create competitor profile
                 com.example.marketingservice.entity.competitor.CompetitorProfile profile = new com.example.marketingservice.entity.competitor.CompetitorProfile(
@@ -138,8 +209,7 @@ public class MarketingCompetitorAssignmentService {
                         profileRequest.getStrengths(),
                         profileRequest.getWeaknesses(),
                         profileRequest.getRemarks(),
-                        profileRequest.getBranchCount()
-                );
+                        profileRequest.getBranchCount());
 
                 competitorProfiles.put(competitorId, profile);
             });
@@ -153,10 +223,16 @@ public class MarketingCompetitorAssignmentService {
         return MarketingCompetitorAssignmentResponse.from(updatedAssignment);
     }
 
-    public void deleteAssignment(Long id) {
-        if (!assignmentRepository.existsById(id)) {
-            throw new ResourceNotFoundException("Assignment not found with id: " + id);
+    public void deleteAssignment(Long id, Long userId) {
+        MarketingCompetitorAssignment assignment = assignmentRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Assignment not found with id: " + id));
+
+        // Check authorization
+        if (!authorizationService.canCreateSubArea(userId, assignment.getArea().getId())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                    "You don't have permission to delete competitor assignments in this area.");
         }
+
         assignmentRepository.deleteById(id);
     }
 
@@ -166,10 +242,53 @@ public class MarketingCompetitorAssignmentService {
                 .collect(Collectors.toList());
     }
 
+    public List<MarketingCompetitorAssignmentResponse> getAssignmentsByAreaForUser(Long areaId, Long userId) {
+        List<Long> accessibleAreaIds = authorizationService.getAccessibleAreaIds(userId);
+
+        if (accessibleAreaIds == null) {
+            return assignmentRepository.findByArea(areaId).stream()
+                    .map(MarketingCompetitorAssignmentResponse::from)
+                    .collect(Collectors.toList());
+        }
+
+        if (accessibleAreaIds.contains(areaId)) {
+            return assignmentRepository.findByArea(areaId).stream()
+                    .map(MarketingCompetitorAssignmentResponse::from)
+                    .collect(Collectors.toList());
+        }
+
+        return List.of();
+    }
+
     public List<MarketingCompetitorAssignmentResponse> getAssignmentsBySubArea(Long subAreaId) {
         return assignmentRepository.findBySubArea(subAreaId).stream()
                 .map(MarketingCompetitorAssignmentResponse::from)
                 .collect(Collectors.toList());
+    }
+
+    public List<MarketingCompetitorAssignmentResponse> getAssignmentsBySubAreaForUser(Long subAreaId, Long userId) {
+        List<Long> accessibleSubAreaIds = authorizationService.getAccessibleSubAreaIds(userId);
+        List<Long> accessibleAreaIds = authorizationService.getAccessibleAreaIds(userId);
+
+        if (accessibleSubAreaIds == null && accessibleAreaIds == null) {
+            return assignmentRepository.findBySubArea(subAreaId).stream()
+                    .map(MarketingCompetitorAssignmentResponse::from)
+                    .collect(Collectors.toList());
+        }
+
+        if (accessibleSubAreaIds != null && accessibleSubAreaIds.contains(subAreaId)) {
+            return assignmentRepository.findBySubArea(subAreaId).stream()
+                    .map(MarketingCompetitorAssignmentResponse::from)
+                    .collect(Collectors.toList());
+        }
+
+        if (accessibleAreaIds != null && !accessibleAreaIds.isEmpty()) {
+            return assignmentRepository.findBySubArea(subAreaId).stream()
+                    .map(MarketingCompetitorAssignmentResponse::from)
+                    .collect(Collectors.toList());
+        }
+
+        return List.of();
     }
 
     public boolean existsByAreaAndSubArea(Long areaId, Long subAreaId) {

@@ -24,8 +24,9 @@ public class MarketingAreaController extends BaseController {
     }
 
     @GetMapping
-    public List<MarketingAreaResponse> list() {
-        return marketingAreaService.findAll()
+    public List<MarketingAreaResponse> list(HttpServletRequest httpRequest) {
+        Long userId = requireUserId(httpRequest);
+        return marketingAreaService.findAllForUser(userId)
                 .stream()
                 .map(MarketingAreaResponse::fromEntity)
                 .collect(Collectors.toList());
@@ -38,20 +39,23 @@ public class MarketingAreaController extends BaseController {
 
     @PostMapping
     public ResponseEntity<MarketingAreaResponse> create(@Valid @RequestBody MarketingAreaRequest request,
-                                                        HttpServletRequest httpRequest) {
+            HttpServletRequest httpRequest) {
         Long creatorId = requireUserId(httpRequest);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(MarketingAreaResponse.fromEntity(marketingAreaService.create(request, creatorId)));
     }
 
     @PutMapping("/{id}")
-    public MarketingAreaResponse update(@PathVariable Long id, @Valid @RequestBody MarketingAreaRequest request) {
-        return MarketingAreaResponse.fromEntity(marketingAreaService.update(id, request));
+    public MarketingAreaResponse update(@PathVariable Long id, @Valid @RequestBody MarketingAreaRequest request,
+            HttpServletRequest httpRequest) {
+        Long userId = requireUserId(httpRequest);
+        return MarketingAreaResponse.fromEntity(marketingAreaService.update(id, request, userId));
     }
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void delete(@PathVariable Long id) {
-        marketingAreaService.delete(id);
+    public void delete(@PathVariable Long id, HttpServletRequest httpRequest) {
+        Long userId = requireUserId(httpRequest);
+        marketingAreaService.delete(id, userId);
     }
 }

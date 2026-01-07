@@ -24,8 +24,11 @@ public class MarketingSubAreaController extends BaseController {
     }
 
     @GetMapping
-    public List<MarketingSubAreaResponse> list(@RequestParam(value = "areaId", required = false) Long areaId) {
-        return (areaId != null ? subAreaService.findByAreaId(areaId) : subAreaService.findAll())
+    public List<MarketingSubAreaResponse> list(@RequestParam(value = "areaId", required = false) Long areaId,
+            HttpServletRequest httpRequest) {
+        Long userId = requireUserId(httpRequest);
+        return (areaId != null ? subAreaService.findByAreaIdForUser(areaId, userId)
+                : subAreaService.findAllForUser(userId))
                 .stream()
                 .map(MarketingSubAreaResponse::fromEntity)
                 .collect(Collectors.toList());
@@ -38,7 +41,7 @@ public class MarketingSubAreaController extends BaseController {
 
     @PostMapping
     public ResponseEntity<MarketingSubAreaResponse> create(@Valid @RequestBody MarketingSubAreaRequest request,
-                                                           HttpServletRequest httpRequest) {
+            HttpServletRequest httpRequest) {
         Long creatorId = requireUserId(httpRequest);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(MarketingSubAreaResponse.fromEntity(subAreaService.create(request, creatorId)));
@@ -46,13 +49,16 @@ public class MarketingSubAreaController extends BaseController {
 
     @PutMapping("/{id}")
     public MarketingSubAreaResponse update(@PathVariable Long id,
-                                           @Valid @RequestBody MarketingSubAreaRequest request) {
-        return MarketingSubAreaResponse.fromEntity(subAreaService.update(id, request));
+            @Valid @RequestBody MarketingSubAreaRequest request,
+            HttpServletRequest httpRequest) {
+        Long userId = requireUserId(httpRequest);
+        return MarketingSubAreaResponse.fromEntity(subAreaService.update(id, request, userId));
     }
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void delete(@PathVariable Long id) {
-        subAreaService.delete(id);
+    public void delete(@PathVariable Long id, HttpServletRequest httpRequest) {
+        Long userId = requireUserId(httpRequest);
+        subAreaService.delete(id, userId);
     }
 }

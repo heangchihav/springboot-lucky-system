@@ -25,9 +25,11 @@ public class VipMemberController extends BaseController {
 
     @GetMapping
     public List<VipMemberResponse> list(@RequestParam(required = false) Long areaId,
-                                        @RequestParam(required = false) Long subAreaId,
-                                        @RequestParam(required = false) Long branchId) {
-        return vipMemberService.findAll(areaId, subAreaId, branchId)
+            @RequestParam(required = false) Long subAreaId,
+            @RequestParam(required = false) Long branchId,
+            HttpServletRequest httpRequest) {
+        Long userId = requireUserId(httpRequest);
+        return vipMemberService.findAllForUser(userId, areaId, subAreaId, branchId)
                 .stream()
                 .map(VipMemberResponse::fromEntity)
                 .collect(Collectors.toList());
@@ -40,7 +42,7 @@ public class VipMemberController extends BaseController {
 
     @PostMapping
     public ResponseEntity<VipMemberResponse> create(@Valid @RequestBody VipMemberRequest request,
-                                                    HttpServletRequest httpRequest) {
+            HttpServletRequest httpRequest) {
         Long creatorId = requireUserId(httpRequest);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(VipMemberResponse.fromEntity(vipMemberService.create(request, creatorId)));
@@ -48,13 +50,16 @@ public class VipMemberController extends BaseController {
 
     @PutMapping("/{id}")
     public VipMemberResponse update(@PathVariable Long id,
-                                    @Valid @RequestBody VipMemberRequest request) {
-        return VipMemberResponse.fromEntity(vipMemberService.update(id, request));
+            @Valid @RequestBody VipMemberRequest request,
+            HttpServletRequest httpRequest) {
+        Long userId = requireUserId(httpRequest);
+        return VipMemberResponse.fromEntity(vipMemberService.update(id, request, userId));
     }
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void delete(@PathVariable Long id) {
-        vipMemberService.delete(id);
+    public void delete(@PathVariable Long id, HttpServletRequest httpRequest) {
+        Long userId = requireUserId(httpRequest);
+        vipMemberService.delete(id, userId);
     }
 }

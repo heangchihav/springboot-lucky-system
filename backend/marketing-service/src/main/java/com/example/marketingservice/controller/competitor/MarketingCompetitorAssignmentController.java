@@ -21,8 +21,10 @@ public class MarketingCompetitorAssignmentController extends BaseController {
     private MarketingCompetitorAssignmentService assignmentService;
 
     @GetMapping
-    public ResponseEntity<List<MarketingCompetitorAssignmentResponse>> getAllAssignments() {
-        List<MarketingCompetitorAssignmentResponse> assignments = assignmentService.getAllAssignments();
+    public ResponseEntity<List<MarketingCompetitorAssignmentResponse>> getAllAssignments(
+            HttpServletRequest httpRequest) {
+        Long userId = requireUserId(httpRequest);
+        List<MarketingCompetitorAssignmentResponse> assignments = assignmentService.getAllAssignmentsForUser(userId);
         return ResponseEntity.ok(assignments);
     }
 
@@ -35,22 +37,31 @@ public class MarketingCompetitorAssignmentController extends BaseController {
     @GetMapping("/by-area-subarea")
     public ResponseEntity<List<MarketingCompetitorAssignmentResponse>> getAssignmentsByAreaAndSubArea(
             @RequestParam(required = false) Long areaId,
-            @RequestParam(required = false) Long subAreaId) {
-        List<MarketingCompetitorAssignmentResponse> assignments = assignmentService.getAssignmentsByAreaAndSubArea(areaId, subAreaId);
+            @RequestParam(required = false) Long subAreaId,
+            HttpServletRequest httpRequest) {
+        Long userId = requireUserId(httpRequest);
+        List<MarketingCompetitorAssignmentResponse> assignments = assignmentService
+                .getAssignmentsByAreaAndSubAreaForUser(areaId, subAreaId, userId);
         return ResponseEntity.ok(assignments);
     }
 
     @GetMapping("/by-area/{areaId}")
     public ResponseEntity<List<MarketingCompetitorAssignmentResponse>> getAssignmentsByArea(
-            @PathVariable Long areaId) {
-        List<MarketingCompetitorAssignmentResponse> assignments = assignmentService.getAssignmentsByArea(areaId);
+            @PathVariable Long areaId,
+            HttpServletRequest httpRequest) {
+        Long userId = requireUserId(httpRequest);
+        List<MarketingCompetitorAssignmentResponse> assignments = assignmentService.getAssignmentsByAreaForUser(areaId,
+                userId);
         return ResponseEntity.ok(assignments);
     }
 
     @GetMapping("/by-subarea/{subAreaId}")
     public ResponseEntity<List<MarketingCompetitorAssignmentResponse>> getAssignmentsBySubArea(
-            @PathVariable Long subAreaId) {
-        List<MarketingCompetitorAssignmentResponse> assignments = assignmentService.getAssignmentsBySubArea(subAreaId);
+            @PathVariable Long subAreaId,
+            HttpServletRequest httpRequest) {
+        Long userId = requireUserId(httpRequest);
+        List<MarketingCompetitorAssignmentResponse> assignments = assignmentService
+                .getAssignmentsBySubAreaForUser(subAreaId, userId);
         return ResponseEntity.ok(assignments);
     }
 
@@ -69,13 +80,15 @@ public class MarketingCompetitorAssignmentController extends BaseController {
             @Valid @RequestBody MarketingCompetitorAssignmentRequest request,
             HttpServletRequest httpRequest) {
         Long userId = requireUserId(httpRequest);
-        MarketingCompetitorAssignmentResponse updatedAssignment = assignmentService.updateAssignment(id, request, userId);
+        MarketingCompetitorAssignmentResponse updatedAssignment = assignmentService.updateAssignment(id, request,
+                userId);
         return ResponseEntity.ok(updatedAssignment);
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteAssignment(@PathVariable Long id) {
-        assignmentService.deleteAssignment(id);
+    public ResponseEntity<Void> deleteAssignment(@PathVariable Long id, HttpServletRequest httpRequest) {
+        Long userId = requireUserId(httpRequest);
+        assignmentService.deleteAssignment(id, userId);
         return ResponseEntity.noContent().build();
     }
 
