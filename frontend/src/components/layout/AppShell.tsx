@@ -391,7 +391,7 @@ export function AppShell({ children }: AppShellProps) {
 
       {/* Main Content */}
       <main
-        className={`flex-1 overflow-y-auto transition-all duration-300 ease-in-out relative z-10 ${sidebarCollapsed ? 'lg:pl-12' : 'lg:pl-[336px]'
+        className={`flex-1 overflow-y-auto scrollbar-hide transition-all duration-300 ease-in-out relative z-10 ${sidebarCollapsed ? 'lg:pl-12' : 'lg:pl-[336px]'
           }`}
       >
         <div className="w-full min-h-full lg:px-10 lg:pr-18">
@@ -424,8 +424,8 @@ export function AppShell({ children }: AppShellProps) {
                         <div
                           key={tab.path}
                           className={`flex items-center gap-2 rounded-xl px-3 py-2 transition-all duration-200 cursor-pointer ${isActive
-                              ? "bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-lg shadow-orange-500/50"
-                              : "bg-slate-700/50 text-slate-300 hover:bg-slate-700 border border-slate-600/50"
+                            ? "bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-lg shadow-orange-500/50"
+                            : "bg-slate-700/50 text-slate-300 hover:bg-slate-700 border border-slate-600/50"
                             }`}
                         >
                           <button
@@ -457,8 +457,8 @@ export function AppShell({ children }: AppShellProps) {
                             }}
                             aria-label={`Close ${tab.label}`}
                             className={`rounded-full p-1 transition-all duration-200 active:scale-90 cursor-pointer ${isActive
-                                ? "hover:bg-white/20 text-white"
-                                : "hover:bg-slate-600 text-slate-400"
+                              ? "hover:bg-white/20 text-white"
+                              : "hover:bg-slate-600 text-slate-400"
                               }`}
                           >
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -547,7 +547,7 @@ function Sidebar({
       </div>
 
       {/* Content */}
-      <div className="flex-1 display overflow-y-auto p-6 space-y-8 scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-transparent">
+      <div className="flex-1 display overflow-y-auto p-6 space-y-8 scrollbar-hide">
         {/* Services Section */}
         <div>
           <p className="text-xs font-bold uppercase tracking-[0.3em] text-orange-500 mb-4">
@@ -559,9 +559,9 @@ function Sidebar({
                 key={section.id}
                 type="button"
                 onClick={() => onSelectSection(section.id)}
-                className={`w-full px-4 py-3 text-left transition-all duration-200 ${section.id === activeSectionId
-                    ? "bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-lg shadow-orange-500/50 scale-[1.02]"
-                    : "bg-slate-800/50 backdrop-blur-sm text-slate-300 hover:bg-slate-800 hover:scale-[1.01]"
+                className={`w-full px-4 py-3 text-left transition-all duration-200 cursor-pointer ${section.id === activeSectionId
+                  ? "bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-lg shadow-orange-500/50 scale-[1.02]"
+                  : "bg-slate-800/50 backdrop-blur-sm text-slate-300 hover:bg-slate-800 hover:scale-[1.01]"
                   } ${index === 0 ? 'rounded-t-xl' : ''} ${index === sections.length - 1 ? 'rounded-b-xl' : 'border-b border-slate-700/50'}`}
               >
                 <div className="flex items-center justify-between">
@@ -572,8 +572,8 @@ function Sidebar({
                     </p>
                   </div>
                   <span className={`text-xs font-bold px-2 py-1 rounded-full ${section.id === activeSectionId
-                      ? 'bg-white/20 text-white'
-                      : 'bg-orange-500/20 text-orange-400'
+                    ? 'bg-white/20 text-white'
+                    : 'bg-orange-500/20 text-orange-400'
                     }`}>
                     {section.items.length}
                   </span>
@@ -643,14 +643,14 @@ function SidebarItem({ item, active, onOpen, isFirst = false, isLast = false }: 
     <button
       type="button"
       onClick={onOpen}
-      className={`group flex w-full items-center gap-3 px-4 py-3 text-left transition-all duration-200 ${active
-          ? "bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-lg shadow-blue-500/50 scale-[1.02]"
-          : "bg-slate-800/50 backdrop-blur-sm text-slate-300 hover:bg-slate-800/70"
+      className={`group flex w-full items-center gap-3 px-4 py-3 text-left transition-all duration-200 cursor-pointer ${active
+        ? "bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-lg shadow-blue-500/50 scale-[1.02]"
+        : "bg-slate-800/50 backdrop-blur-sm text-slate-300 hover:bg-slate-800/70"
         } ${isFirst ? 'rounded-t-xl' : ''} ${isLast ? 'rounded-b-xl' : ''}`}
     >
       <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-xs font-bold transition-all duration-200 ${active
-          ? "bg-white/20 text-white"
-          : "bg-blue-500/20 text-blue-400 group-hover:bg-blue-500/30"
+        ? "bg-white/20 text-white"
+        : "bg-blue-500/20 text-blue-400 group-hover:bg-blue-500/30"
         }`}>
         {item.menuNumber || item.label.slice(0, 2).toUpperCase()}
       </span>

@@ -13,7 +13,7 @@ function AppShellContent({ children }: AppShellWrapperProps) {
 
 function AppShellFallback() {
   return (
-    <main className="min-h-screen bg-linear-to-br from-blue-50 via-orange-50 to-blue-100 text-slate-800 flex items-center justify-center relative overflow-hidden">
+    <main className="min-h-screen bg-linear-to-br from-blue-50 via-orange-50 to-blue-100 text-slate-800 flex items-center justify-center relative overflow-hidden scrollbar-hide">
       {/* Animated Background Orbs */}
       <div className="absolute inset-0 overflow-hidden">
         <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-orange-400/30 rounded-full blur-3xl animate-pulse"></div>

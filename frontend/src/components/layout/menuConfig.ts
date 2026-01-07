@@ -112,6 +112,13 @@ export const MENU_SECTIONS: MenuSection[] = [
         menuNumber: "1",
       },
       {
+        id: "marketing-competitors-management",
+        label: "Competitor Management",
+        description: "Manage competitor profiles and area assignments",
+        path: "/marketing-service/competitors-management",
+        menuNumber: "1.1",
+      },
+      {
         id: "marketing-vip",
         label: "VIP Members",
         description: "VIP member tracking and engagement",
