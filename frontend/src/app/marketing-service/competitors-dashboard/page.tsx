@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Bar,
   BarChart,
@@ -13,136 +13,50 @@ import {
   YAxis,
 } from "recharts";
 import { MarketingServiceGuard } from "@/components/marketing-service/MarketingServiceGuard";
+import {
+  competitorAssignmentService,
+  type MarketingCompetitorAssignment,
+} from "@/services/marketing-service/competitorAssignmentService";
+import {
+  competitorService,
+  type MarketingCompetitor,
+} from "@/services/marketing-service/competitorService";
 
-type CompanyKey = "J&T" | "ZTO" | "DRSB" | "Capitol";
-
-type CompanyDetail = {
+type DashboardArea = {
+  id: number;
   name: string;
-  highestPrice: number;
+  provinces: {
+    name: string;
+    companies: Record<number, number>;
+  }[];
+};
+
+type CompanyListItem = {
+  id: number;
+  name: string;
+};
+
+type CompanyDetailRow = {
+  id: number;
+  name: string;
   lowestPrice: number;
+  highestPrice: number;
   strengths: string[];
   weaknesses: string[];
   remark: string;
 };
 
-type Province = {
-  name: string;
-  companies: Record<CompanyKey, number>;
-};
-
-type Area = {
-  id: number;
-  name: string;
-  provinces: Province[];
-};
-
-const AREAS: Area[] = [
-  {
-    id: 1,
-    name: "Area 1",
-    provinces: [
-      {
-        name: "Banteay Meanchey",
-        companies: {
-          "J&T": 40,
-          ZTO: 12,
-          DRSB: 32,
-          Capitol: 7,
-        },
-      },
-      {
-        name: "Siem Reap",
-        companies: {
-          "J&T": 25,
-          ZTO: 18,
-          DRSB: 20,
-          Capitol: 10,
-        },
-      },
-    ],
-  },
-  {
-    id: 2,
-    name: "Area 2",
-    provinces: [
-      {
-        name: "Phnom Penh",
-        companies: {
-          "J&T": 80,
-          ZTO: 45,
-          DRSB: 60,
-          Capitol: 30,
-        },
-      },
-      {
-        name: "Kandal",
-        companies: {
-          "J&T": 35,
-          ZTO: 20,
-          DRSB: 25,
-          Capitol: 15,
-        },
-      },
-    ],
-  },
-  {
-    id: 3,
-    name: "Area 3",
-    provinces: [
-      {
-        name: "Battambang",
-        companies: {
-          "J&T": 28,
-          ZTO: 14,
-          DRSB: 19,
-          Capitol: 9,
-        },
-      },
-    ],
-  },
+const colorPalette = [
+  "#f97316",
+  "#4f46e5",
+  "#10b981",
+  "#ec4899",
+  "#a855f7",
+  "#06b6d4",
+  "#f59e0b",
+  "#22d3ee",
+  "#be123c",
 ];
-
-const COMPANY_DETAILS: Record<CompanyKey, CompanyDetail> = {
-  "J&T": {
-    name: "J&T",
-    highestPrice: 180000,
-    lowestPrice: 4000,
-    strengths: [
-      "Fast delivery nationwide",
-      "Strong tracking system",
-      "Wide branch coverage",
-    ],
-    weaknesses: [
-      "Customer service response can be slow",
-      "Occasional parcel delays during peak time",
-    ],
-    remark: "Best for high-volume shipments and nationwide coverage.",
-  },
-  ZTO: {
-    name: "ZTO",
-    highestPrice: 160000,
-    lowestPrice: 3500,
-    strengths: ["Affordable pricing", "Good performance in urban areas"],
-    weaknesses: ["Limited rural coverage", "Less flexible delivery schedules"],
-    remark: "Good choice for cost-sensitive deliveries.",
-  },
-  DRSB: {
-    name: "DRSB",
-    highestPrice: 152000,
-    lowestPrice: 4000,
-    strengths: ["Reliable delivery time", "Good customer support"],
-    weaknesses: ["Smaller network", "Limited tracking features"],
-    remark: "Stable service with good reliability.",
-  },
-  Capitol: {
-    name: "Capitol",
-    highestPrice: 120000,
-    lowestPrice: 5000,
-    strengths: ["Cheap pricing", "Simple delivery process"],
-    weaknesses: ["Slow delivery speed", "Limited customer support"],
-    remark: "Best for low-cost and non-urgent deliveries.",
-  },
-};
 
 const formatPrice = (value: number) =>
   new Intl.NumberFormat("km-KH", {
@@ -151,115 +65,583 @@ const formatPrice = (value: number) =>
     maximumFractionDigits: 0,
   }).format(value);
 
-const companyPalette: Record<CompanyKey, string> = {
-  "J&T": "#f97316",
-  ZTO: "#4f46e5",
-  DRSB: "#10b981",
-  Capitol: "#ec4899",
-};
-
-const companyKeys: CompanyKey[] = ["J&T", "ZTO", "DRSB", "Capitol"];
-
-const buildChartData = (
-  areaId: number | "all",
-  provinceName: string | "all",
-) => {
-  const selectedAreas =
-    areaId === "all" ? AREAS : AREAS.filter((area) => area.id === areaId);
-
-  const totals: Record<CompanyKey, number> = {
-    "J&T": 0,
-    ZTO: 0,
-    DRSB: 0,
-    Capitol: 0,
-  };
-
-  selectedAreas.forEach((area) => {
-    area.provinces.forEach((province) => {
-      if (provinceName !== "all" && province.name !== provinceName) {
-        return;
-      }
-      companyKeys.forEach((company) => {
-        totals[company] += province.companies[company];
-      });
-    });
-  });
-
-  return companyKeys.map((company) => ({
-    company,
-    total: totals[company],
-  }));
-};
-
-const buildDetails = (areaId: number | "all", provinceName: string | "all") => {
-  const selectedAreas =
-    areaId === "all" ? AREAS : AREAS.filter((area) => area.id === areaId);
-
-  const items: {
-    area: string;
-    province: string;
-    companies: Record<CompanyKey, number>;
-    total: number;
-  }[] = [];
-
-  selectedAreas.forEach((area) => {
-    area.provinces.forEach((province) => {
-      if (provinceName !== "all" && province.name !== provinceName) {
-        return;
-      }
-      const companyValues = companyKeys.reduce(
-        (acc, company) => ({
-          ...acc,
-          [company]: province.companies[company],
-        }),
-        {} as Record<CompanyKey, number>,
-      );
-      const total = companyKeys.reduce(
-        (sum, company) => sum + province.companies[company],
-        0,
-      );
-
-      items.push({
-        area: area.name,
-        province: province.name,
-        companies: companyValues,
-        total,
-      });
-    });
-  });
-
-  return items;
-};
-
 export default function CompetitorsDashboardPage() {
+  const [assignments, setAssignments] = useState<MarketingCompetitorAssignment[]>([]);
+  const [competitors, setCompetitors] = useState<MarketingCompetitor[]>([]);
   const [selectedArea, setSelectedArea] = useState<number | "all">("all");
-  const [selectedProvince, setSelectedProvince] = useState<string | "all">(
-    "all",
-  );
+  const [selectedProvince, setSelectedProvince] = useState<string | "all">("all");
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    const load = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const [assignmentData, competitorData] = await Promise.all([
+          competitorAssignmentService.listAssignments(),
+          competitorService.listCompetitors(),
+        ]);
+        if (!active) return;
+        setAssignments(assignmentData);
+        setCompetitors(competitorData);
+      } catch (err) {
+        if (!active) return;
+        setError(err instanceof Error ? err.message : "Failed to load dashboard data");
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
+      }
+    };
+
+    load();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const competitorLookup = useMemo(() => {
+    const map: Record<number, MarketingCompetitor> = {};
+    competitors.forEach((competitor) => {
+      map[competitor.id] = competitor;
+    });
+    return map;
+  }, [competitors]);
+
+  const { dashboardAreas, companyList } = useMemo(() => {
+    const areaMap = new Map<
+      number,
+      {
+        id: number;
+        name: string;
+        provinces: Map<string, Map<number, number>>;
+      }
+    >();
+    const competitorIdSet = new Set<number>();
+
+    assignments.forEach((assignment) => {
+      const areaEntry =
+        areaMap.get(assignment.areaId) ??
+        {
+          id: assignment.areaId,
+          name: assignment.areaName,
+          provinces: new Map<string, Map<number, number>>(),
+        };
+      areaMap.set(assignment.areaId, areaEntry);
+
+      const provinceName = assignment.subAreaName || assignment.areaName;
+      const provinceEntry =
+        areaEntry.provinces.get(provinceName) ?? new Map<number, number>();
+      areaEntry.provinces.set(provinceName, provinceEntry);
+
+      Object.entries(assignment.competitorProfiles).forEach(([competitorId, profile]) => {
+        const id = Number(competitorId);
+        competitorIdSet.add(id);
+        const current = provinceEntry.get(id) ?? 0;
+        provinceEntry.set(id, current + (profile.branchCount ?? 0));
+      });
+    });
+
+    const sortedCompanyList: CompanyListItem[] = Array.from(competitorIdSet)
+      .map((id) => ({
+        id,
+        name: competitorLookup[id]?.name ?? `Competitor ${id}`,
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+
+    const areas: DashboardArea[] = Array.from(areaMap.values())
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map((area) => ({
+        id: area.id,
+        name: area.name,
+        provinces: Array.from(area.provinces.entries())
+          .sort((a, b) => a[0].localeCompare(b[0]))
+          .map(([provinceName, companiesMap]) => {
+            const companies: Record<number, number> = {};
+            sortedCompanyList.forEach((company) => {
+              companies[company.id] = companiesMap.get(company.id) ?? 0;
+            });
+            return {
+              name: provinceName,
+              companies,
+            };
+          }),
+      }));
+
+    return {
+      dashboardAreas: areas,
+      companyList: sortedCompanyList,
+    };
+  }, [assignments, competitorLookup]);
+
+  useEffect(() => {
+    if (selectedArea !== "all" && !dashboardAreas.some((area) => area.id === selectedArea)) {
+      setSelectedArea("all");
+    }
+  }, [dashboardAreas, selectedArea]);
 
   const availableProvinces = useMemo(() => {
+    if (dashboardAreas.length === 0) return [];
     if (selectedArea === "all") {
-      return AREAS.flatMap((area) =>
-        area.provinces.map((province) => province.name),
+      return Array.from(
+        new Set(
+          dashboardAreas.flatMap((area) => area.provinces.map((province) => province.name)),
+        ),
       );
     }
-    const area = AREAS.find((item) => item.id === selectedArea);
-    return area ? area.provinces.map((province) => province.name) : [];
-  }, [selectedArea]);
+    const targetArea = dashboardAreas.find((area) => area.id === selectedArea);
+    return targetArea ? targetArea.provinces.map((province) => province.name) : [];
+  }, [dashboardAreas, selectedArea]);
+
+  useEffect(() => {
+    if (
+      selectedProvince !== "all" &&
+      !availableProvinces.includes(selectedProvince)
+    ) {
+      setSelectedProvince("all");
+    }
+  }, [availableProvinces, selectedProvince]);
+
+  const companyColorMap = useMemo(() => {
+    const map = new Map<number, string>();
+    companyList.forEach((company, index) => {
+      map.set(company.id, colorPalette[index % colorPalette.length]);
+    });
+    return map;
+  }, [companyList]);
+
+  const filteredAreas = useMemo(() => {
+    if (selectedArea === "all") {
+      return dashboardAreas;
+    }
+    return dashboardAreas.filter((area) => area.id === selectedArea);
+  }, [dashboardAreas, selectedArea]);
 
   const chartData = useMemo(() => {
-    const data = buildChartData(selectedArea, selectedProvince);
-    const total = data.reduce((sum, entry) => sum + entry.total, 0);
-    return data.map((entry) => ({
-      ...entry,
-      percent: total === 0 ? 0 : Math.round((entry.total / total) * 100),
-    }));
-  }, [selectedArea, selectedProvince]);
-  const detailRows = useMemo(
-    () => buildDetails(selectedArea, selectedProvince),
-    [selectedArea, selectedProvince],
-  );
+    const totals = new Map<number, number>();
+    companyList.forEach((company) => totals.set(company.id, 0));
+
+    filteredAreas.forEach((area) => {
+      area.provinces.forEach((province) => {
+        if (selectedProvince !== "all" && province.name !== selectedProvince) {
+          return;
+        }
+        companyList.forEach((company) => {
+          const nextValue =
+            (totals.get(company.id) ?? 0) + (province.companies[company.id] ?? 0);
+          totals.set(company.id, nextValue);
+        });
+      });
+    });
+
+    const sum = Array.from(totals.values()).reduce((acc, value) => acc + value, 0);
+
+    return companyList.map((company) => {
+      const total = totals.get(company.id) ?? 0;
+      return {
+        competitorId: company.id,
+        company: company.name,
+        total,
+        percent: sum === 0 ? 0 : Math.round((total / sum) * 100),
+      };
+    });
+  }, [companyList, filteredAreas, selectedProvince]);
+
+  const detailRows = useMemo(() => {
+    const rows: {
+      area: string;
+      province: string;
+      companies: Record<number, number>;
+      total: number;
+    }[] = [];
+
+    filteredAreas.forEach((area) => {
+      area.provinces.forEach((province) => {
+        if (selectedProvince !== "all" && province.name !== selectedProvince) {
+          return;
+        }
+
+        const companies: Record<number, number> = {};
+        let total = 0;
+        companyList.forEach((company) => {
+          const value = province.companies[company.id] ?? 0;
+          companies[company.id] = value;
+          total += value;
+        });
+
+        rows.push({
+          area: area.name,
+          province: province.name,
+          companies,
+          total,
+        });
+      });
+    });
+
+    return rows;
+  }, [companyList, filteredAreas, selectedProvince]);
+
+  const companyDetails = useMemo<CompanyDetailRow[]>(() => {
+    const detailMap = new Map<
+      number,
+      {
+        id: number;
+        name: string;
+        lowestPrice: number;
+        highestPrice: number;
+        strengths: Set<string>;
+        weaknesses: Set<string>;
+        remark?: string;
+      }
+    >();
+
+    assignments.forEach((assignment) => {
+      Object.entries(assignment.competitorProfiles).forEach(([competitorId, profile]) => {
+        const id = Number(competitorId);
+        const existing =
+          detailMap.get(id) ??
+          {
+            id,
+            name: competitorLookup[id]?.name ?? `Competitor ${id}`,
+            lowestPrice: profile.priceRange.lowestPrice,
+            highestPrice: profile.priceRange.highestPrice,
+            strengths: new Set<string>(),
+            weaknesses: new Set<string>(),
+            remark: profile.remarks,
+          };
+
+        existing.lowestPrice = Math.min(existing.lowestPrice, profile.priceRange.lowestPrice);
+        existing.highestPrice = Math.max(existing.highestPrice, profile.priceRange.highestPrice);
+        profile.strengths?.forEach((item) => existing.strengths.add(item));
+        profile.weaknesses?.forEach((item) => existing.weaknesses.add(item));
+        if (!existing.remark && profile.remarks) {
+          existing.remark = profile.remarks;
+        }
+        detailMap.set(id, existing);
+      });
+    });
+
+    return Array.from(detailMap.values())
+      .map((detail) => ({
+        id: detail.id,
+        name: detail.name,
+        lowestPrice: detail.lowestPrice,
+        highestPrice: detail.highestPrice,
+        strengths: Array.from(detail.strengths),
+        weaknesses: Array.from(detail.weaknesses),
+        remark: detail.remark ?? "No remarks provided",
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [assignments, competitorLookup]);
+
   const totalBranches = chartData.reduce((sum, entry) => sum + entry.total, 0);
+
+  const renderContent = () => {
+    if (loading) {
+      return (
+        <div className="flex min-h-[60vh] items-center justify-center text-slate-300">
+          Loading competitor intelligence...
+        </div>
+      );
+    }
+
+    if (error) {
+      return (
+        <div className="rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+          {error}
+        </div>
+      );
+    }
+
+    if (assignments.length === 0) {
+      return (
+        <div className="rounded-2xl border border-white/10 bg-white/5 px-6 py-12 text-center text-slate-300">
+          No competitor assignments found. Create assignments in the Competitor Management
+          page to unlock this dashboard.
+        </div>
+      );
+    }
+
+    return (
+      <>
+        <section className="rounded-3xl border border-white/10 bg-white/5 p-5 text-white">
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <p className="text-xs uppercase tracking-[0.3em] text-slate-400">
+                Total branches
+              </p>
+              <p className="mt-3 text-4xl font-semibold">{totalBranches}</p>
+              <p className="text-sm text-slate-300">
+                Based on filter selection across all companies
+              </p>
+            </div>
+            <div className="flex flex-col gap-4 text-sm lg:flex-row lg:items-center lg:gap-6">
+              <div className="flex flex-col">
+                <label className="text-[0.6rem] uppercase tracking-[0.3em] text-slate-300">
+                  Area
+                </label>
+                <select
+                  className="mt-2 w-44 rounded-2xl border border-white/20 bg-slate-900/60 px-4 py-2 text-sm text-white focus:border-amber-400/60 focus:outline-none"
+                  value={selectedArea}
+                  onChange={(event) => {
+                    const value =
+                      event.target.value === "all" ? "all" : Number(event.target.value);
+                    setSelectedArea(value);
+                    setSelectedProvince("all");
+                  }}
+                  disabled={dashboardAreas.length === 0}
+                >
+                  <option value="all">All areas</option>
+                  {dashboardAreas.map((area) => (
+                    <option key={area.id} value={area.id}>
+                      {area.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex flex-col">
+                <label className="text-[0.6rem] uppercase tracking-[0.3em] text-slate-300">
+                  Province
+                </label>
+                <select
+                  className="mt-2 w-44 rounded-2xl border border-white/20 bg-slate-900/60 px-4 py-2 text-sm text-white focus:border-amber-400/60 focus:outline-none"
+                  value={selectedProvince}
+                  onChange={(event) =>
+                    setSelectedProvince(event.target.value as string | "all")
+                  }
+                  disabled={availableProvinces.length === 0}
+                >
+                  <option value="all">All provinces</option>
+                  {availableProvinces.map((province) => (
+                    <option key={province} value={province}>
+                      {province}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="rounded-3xl border border-white/10 bg-white/5 p-6">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <p className="text-xs uppercase tracking-[0.3em] text-amber-300/70">
+                Company density
+              </p>
+              <h2 className="text-xl font-semibold text-white">
+                Company comparison
+              </h2>
+            </div>
+            <div className="flex flex-wrap gap-3 text-xs text-slate-300">
+              {companyList.length === 0 && <span>No competitors to display</span>}
+              {companyList.map((company) => (
+                <span
+                  key={company.id}
+                  className="flex items-center gap-2 rounded-full border border-white/10 px-3 py-1"
+                >
+                  <span
+                    className="h-2 w-2 rounded-full"
+                    style={{ backgroundColor: companyColorMap.get(company.id) }}
+                  />
+                  {company.name}
+                </span>
+              ))}
+            </div>
+          </div>
+          <div className="mt-6 h-80 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart
+                data={chartData}
+                margin={{ top: 32, left: 16, right: 16, bottom: 0 }}
+              >
+                <CartesianGrid
+                  strokeDasharray="3 3"
+                  stroke="#475569"
+                  opacity={0.2}
+                />
+                <XAxis dataKey="company" stroke="#94a3b8" />
+                <YAxis
+                  stroke="#94a3b8"
+                  domain={[
+                    0,
+                    (dataMax: number) => (dataMax === 0 ? 10 : dataMax * 1.2),
+                  ]}
+                />
+                <Tooltip
+                  cursor={{ fill: "rgba(255,255,255,0.05)" }}
+                  contentStyle={{
+                    backgroundColor: "#0f172a",
+                    borderRadius: 12,
+                    border: "1px solid rgba(255,255,255,0.1)",
+                  }}
+                  formatter={(value: number) => [value, "total branch"]}
+                />
+                <Bar dataKey="total" barSize={70} radius={[12, 12, 0, 0]}>
+                  <LabelList
+                    dataKey="percent"
+                    position="top"
+                    formatter={(value: number) => `${value}%`}
+                    fill="#e2e8f0"
+                    fontSize={12}
+                    offset={12}
+                  />
+                  {chartData.map((entry) => (
+                    <Cell
+                      key={entry.competitorId}
+                      fill={companyColorMap.get(entry.competitorId) ?? colorPalette[0]}
+                    />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </section>
+
+        <section className="rounded-3xl border border-white/10 bg-white/5 p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs uppercase tracking-[0.3em] text-amber-300/70">
+                Detail breakdown
+              </p>
+              <h2 className="text-xl font-semibold text-white">
+                All branches by company
+              </h2>
+            </div>
+            <span className="rounded-full border border-white/10 px-3 py-1 text-xs text-slate-200">
+              {detailRows.length} rows
+            </span>
+          </div>
+          <div className="mt-6 overflow-x-auto">
+            {detailRows.length === 0 ? (
+              <div className="py-6 text-center text-slate-300">
+                No records for the selected filters
+              </div>
+            ) : (
+              <table className="min-w-full text-left text-sm text-slate-200">
+                <thead>
+                  <tr className="text-xs uppercase tracking-[0.3em] text-slate-400">
+                    <th className="pb-3 pr-6">Area</th>
+                    <th className="pb-3 pr-6">Province</th>
+                    {companyList.map((company) => (
+                      <th key={company.id} className="pb-3 pr-6">
+                        {company.name}
+                      </th>
+                    ))}
+                    <th className="pb-3">Total</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/5">
+                  {detailRows.map((row) => (
+                    <tr key={`${row.area}-${row.province}`}>
+                      <td className="py-3 pr-6">{row.area}</td>
+                      <td className="py-3 pr-6 text-slate-300">{row.province}</td>
+                      {companyList.map((company) => (
+                        <td
+                          key={company.id}
+                          className="py-3 pr-6 font-semibold text-white"
+                          style={{ color: companyColorMap.get(company.id) }}
+                        >
+                          {row.companies[company.id] ?? 0}
+                        </td>
+                      ))}
+                      <td className="py-3 font-semibold text-white">{row.total}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </section>
+
+        <section className="rounded-3xl border border-white/10 bg-white/5 p-6">
+          <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <p className="text-xs uppercase tracking-[0.3em] text-amber-300/70">
+                Company intel
+              </p>
+              <h2 className="text-xl font-semibold text-white">
+                Competitive pricing
+              </h2>
+            </div>
+            <p className="text-sm text-slate-300">
+              Hover for long remarks to understand when each partner is strongest.
+            </p>
+          </div>
+          <div className="mt-6 overflow-x-auto">
+            {companyDetails.length === 0 ? (
+              <div className="py-6 text-center text-slate-300">
+                No competitor profiles available yet.
+              </div>
+            ) : (
+              <table className="min-w-full text-left text-sm text-slate-200">
+                <thead>
+                  <tr className="text-xs uppercase tracking-[0.3em] text-slate-400">
+                    <th className="pb-3 pr-6">Company</th>
+                    <th className="pb-3 pr-6">Price range</th>
+                    <th className="pb-3 pr-6">Strengths</th>
+                    <th className="pb-3 pr-6">Weaknesses</th>
+                    <th className="pb-3">Remark</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/5">
+                  {companyDetails.map((detail) => (
+                    <tr key={detail.id}>
+                      <td className="py-3 pr-6">
+                        <div className="flex items-center gap-3">
+                          <span
+                            className="h-2.5 w-2.5 rounded-full"
+                            style={{ backgroundColor: companyColorMap.get(detail.id) }}
+                          />
+                          <span className="font-semibold">{detail.name}</span>
+                        </div>
+                      </td>
+                      <td className="py-3 pr-6">
+                        <div className="min-w-48 whitespace-nowrap">
+                          <span className="font-semibold text-white">
+                            {formatPrice(detail.lowestPrice)}
+                          </span>
+                          <span className="mx-2 text-slate-400">–</span>
+                          <span className="font-semibold text-white">
+                            {formatPrice(detail.highestPrice)}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="py-3 pr-6 text-slate-300">
+                        {detail.strengths.length === 0 ? (
+                          <span className="text-slate-500">No strengths provided</span>
+                        ) : (
+                          <ul className="list-disc space-y-1 pl-4">
+                            {detail.strengths.map((item) => (
+                              <li key={item}>{item}</li>
+                            ))}
+                          </ul>
+                        )}
+                      </td>
+                      <td className="py-3 pr-6 text-slate-300">
+                        {detail.weaknesses.length === 0 ? (
+                          <span className="text-slate-500">No weaknesses provided</span>
+                        ) : (
+                          <ul className="list-disc space-y-1 pl-4">
+                            {detail.weaknesses.map((item) => (
+                              <li key={item}>{item}</li>
+                            ))}
+                          </ul>
+                        )}
+                      </td>
+                      <td className="py-3 text-slate-200">{detail.remark}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </section>
+      </>
+    );
+  };
 
   return (
     <MarketingServiceGuard>
@@ -306,7 +688,7 @@ export default function CompetitorsDashboardPage() {
                   }}
                 >
                   <option value="all">All areas</option>
-                  {AREAS.map((area) => (
+                  {dashboardAreas.map((area) => (
                     <option key={area.id} value={area.id}>
                       {area.name}
                     </option>
@@ -348,16 +730,17 @@ export default function CompetitorsDashboardPage() {
               </h2>
             </div>
             <div className="flex flex-wrap gap-3 text-xs text-slate-300">
-              {companyKeys.map((company) => (
+              {companyList.length === 0 && <span>No competitors to display</span>}
+              {companyList.map((company) => (
                 <span
-                  key={company}
+                  key={company.id}
                   className="flex items-center gap-2 rounded-full border border-white/10 px-3 py-1"
                 >
                   <span
                     className="h-2 w-2 rounded-full"
-                    style={{ backgroundColor: companyPalette[company] }}
+                    style={{ backgroundColor: companyColorMap.get(company.id) }}
                   />
-                  {company}
+                  {company.name}
                 </span>
               ))}
             </div>
@@ -401,8 +784,8 @@ export default function CompetitorsDashboardPage() {
                   />
                   {chartData.map((entry) => (
                     <Cell
-                      key={entry.company}
-                      fill={companyPalette[entry.company as CompanyKey]}
+                      key={entry.competitorId}
+                      fill={companyColorMap.get(entry.competitorId) ?? colorPalette[0]}
                     />
                   ))}
                 </Bar>
@@ -431,9 +814,9 @@ export default function CompetitorsDashboardPage() {
                 <tr className="text-xs uppercase tracking-[0.3em] text-slate-400">
                   <th className="pb-3 pr-6">Area</th>
                   <th className="pb-3 pr-6">Province</th>
-                  {companyKeys.map((company) => (
-                    <th key={company} className="pb-3 pr-6">
-                      {company}
+                  {companyList.map((company) => (
+                    <th key={company.id} className="pb-3 pr-6">
+                      {company.name}
                     </th>
                   ))}
                   <th className="pb-3">Total</th>
@@ -444,13 +827,13 @@ export default function CompetitorsDashboardPage() {
                   <tr key={`${row.area}-${row.province}`}>
                     <td className="py-3 pr-6">{row.area}</td>
                     <td className="py-3 pr-6 text-slate-300">{row.province}</td>
-                    {companyKeys.map((company) => (
+                    {companyList.map((company) => (
                       <td
-                        key={company}
+                        key={company.id}
                         className="py-3 pr-6 font-semibold text-white"
-                        style={{ color: companyPalette[company] }}
+                        style={{ color: companyColorMap.get(company.id) }}
                       >
-                        {row.companies[company]}
+                        {row.companies[company.id] ?? 0}
                       </td>
                     ))}
                     <td className="py-3 font-semibold text-white">
@@ -489,15 +872,20 @@ export default function CompetitorsDashboardPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5">
-                {companyKeys.map((company) => {
-                  const detail = COMPANY_DETAILS[company];
-                  return (
-                    <tr key={company}>
+                {companyDetails.length === 0 ? (
+                  <tr>
+                    <td className="py-3 text-center text-slate-400" colSpan={5}>
+                      No competitor profiles available yet.
+                    </td>
+                  </tr>
+                ) : (
+                  companyDetails.map((detail) => (
+                    <tr key={detail.id}>
                       <td className="py-3 pr-6">
                         <div className="flex items-center gap-3">
                           <span
                             className="h-2.5 w-2.5 rounded-full"
-                            style={{ backgroundColor: companyPalette[company] }}
+                            style={{ backgroundColor: companyColorMap.get(detail.id) }}
                           />
                           <span className="font-semibold">{detail.name}</span>
                         </div>
@@ -514,23 +902,31 @@ export default function CompetitorsDashboardPage() {
                         </div>
                       </td>
                       <td className="py-3 pr-6 text-slate-300">
-                        <ul className="list-disc space-y-1 pl-4">
-                          {detail.strengths.map((item) => (
-                            <li key={item}>{item}</li>
-                          ))}
-                        </ul>
+                        {detail.strengths.length === 0 ? (
+                          <span className="text-slate-500">No strengths provided</span>
+                        ) : (
+                          <ul className="list-disc space-y-1 pl-4">
+                            {detail.strengths.map((item) => (
+                              <li key={item}>{item}</li>
+                            ))}
+                          </ul>
+                        )}
                       </td>
                       <td className="py-3 pr-6 text-slate-300">
-                        <ul className="list-disc space-y-1 pl-4">
-                          {detail.weaknesses.map((item) => (
-                            <li key={item}>{item}</li>
-                          ))}
-                        </ul>
+                        {detail.weaknesses.length === 0 ? (
+                          <span className="text-slate-500">No weaknesses provided</span>
+                        ) : (
+                          <ul className="list-disc space-y-1 pl-4">
+                            {detail.weaknesses.map((item) => (
+                              <li key={item}>{item}</li>
+                            ))}
+                          </ul>
+                        )}
                       </td>
                       <td className="py-3 text-slate-200">{detail.remark}</td>
                     </tr>
-                  );
-                })}
+                  ))
+                )}
               </tbody>
             </table>
           </div>

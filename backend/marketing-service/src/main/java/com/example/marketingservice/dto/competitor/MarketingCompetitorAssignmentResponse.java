@@ -24,14 +24,14 @@ public class MarketingCompetitorAssignmentResponse {
     }
 
     public MarketingCompetitorAssignmentResponse(
-            Long id, 
-            Long areaId, 
-            String areaName, 
-            Long subAreaId, 
+            Long id,
+            Long areaId,
+            String areaName,
+            Long subAreaId,
             String subAreaName,
             Map<Long, CompetitorProfileResponse> competitorProfiles,
-            String createdAt, 
-            String updatedAt, 
+            String createdAt,
+            String updatedAt,
             Long createdBy) {
         this.id = id;
         this.areaId = areaId;
@@ -44,39 +44,37 @@ public class MarketingCompetitorAssignmentResponse {
         this.createdBy = createdBy;
     }
 
-    public static MarketingCompetitorAssignmentResponse from(com.example.marketingservice.entity.competitor.MarketingCompetitorAssignment entity) {
+    public static MarketingCompetitorAssignmentResponse from(
+            com.example.marketingservice.entity.competitor.MarketingCompetitorAssignment entity) {
         Map<Long, CompetitorProfileResponse> competitorProfiles = new HashMap<>();
         if (entity.getCompetitorProfiles() != null) {
             entity.getCompetitorProfiles().forEach((competitorId, profile) -> {
                 CompetitorPriceRangeResponse priceRange = null;
                 if (profile.getPriceRange() != null) {
                     priceRange = new CompetitorPriceRangeResponse(
-                        profile.getPriceRange().getLowestPrice(),
-                        profile.getPriceRange().getHighestPrice()
-                    );
+                            profile.getPriceRange().getLowestPrice(),
+                            profile.getPriceRange().getHighestPrice());
                 }
-                
+
                 competitorProfiles.put(competitorId, new CompetitorProfileResponse(
-                    priceRange,
-                    profile.getStrengths(),
-                    profile.getWeaknesses(),
-                    profile.getRemarks(),
-                    profile.getBranchCount()
-                ));
+                        priceRange,
+                        profile.getStrengths(),
+                        profile.getWeaknesses(),
+                        profile.getRemarks(),
+                        profile.getBranchCount()));
             });
         }
 
         return new MarketingCompetitorAssignmentResponse(
-            entity.getId(),
-            entity.getArea() != null ? entity.getArea().getId() : null,
-            entity.getArea() != null ? entity.getArea().getName() : null,
-            entity.getSubArea() != null ? entity.getSubArea().getId() : null,
-            entity.getSubArea() != null ? entity.getSubArea().getName() : null,
-            competitorProfiles,
-            entity.getCreatedAt() != null ? entity.getCreatedAt().toString() : null,
-            entity.getUpdatedAt() != null ? entity.getUpdatedAt().toString() : null,
-            entity.getCreatedBy()
-        );
+                entity.getId(),
+                entity.getArea() != null ? entity.getArea().getId() : null,
+                entity.getArea() != null ? entity.getArea().getName() : null,
+                entity.getSubArea() != null ? entity.getSubArea().getId() : null,
+                entity.getSubArea() != null ? entity.getSubArea().getName() : null,
+                competitorProfiles,
+                entity.getCreatedAt() != null ? entity.getCreatedAt().toString() : null,
+                entity.getUpdatedAt() != null ? entity.getUpdatedAt().toString() : null,
+                entity.getCreatedBy());
     }
 
     // Getters and setters
@@ -97,12 +95,28 @@ public class MarketingCompetitorAssignmentResponse {
         this.areaId = areaId;
     }
 
+    public Long getSubAreaId() {
+        return subAreaId;
+    }
+
+    public void setSubAreaId(Long subAreaId) {
+        this.subAreaId = subAreaId;
+    }
+
     public String getAreaName() {
         return areaName;
     }
 
     public void setAreaName(String areaName) {
         this.areaName = areaName;
+    }
+
+    public String getSubAreaName() {
+        return subAreaName;
+    }
+
+    public void setSubAreaName(String subAreaName) {
+        this.subAreaName = subAreaName;
     }
 
     public Map<Long, CompetitorProfileResponse> getCompetitorProfiles() {
