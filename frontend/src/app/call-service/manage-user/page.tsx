@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { userService, User, CreateUserRequest } from "@/services/userService";
 import { serviceService } from "@/services/serviceService";
+import { callUserService } from "@/services/call-service/callUserService";
 import { areaBranchService, Branch } from "@/services/areaBranchService";
 import { PermissionGuard } from "@/components/layout/PermissionGuard";
 import { API_BASE_URL } from "@/config/env";
@@ -93,20 +94,12 @@ export default function ManageUserPage() {
     loadBranches();
   }, []);
 
-  // Refetch users when callServiceId is available
-  useEffect(() => {
-    if (callServiceId) {
-      fetchUsers();
-    }
-  }, [callServiceId]);
-
   const fetchCallServiceId = async () => {
     try {
       const callService = await serviceService.getServiceByCode("call-service");
       setCallServiceId(callService.id);
     } catch (error) {
       console.error("Error fetching call service:", error);
-      // Continue without service assignment if service not found
     }
   };
 
@@ -114,35 +107,11 @@ export default function ManageUserPage() {
     try {
       setLoading(true);
       setError(null);
-      let usersData: User[];
 
-      if (callServiceId) {
-        // Fetch all users and filter by service assignment
-        const allUsers = await userService.getActiveUsers();
-        usersData = [];
-
-        // Check each user's service assignments
-        for (const user of allUsers) {
-          try {
-            const userServices = await userService.getUserServices(user.id);
-            const hasCallService = userServices.some(
-              (service) => service.id === callServiceId,
-            );
-            if (hasCallService) {
-              usersData.push(user);
-            }
-          } catch (serviceError) {
-            // If we can't fetch services for a user, skip them
-            console.warn(
-              `Could not fetch services for user ${user.id}:`,
-              serviceError,
-            );
-          }
-        }
-      } else {
-        // Fallback to all users if service ID not available yet
-        usersData = await userService.getActiveUsers();
-      }
+      // Fetch users directly from call service
+      console.log("Fetching users from call service...");
+      const usersData = await callUserService.getCallUsers();
+      console.log("Call users fetched:", usersData.length);
 
       setUsers(usersData);
     } catch (err) {
@@ -835,11 +804,10 @@ export default function ManageUserPage() {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span
-                          className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                            user.active
-                              ? "bg-green-100 text-green-800"
-                              : "bg-red-100 text-red-800"
-                          }`}
+                          className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${user.active
+                            ? "bg-green-100 text-green-800"
+                            : "bg-red-100 text-red-800"
+                            }`}
                         >
                           {user.active ? "Active" : "Inactive"}
                         </span>
@@ -879,11 +847,10 @@ export default function ManageUserPage() {
                           >
                             <button
                               onClick={() => handleToggleUserStatus(user.id)}
-                              className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
-                                user.active
-                                  ? "bg-yellow-100 text-yellow-800 hover:bg-yellow-200"
-                                  : "bg-green-100 text-green-800 hover:bg-green-200"
-                              }`}
+                              className={`px-3 py-1 rounded text-xs font-medium transition-colors ${user.active
+                                ? "bg-yellow-100 text-yellow-800 hover:bg-yellow-200"
+                                : "bg-green-100 text-green-800 hover:bg-green-200"
+                                }`}
                             >
                               {user.active ? "Deactivate" : "Activate"}
                             </button>

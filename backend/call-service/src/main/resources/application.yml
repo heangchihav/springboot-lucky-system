@@ -20,6 +20,13 @@ spring:
     init:
       mode: always
 
+call:
+  service-code: call-service
+
+user:
+  service:
+    url: ${USER_SERVICE_URL:http://gateway:8080}
+
 management:
   endpoints:
     web:

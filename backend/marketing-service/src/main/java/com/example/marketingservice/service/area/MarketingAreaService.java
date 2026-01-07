@@ -66,26 +66,16 @@ public class MarketingAreaService {
 
     @Transactional
     public MarketingArea update(Long id, MarketingAreaRequest request, Long userId) {
-        if (!authorizationService.canCreateArea(userId)) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
-                    "You don't have permission to update areas. Only administrators can update areas.");
-        }
-
         MarketingArea area = getById(id);
+        authorizationService.validateCreator(userId, area.getCreatedBy(), "area");
         applyRequest(area, request);
         return areaRepository.save(area);
     }
 
     @Transactional
     public void delete(Long id, Long userId) {
-        if (!authorizationService.canCreateArea(userId)) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
-                    "You don't have permission to delete areas. Only administrators can delete areas.");
-        }
-
-        if (!areaRepository.existsById(id)) {
-            throw new ResourceNotFoundException("Marketing area not found: " + id);
-        }
+        MarketingArea area = getById(id);
+        authorizationService.validateCreator(userId, area.getCreatedBy(), "area");
         areaRepository.deleteById(id);
     }
 

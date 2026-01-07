@@ -117,20 +117,7 @@ public class VipMemberService {
     @Transactional
     public VipMember update(Long id, VipMemberRequest request, Long userId) {
         VipMember member = getById(id);
-
-        if (request.getBranchId() != null) {
-            MarketingBranch branch = branchRepository.findById(request.getBranchId())
-                    .orElseThrow(() -> new ResourceNotFoundException(
-                            "Marketing branch not found: " + request.getBranchId()));
-
-            if (!authorizationService.canCreateBranch(userId,
-                    branch.getArea().getId(),
-                    branch.getSubArea() != null ? branch.getSubArea().getId() : null)) {
-                throw new ResponseStatusException(HttpStatus.FORBIDDEN,
-                        "You don't have permission to update VIP members in this branch.");
-            }
-        }
-
+        authorizationService.validateCreator(userId, member.getCreatedBy(), "VIP member");
         applyRequest(member, request);
         return vipMemberRepository.save(member);
     }
@@ -138,17 +125,7 @@ public class VipMemberService {
     @Transactional
     public void delete(Long id, Long userId) {
         VipMember member = getById(id);
-
-        if (member.getBranch() != null) {
-            MarketingBranch branch = member.getBranch();
-            if (!authorizationService.canCreateBranch(userId,
-                    branch.getArea().getId(),
-                    branch.getSubArea() != null ? branch.getSubArea().getId() : null)) {
-                throw new ResponseStatusException(HttpStatus.FORBIDDEN,
-                        "You don't have permission to delete VIP members in this branch.");
-            }
-        }
-
+        authorizationService.validateCreator(userId, member.getCreatedBy(), "VIP member");
         vipMemberRepository.deleteById(id);
     }
 

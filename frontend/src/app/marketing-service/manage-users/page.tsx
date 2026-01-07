@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { userService, User, CreateUserRequest } from "@/services/userService";
 import { serviceService } from "@/services/serviceService";
+import { marketingUserService } from "@/services/marketing-service/marketingUserService";
 import { marketingUserAssignmentService, MarketingUserAssignment, AssignUserRequest } from "@/services/marketingUserAssignmentService";
 import { marketingHierarchyService, MarketingArea, MarketingSubArea, MarketingBranch } from "@/services/marketing-service/marketingHierarchyService";
 import { PermissionGuard } from "@/components/layout/PermissionGuard";
@@ -101,13 +102,6 @@ export default function ManageUserPage() {
     loadHierarchy();
   }, []);
 
-  // Refetch users when marketingServiceId is available
-  useEffect(() => {
-    if (marketingServiceId) {
-      fetchUsers();
-    }
-  }, [marketingServiceId]);
-
   // Load sub-areas when area is selected
   useEffect(() => {
     if (selectedAreaId) {
@@ -158,32 +152,11 @@ export default function ManageUserPage() {
     try {
       setLoading(true);
       setError(null);
-      let usersData: User[];
 
-      if (marketingServiceId) {
-        const allUsers = await userService.getActiveUsers();
-        usersData = [];
-
-        for (const user of allUsers) {
-          try {
-            const userServices = await userService.getUserServices(user.id);
-            const hasMarketingService = userServices.some(
-              (service) => service.id === marketingServiceId,
-            );
-            if (hasMarketingService) {
-              usersData.push(user);
-            }
-          } catch (serviceError) {
-            console.warn(
-              `Could not fetch services for user ${user.id}:`,
-              serviceError,
-            );
-          }
-        }
-      } else {
-        // Fallback to all users if service ID not available yet
-        usersData = await userService.getActiveUsers();
-      }
+      // Fetch users directly from marketing service
+      console.log("Fetching users from marketing service...");
+      const usersData = await marketingUserService.getMarketingUsers();
+      console.log("Marketing users fetched:", usersData.length);
 
       setUsers(usersData);
     } catch (err) {

@@ -21,8 +21,12 @@ spring:
       mode: always
 
 marketing:
-  service-key: marketing
+  service-key: marketing-service
   user-service-url: ${USER_SERVICE_URL:http://gateway:8080}
+
+user:
+  service:
+    url: ${USER_SERVICE_URL:http://gateway:8080}
 
 management:
   endpoints:

@@ -151,12 +151,10 @@ public class MarketingBranchService {
 
     @Transactional
     public MarketingBranch update(Long id, MarketingBranchRequest request, Long userId) {
-        if (!authorizationService.canCreateBranch(userId, request.getAreaId(), request.getSubAreaId())) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
-                    "You don't have permission to update branches. Only area-assigned, sub-area-assigned users, or administrators can update branches.");
-        }
-
         MarketingBranch branch = getById(id);
+
+        authorizationService.validateCreator(userId, branch.getCreatedBy(), "branch");
+
         applyRequest(branch, request);
         return branchRepository.save(branch);
     }
@@ -165,11 +163,7 @@ public class MarketingBranchService {
     public void delete(Long id, Long userId) {
         MarketingBranch branch = getById(id);
 
-        if (!authorizationService.canCreateBranch(userId, branch.getArea().getId(),
-                branch.getSubArea() != null ? branch.getSubArea().getId() : null)) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
-                    "You don't have permission to delete branches. Only area-assigned, sub-area-assigned users, or administrators can delete branches.");
-        }
+        authorizationService.validateCreator(userId, branch.getCreatedBy(), "branch");
 
         branchRepository.deleteById(id);
     }

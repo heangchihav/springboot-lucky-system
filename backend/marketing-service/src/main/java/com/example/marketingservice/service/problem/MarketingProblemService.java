@@ -4,6 +4,8 @@ import com.example.marketingservice.dto.problem.MarketingProblemRequest;
 import com.example.marketingservice.dto.problem.MarketingProblemResponse;
 import com.example.marketingservice.entity.problem.MarketingProblem;
 import com.example.marketingservice.repository.problem.MarketingProblemRepository;
+import com.example.marketingservice.service.shared.MarketingAuthorizationService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,6 +18,9 @@ import java.util.stream.Collectors;
 public class MarketingProblemService {
 
     private final MarketingProblemRepository problemRepository;
+
+    @Autowired
+    private MarketingAuthorizationService authorizationService;
 
     public MarketingProblemService(MarketingProblemRepository problemRepository) {
         this.problemRepository = problemRepository;
@@ -55,15 +60,18 @@ public class MarketingProblemService {
 
         MarketingProblem problem = new MarketingProblem(request.getName().trim(), createdBy);
         MarketingProblem savedProblem = problemRepository.save(problem);
-        
+
         return MarketingProblemResponse.fromEntity(savedProblem);
     }
 
-    public MarketingProblemResponse updateProblem(Long id, MarketingProblemRequest request) {
+    public MarketingProblemResponse updateProblem(Long id, MarketingProblemRequest request, Long userId) {
         MarketingProblem problem = problemRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Problem not found with id: " + id));
 
-        // Check if another problem with the same name already exists (excluding current problem)
+        authorizationService.validateCreator(userId, problem.getCreatedBy(), "problem");
+
+        // Check if another problem with the same name already exists (excluding current
+        // problem)
         Optional<MarketingProblem> existingProblem = problemRepository.findByName(request.getName().trim());
         if (existingProblem.isPresent() && !existingProblem.get().getId().equals(id)) {
             throw new IllegalArgumentException("Problem with name '" + request.getName() + "' already exists");
@@ -71,14 +79,16 @@ public class MarketingProblemService {
 
         problem.setName(request.getName().trim());
         MarketingProblem updatedProblem = problemRepository.save(problem);
-        
+
         return MarketingProblemResponse.fromEntity(updatedProblem);
     }
 
-    public void deleteProblem(Long id) {
-        if (!problemRepository.existsById(id)) {
-            throw new IllegalArgumentException("Problem not found with id: " + id);
-        }
+    public void deleteProblem(Long id, Long userId) {
+        MarketingProblem problem = problemRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Problem not found with id: " + id));
+
+        authorizationService.validateCreator(userId, problem.getCreatedBy(), "problem");
+
         problemRepository.deleteById(id);
     }
 

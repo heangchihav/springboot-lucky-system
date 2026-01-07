@@ -102,12 +102,8 @@ public class MarketingSubAreaService {
 
     @Transactional
     public MarketingSubArea update(Long id, MarketingSubAreaRequest request, Long userId) {
-        if (!authorizationService.canCreateSubArea(userId, request.getAreaId())) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
-                    "You don't have permission to update sub-areas. Only area-assigned users or administrators can update sub-areas.");
-        }
-
         MarketingSubArea subArea = getById(id);
+        authorizationService.validateCreator(userId, subArea.getCreatedBy(), "sub-area");
         applyRequest(subArea, request);
         return subAreaRepository.save(subArea);
     }
@@ -115,12 +111,7 @@ public class MarketingSubAreaService {
     @Transactional
     public void delete(Long id, Long userId) {
         MarketingSubArea subArea = getById(id);
-
-        if (!authorizationService.canCreateSubArea(userId, subArea.getArea().getId())) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
-                    "You don't have permission to delete sub-areas. Only area-assigned users or administrators can delete sub-areas.");
-        }
-
+        authorizationService.validateCreator(userId, subArea.getCreatedBy(), "sub-area");
         subAreaRepository.deleteById(id);
     }
 

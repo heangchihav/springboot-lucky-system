@@ -40,21 +40,25 @@ public class MarketingProblemController extends BaseController {
 
     @PostMapping
     public ResponseEntity<MarketingProblemResponse> createProblem(@Valid @RequestBody MarketingProblemRequest request,
-                                                                  HttpServletRequest httpRequest) {
+            HttpServletRequest httpRequest) {
         Long creatorId = requireUserId(httpRequest);
         MarketingProblemResponse createdProblem = problemService.createProblem(request, creatorId);
         return ResponseEntity.status(HttpStatus.CREATED).body(createdProblem);
     }
 
     @PutMapping("/{id}")
-    public MarketingProblemResponse updateProblem(@PathVariable Long id, @Valid @RequestBody MarketingProblemRequest request) {
-        return problemService.updateProblem(id, request);
+    public MarketingProblemResponse updateProblem(@PathVariable Long id,
+            @Valid @RequestBody MarketingProblemRequest request,
+            HttpServletRequest httpRequest) {
+        Long userId = requireUserId(httpRequest);
+        return problemService.updateProblem(id, request, userId);
     }
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void deleteProblem(@PathVariable Long id) {
-        problemService.deleteProblem(id);
+    public void deleteProblem(@PathVariable Long id, HttpServletRequest httpRequest) {
+        Long userId = requireUserId(httpRequest);
+        problemService.deleteProblem(id, userId);
     }
 
     @GetMapping("/count")

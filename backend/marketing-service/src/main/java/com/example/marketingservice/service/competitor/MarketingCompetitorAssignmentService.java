@@ -171,11 +171,7 @@ public class MarketingCompetitorAssignmentService {
         MarketingCompetitorAssignment existingAssignment = assignmentRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Assignment not found with id: " + id));
 
-        // Check authorization
-        if (!authorizationService.canCreateSubArea(userId, request.getAreaId())) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
-                    "You don't have permission to update competitor assignments in this area.");
-        }
+        authorizationService.validateCreator(userId, existingAssignment.getCreatedBy(), "competitor assignment");
 
         // Validate area exists
         MarketingArea area = areaRepository.findById(request.getAreaId())
@@ -227,11 +223,7 @@ public class MarketingCompetitorAssignmentService {
         MarketingCompetitorAssignment assignment = assignmentRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Assignment not found with id: " + id));
 
-        // Check authorization
-        if (!authorizationService.canCreateSubArea(userId, assignment.getArea().getId())) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
-                    "You don't have permission to delete competitor assignments in this area.");
-        }
+        authorizationService.validateCreator(userId, assignment.getCreatedBy(), "competitor assignment");
 
         assignmentRepository.deleteById(id);
     }
