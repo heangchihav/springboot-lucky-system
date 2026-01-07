@@ -88,8 +88,8 @@ class UserService {
 
   async getAllUsers(): Promise<User[]> {
     try {
-      // Use call-service endpoint which filters users by current user's branch
-      const response = await fetch(`${API_BASE_URL}/api/calls/users`, {
+      // Use user-service endpoint to get all users
+      const response = await fetch(`${API_BASE_URL}/api/users`, {
         headers: this.getAuthHeaders(),
         credentials: "include",
       });
@@ -134,8 +134,8 @@ class UserService {
 
   async getActiveUsers(): Promise<User[]> {
     try {
-      // Use call-service endpoint which filters users by current user's branch
-      const response = await fetch(`${API_BASE_URL}/api/calls/users`, {
+      // Use user-service endpoint to get all active users
+      const response = await fetch(`${API_BASE_URL}/api/users`, {
         headers: this.getAuthHeaders(),
         credentials: "include",
       });

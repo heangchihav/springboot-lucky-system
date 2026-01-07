@@ -1,0 +1,176 @@
+package com.example.marketingservice.controller.userassignment;
+
+import com.example.marketingservice.controller.base.BaseController;
+import com.example.marketingservice.dto.userassignment.MarketingUserAssignmentRequest;
+import com.example.marketingservice.dto.userassignment.MarketingUserAssignmentResponse;
+import com.example.marketingservice.entity.userassignment.MarketingUserAssignment;
+import com.example.marketingservice.service.userassignment.MarketingUserAssignmentService;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+import java.util.stream.Collectors;
+
+@RestController
+@RequestMapping("/api/marketing/user-assignments")
+public class MarketingUserAssignmentController extends BaseController {
+
+    private static final Logger logger = LoggerFactory.getLogger(MarketingUserAssignmentController.class);
+
+    @Autowired
+    private MarketingUserAssignmentService assignmentService;
+
+    @GetMapping
+    public ResponseEntity<List<MarketingUserAssignmentResponse>> getAllAssignments() {
+        List<MarketingUserAssignment> assignments = assignmentService.getAllAssignments();
+        List<MarketingUserAssignmentResponse> response = assignments.stream()
+                .map(MarketingUserAssignmentResponse::fromEntity)
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<MarketingUserAssignmentResponse> getAssignmentById(@PathVariable Long id) {
+        return assignmentService.getAssignmentById(id)
+                .map(assignment -> ResponseEntity.ok(MarketingUserAssignmentResponse.fromEntity(assignment)))
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    @GetMapping("/user/{userId}")
+    public ResponseEntity<List<MarketingUserAssignmentResponse>> getAssignmentsByUser(@PathVariable Long userId) {
+        List<MarketingUserAssignment> assignments = assignmentService.getActiveAssignmentsByUserId(userId);
+        List<MarketingUserAssignmentResponse> response = assignments.stream()
+                .map(MarketingUserAssignmentResponse::fromEntity)
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/area/{areaId}")
+    public ResponseEntity<List<MarketingUserAssignmentResponse>> getAssignmentsByArea(@PathVariable Long areaId) {
+        List<MarketingUserAssignment> assignments = assignmentService.getActiveAssignmentsByAreaId(areaId);
+        List<MarketingUserAssignmentResponse> response = assignments.stream()
+                .map(MarketingUserAssignmentResponse::fromEntity)
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/sub-area/{subAreaId}")
+    public ResponseEntity<List<MarketingUserAssignmentResponse>> getAssignmentsBySubArea(@PathVariable Long subAreaId) {
+        List<MarketingUserAssignment> assignments = assignmentService.getActiveAssignmentsBySubAreaId(subAreaId);
+        List<MarketingUserAssignmentResponse> response = assignments.stream()
+                .map(MarketingUserAssignmentResponse::fromEntity)
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/branch/{branchId}")
+    public ResponseEntity<List<MarketingUserAssignmentResponse>> getAssignmentsByBranch(@PathVariable Long branchId) {
+        List<MarketingUserAssignment> assignments = assignmentService.getActiveAssignmentsByBranchId(branchId);
+        List<MarketingUserAssignmentResponse> response = assignments.stream()
+                .map(MarketingUserAssignmentResponse::fromEntity)
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/assign")
+    public ResponseEntity<MarketingUserAssignmentResponse> assignUser(
+            @Valid @RequestBody MarketingUserAssignmentRequest request,
+            HttpServletRequest httpRequest) {
+
+        logger.info("=== ASSIGN USER REQUEST ===");
+        logger.info("Request: userId={}, areaId={}, subAreaId={}, branchId={}",
+                request.getUserId(), request.getAreaId(), request.getSubAreaId(), request.getBranchId());
+
+        Long userId = request.getUserId();
+
+        if (userId == null) {
+            logger.error("Validation failed: userId is null");
+            return ResponseEntity.badRequest().build();
+        }
+
+        try {
+            MarketingUserAssignment assignment;
+
+            if (request.getBranchId() != null) {
+                logger.info("Assigning user {} to branch {}", userId, request.getBranchId());
+                assignment = assignmentService.assignUserToBranch(userId, request.getBranchId());
+            } else if (request.getSubAreaId() != null) {
+                logger.info("Assigning user {} to sub-area {}", userId, request.getSubAreaId());
+                assignment = assignmentService.assignUserToSubArea(userId, request.getSubAreaId());
+            } else if (request.getAreaId() != null) {
+                logger.info("Assigning user {} to area {}", userId, request.getAreaId());
+                assignment = assignmentService.assignUserToArea(userId, request.getAreaId());
+            } else {
+                logger.error("No valid assignment target provided");
+                return ResponseEntity.badRequest().build();
+            }
+
+            logger.info("Successfully assigned user: {}", assignment);
+            MarketingUserAssignmentResponse response = MarketingUserAssignmentResponse.fromEntity(assignment);
+            return ResponseEntity.status(HttpStatus.CREATED).body(response);
+
+        } catch (IllegalArgumentException e) {
+            logger.error("Assignment failed: {}", e.getMessage());
+            return ResponseEntity.badRequest().build();
+        } catch (Exception e) {
+            logger.error("Unexpected error during assignment: {}", e.getMessage(), e);
+            throw e;
+        }
+    }
+
+    @PostMapping("/remove/{assignmentId}")
+    public ResponseEntity<MarketingUserAssignmentResponse> removeAssignment(
+            @PathVariable Long assignmentId,
+            @RequestParam Long userId) {
+
+        try {
+            MarketingUserAssignment assignment = assignmentService.removeUserAssignment(userId, assignmentId);
+            MarketingUserAssignmentResponse response = MarketingUserAssignmentResponse.fromEntity(assignment);
+            return ResponseEntity.ok(response);
+        } catch (IllegalArgumentException e) {
+            logger.error("Remove assignment failed: {}", e.getMessage());
+            return ResponseEntity.badRequest().build();
+        }
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deleteAssignment(@PathVariable Long id) {
+        try {
+            assignmentService.deleteAssignment(id);
+            return ResponseEntity.noContent().build();
+        } catch (IllegalArgumentException e) {
+            logger.error("Delete assignment failed: {}", e.getMessage());
+            return ResponseEntity.badRequest().build();
+        }
+    }
+
+    @GetMapping("/user/{userId}/count")
+    public ResponseEntity<Long> getAssignmentCountForUser(@PathVariable Long userId) {
+        long count = assignmentService.countActiveAssignmentsByUserId(userId);
+        return ResponseEntity.ok(count);
+    }
+
+    @GetMapping("/area/{areaId}/count")
+    public ResponseEntity<Long> getAssignmentCountForArea(@PathVariable Long areaId) {
+        long count = assignmentService.countActiveAssignmentsByAreaId(areaId);
+        return ResponseEntity.ok(count);
+    }
+
+    @GetMapping("/sub-area/{subAreaId}/count")
+    public ResponseEntity<Long> getAssignmentCountForSubArea(@PathVariable Long subAreaId) {
+        long count = assignmentService.countActiveAssignmentsBySubAreaId(subAreaId);
+        return ResponseEntity.ok(count);
+    }
+
+    @GetMapping("/branch/{branchId}/count")
+    public ResponseEntity<Long> getAssignmentCountForBranch(@PathVariable Long branchId) {
+        long count = assignmentService.countActiveAssignmentsByBranchId(branchId);
+        return ResponseEntity.ok(count);
+    }
+}

@@ -150,16 +150,31 @@ export const MENU_SECTIONS: MenuSection[] = [
         id: "marketing-manage-vip",
         label: "Manage VIP Members",
         description: "Manage VIP member assignments",
-        path: "/marketing-service/manage-user",
+        path: "/marketing-service/manage-vip-members",
         menuNumber: "5",
+      },
+      {
+        id: "marketing-manage-users",
+        label: "Manage Users",
+        description: "Manage marketing service users",
+        path: "/marketing-service/manage-users",
+        menuNumber: "6",
+      },
+      {
+        id: "marketing-permissions",
+        label: "Permissions",
+        description: "Manage marketing service permissions",
+        path: "/marketing-service/permissions",
+        menuNumber: "6.1",
       },
       {
         id: "marketing-setups",
         label: "Setups",
         description: "Manage marketing operation setups",
         path: "/marketing-service/setups",
-        menuNumber: "6",
+        menuNumber: "7",
       },
+
     ],
   },
   {
