@@ -254,62 +254,7 @@ export function AppShell({ children }: AppShellProps) {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-slate-900 text-slate-100 relative">
-      {/* Animated Background Orbs */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-blue-950 to-slate-900"></div>
-
-        {/* Shine Layer */}
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.07),transparent_70%)"></div>
-
-        {/* Large Orange Orb */}
-        <div
-          className="absolute top-1/4 left-1/4 w-[600px] h-[600px] bg-orange-400/30 rounded-full blur-3xl animate-pulse"
-          style={{
-            animationDuration: '8s',
-            boxShadow: '0 0 150px 100px rgba(251, 146, 60, 0.2)'
-          }}
-        ></div>
-
-        {/* Large Blue Orb */}
-        <div
-          className="absolute bottom-1/4 right-1/4 w-[700px] h-[700px] bg-blue-400/30 rounded-full blur-3xl animate-pulse"
-          style={{
-            animationDuration: '10s',
-            animationDelay: '2s',
-            boxShadow: '0 0 200px 120px rgba(96, 165, 250, 0.2)'
-          }}
-        ></div>
-
-        {/* Medium Purple Orb */}
-        <div
-          className="absolute top-1/3 right-1/3 w-[400px] h-[400px] bg-purple-400/25 rounded-full blur-3xl animate-pulse"
-          style={{
-            animationDuration: '12s',
-            animationDelay: '4s',
-            boxShadow: '0 0 100px 60px rgba(168, 85, 247, 0.15)'
-          }}
-        ></div>
-
-        {/* Glowing Particles */}
-        {[...Array(15)].map((_, i) => (
-          <div
-            key={i}
-            className="absolute rounded-full bg-white/10 backdrop-blur-sm"
-            style={{
-              width: `${Math.random() * 8 + 3}px`,
-              height: `${Math.random() * 8 + 3}px`,
-              left: `${Math.random() * 100}%`,
-              top: `${Math.random() * 100}%`,
-              animation: `float ${Math.random() * 15 + 10}s linear infinite`,
-              animationDelay: `${Math.random() * 5}s`,
-              boxShadow: '0 0 15px 2px rgba(255, 255, 255, 0.5)',
-              transform: 'translateZ(0)'
-            }}
-          />
-        ))}
-      </div>
-
+    <div className="flex h-screen overflow-hidden bg-gradient-to-br from-slate-800 via-slate-400 to-slate-700 text-slate-100 relative">
       {/* Mobile Sidebar Overlay */}
       {mobileSidebarOpen && (
         <div
@@ -488,7 +433,7 @@ export function AppShell({ children }: AppShellProps) {
               transition={{ duration: 0.3, ease: "easeInOut" }}
               className="w-full"
             >
-              <section className="rounded-2xl bg-slate-900/70 backdrop-blur-xl border border-slate-700/50 p-6 shadow-2xl shadow-blue-900/10 transition-all duration-300 hover:shadow-blue-900/20">
+              <section className="rounded-2xl bg-slate-900 backdrop-blur-xl border border-slate-700/50 p-6 shadow-2xl shadow-blue-900/10 transition-all duration-300 hover:shadow-blue-900/20">
                 <div className="relative z-10">
                   {children}
                 </div>
