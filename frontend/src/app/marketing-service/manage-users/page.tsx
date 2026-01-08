@@ -690,7 +690,8 @@ export default function ManageUserPage() {
 
           <div className="flex justify-end">
             <PermissionGuard
-              permission="menu.4.create"
+              permission="user.create"
+              serviceContext="marketing-service"
               fallback={
                 <button
                   type="button"
