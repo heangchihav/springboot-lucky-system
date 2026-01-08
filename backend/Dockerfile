@@ -17,6 +17,9 @@ ARG MODULE
 
 RUN addgroup -S app && adduser -S -G app -h /app app
 
+# Install curl for container health checks
+RUN apk add --no-cache curl
+
 # Copy the jar built by ./mvnw clean package -DskipTests
 COPY --from=build /workspace/backend/${MODULE}/target/*-SNAPSHOT.jar app.jar
 
