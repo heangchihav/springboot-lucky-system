@@ -110,6 +110,7 @@ export const MENU_SECTIONS: MenuSection[] = [
         description: "Competitor analysis and benchmarking",
         path: "/marketing-service/competitors-dashboard",
         menuNumber: "1",
+        requiredPermission: "competitor.view",
       },
       {
         id: "marketing-competitors-management",
@@ -117,6 +118,7 @@ export const MENU_SECTIONS: MenuSection[] = [
         description: "Manage competitor profiles and area assignments",
         path: "/marketing-service/competitors-management",
         menuNumber: "1.1",
+        requiredPermission: "competitor.create",
       },
       {
         id: "marketing-vip",
@@ -124,6 +126,7 @@ export const MENU_SECTIONS: MenuSection[] = [
         description: "VIP member tracking and engagement",
         path: "/marketing-service/vip-members-dashboard",
         menuNumber: "2",
+        requiredPermission: "member.view",
       },
       {
         id: "marketing-goods",
@@ -131,6 +134,7 @@ export const MENU_SECTIONS: MenuSection[] = [
         description: "Product category and demand monitoring",
         path: "/marketing-service/goods-dashboard",
         menuNumber: "3",
+        requiredPermission: "goods.view",
       },
       {
         id: "marketing-goods-input",
@@ -138,6 +142,7 @@ export const MENU_SECTIONS: MenuSection[] = [
         description: "Record VIP member shipment data",
         path: "/marketing-service/goods-input",
         menuNumber: "3.1",
+        requiredPermission: "goods.create",
       },
       {
         id: "marketing-area-branch",
@@ -145,6 +150,7 @@ export const MENU_SECTIONS: MenuSection[] = [
         description: "Manage marketing regions and branches",
         path: "/marketing-service/area-branch",
         menuNumber: "4",
+        requiredPermission: "area.view",
       },
       {
         id: "marketing-manage-vip",
@@ -152,6 +158,7 @@ export const MENU_SECTIONS: MenuSection[] = [
         description: "Manage VIP member assignments",
         path: "/marketing-service/manage-vip-members",
         menuNumber: "5",
+        requiredPermission: "member.create",
       },
       {
         id: "marketing-manage-users",
@@ -159,6 +166,7 @@ export const MENU_SECTIONS: MenuSection[] = [
         description: "Manage marketing service users",
         path: "/marketing-service/manage-users",
         menuNumber: "6",
+        requiredPermission: "menu.5.view",
       },
       {
         id: "marketing-permissions",
@@ -166,6 +174,7 @@ export const MENU_SECTIONS: MenuSection[] = [
         description: "Manage marketing service permissions",
         path: "/marketing-service/permissions",
         menuNumber: "6.1",
+        requiredPermission: "menu.5.view",
       },
       {
         id: "marketing-setups",
@@ -173,6 +182,7 @@ export const MENU_SECTIONS: MenuSection[] = [
         description: "Manage marketing operation setups",
         path: "/marketing-service/setups",
         menuNumber: "7",
+        requiredPermission: "problem.view",
       },
 
     ],

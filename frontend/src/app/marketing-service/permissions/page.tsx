@@ -2,14 +2,15 @@
 
 import React, { useState, useEffect, useMemo } from "react";
 import {
-  permissionsService,
+  marketingPermissionsService,
   Permission,
   Role,
   PermissionGroup,
   CreateRoleRequest,
   UpdateRoleRequest,
-} from "@/services/permissionsService";
-import { userService, User } from "@/services/userService";
+} from "@/services/marketingPermissionsService";
+import { User } from "@/services/userService";
+import { marketingUserService } from "@/services/marketing-service/marketingUserService";
 import { PermissionGuard } from "@/components/layout/PermissionGuard";
 import {
   Plus,
@@ -149,9 +150,9 @@ export default function PermissionsPage() {
     try {
       // Fetch data using real services
       const [permissionsData, groupsData, rolesData] = await Promise.all([
-        permissionsService.getPermissions(),
-        permissionsService.getPermissionGroups(),
-        permissionsService.getRoles(),
+        marketingPermissionsService.getPermissions(),
+        marketingPermissionsService.getPermissionGroups(),
+        marketingPermissionsService.getRoles(),
       ]);
 
       setPermissions(permissionsData);
@@ -162,7 +163,7 @@ export default function PermissionsPage() {
       const roleUsersMap = new Map<number, User[]>();
       for (const role of rolesData) {
         try {
-          const assignedUsers = await permissionsService.getUsersInRole(
+          const assignedUsers = await marketingPermissionsService.getUsersInRole(
             role.id,
           );
           roleUsersMap.set(role.id, assignedUsers);
@@ -193,7 +194,7 @@ export default function PermissionsPage() {
         permissionCodes: selectedPermissions,
       };
 
-      const newRole = await permissionsService.createRole(createRoleRequest);
+      const newRole = await marketingPermissionsService.createRole(createRoleRequest);
       setRoles([...roles, newRole]);
       resetRoleForm();
       console.log("Role created successfully:", newRole);
@@ -214,7 +215,7 @@ export default function PermissionsPage() {
         permissionCodes: selectedPermissions,
       };
 
-      const updatedRole = await permissionsService.updateRole(
+      const updatedRole = await marketingPermissionsService.updateRole(
         editingRole.id,
         updateRoleRequest,
       );
@@ -233,7 +234,7 @@ export default function PermissionsPage() {
 
   const handleDeleteRole = async (roleId: number) => {
     try {
-      await permissionsService.deleteRole(roleId);
+      await marketingPermissionsService.deleteRole(roleId);
       setRoles(roles.filter((role) => role.id !== roleId));
       console.log("Role deleted successfully:", roleId);
     } catch (error) {
@@ -306,8 +307,8 @@ export default function PermissionsPage() {
     setShowUserAssignment(true);
 
     try {
-      // Fetch fresh user data from real user-service
-      const freshUsers = await userService.getActiveUsers();
+      // Fetch fresh user data from marketing-service
+      const freshUsers = await marketingUserService.getMarketingUsers();
       setAvailableUsers(freshUsers);
 
       // Get users already assigned to this role
@@ -341,12 +342,12 @@ export default function PermissionsPage() {
 
       // Add new users
       if (usersToAdd.length > 0) {
-        await permissionsService.assignUsersToRole(selectedRole.id, usersToAdd);
+        await marketingPermissionsService.assignUsersToRole(selectedRole.id, usersToAdd);
       }
 
       // Remove users
       if (usersToRemove.length > 0) {
-        await permissionsService.removeUsersFromRole(
+        await marketingPermissionsService.removeUsersFromRole(
           selectedRole.id,
           usersToRemove,
         );
@@ -362,7 +363,7 @@ export default function PermissionsPage() {
 
       // Refresh users for this role
       try {
-        const assignedUsers = await permissionsService.getUsersInRole(
+        const assignedUsers = await marketingPermissionsService.getUsersInRole(
           selectedRole.id,
         );
         setRoleUsers((prev) =>
@@ -660,8 +661,8 @@ export default function PermissionsPage() {
                             <label
                               key={permission.code}
                               className={`flex items-center space-x-3 p-2 rounded ${isAllowed
-                                  ? "cursor-pointer hover:bg-white/5"
-                                  : "cursor-not-allowed opacity-40"
+                                ? "cursor-pointer hover:bg-white/5"
+                                : "cursor-not-allowed opacity-40"
                                 }`}
                             >
                               <input

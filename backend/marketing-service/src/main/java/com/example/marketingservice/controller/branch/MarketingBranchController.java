@@ -27,6 +27,7 @@ public class MarketingBranchController extends BaseController {
     public List<MarketingBranchResponse> list(@RequestParam(value = "areaId", required = false) Long areaId,
             @RequestParam(value = "subAreaId", required = false) Long subAreaId,
             HttpServletRequest httpRequest) {
+        checkPermission(httpRequest, "branch.view");
         Long userId = requireUserId(httpRequest);
         List<MarketingBranchResponse> responses;
         if (subAreaId != null) {
@@ -46,13 +47,15 @@ public class MarketingBranchController extends BaseController {
     }
 
     @GetMapping("/{id}")
-    public MarketingBranchResponse get(@PathVariable Long id) {
+    public MarketingBranchResponse get(@PathVariable Long id, HttpServletRequest httpRequest) {
+        checkPermission(httpRequest, "branch.view");
         return MarketingBranchResponse.fromEntity(branchService.getById(id));
     }
 
     @PostMapping
     public ResponseEntity<MarketingBranchResponse> create(@Valid @RequestBody MarketingBranchRequest request,
             HttpServletRequest httpRequest) {
+        checkPermission(httpRequest, "branch.create");
         Long creatorId = requireUserId(httpRequest);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(MarketingBranchResponse.fromEntity(branchService.create(request, creatorId)));
@@ -61,6 +64,7 @@ public class MarketingBranchController extends BaseController {
     @PutMapping("/{id}")
     public MarketingBranchResponse update(@PathVariable Long id, @Valid @RequestBody MarketingBranchRequest request,
             HttpServletRequest httpRequest) {
+        checkPermission(httpRequest, "branch.edit");
         Long userId = requireUserId(httpRequest);
         return MarketingBranchResponse.fromEntity(branchService.update(id, request, userId));
     }
@@ -68,6 +72,7 @@ public class MarketingBranchController extends BaseController {
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(@PathVariable Long id, HttpServletRequest httpRequest) {
+        checkPermission(httpRequest, "branch.delete");
         Long userId = requireUserId(httpRequest);
         branchService.delete(id, userId);
     }

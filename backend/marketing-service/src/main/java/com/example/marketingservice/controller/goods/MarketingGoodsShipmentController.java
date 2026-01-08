@@ -33,14 +33,13 @@ public class MarketingGoodsShipmentController extends BaseController {
 
     @PostMapping
     public ResponseEntity<?> recordBatch(@Valid @RequestBody java.util.List<UserGoodsRecordRequest.GoodsRecord> records,
-                                         HttpServletRequest httpRequest) {
+            HttpServletRequest httpRequest) {
+        checkPermission(httpRequest, "goods.create");
         Long creatorId = requireUserId(httpRequest);
         int accepted = shipmentService.recordBatch(records, creatorId);
         return ResponseEntity.ok().body(
                 java.util.Map.of(
-                        "accepted", accepted
-                )
-        );
+                        "accepted", accepted));
     }
 
     @GetMapping
@@ -54,18 +53,19 @@ public class MarketingGoodsShipmentController extends BaseController {
             @RequestParam(defaultValue = "15") int limit,
             @RequestParam(required = false) LocalDate startDate,
             @RequestParam(required = false) LocalDate endDate,
-            HttpServletRequest httpRequest
-    ) {
+            HttpServletRequest httpRequest) {
+        checkPermission(httpRequest, "goods.view");
         Long createdBy = myOnly ? requireUserId(httpRequest) : null;
-        return shipmentService.findRecent(memberId, branchId, subAreaId, areaId, createdBy, memberQuery, limit, startDate, endDate);
+        return shipmentService.findRecent(memberId, branchId, subAreaId, areaId, createdBy, memberQuery, limit,
+                startDate, endDate);
     }
 
     @PutMapping("/{id}")
     public MarketingGoodsShipmentResponse updateShipment(
             @PathVariable Long id,
             @Valid @RequestBody MarketingGoodsShipmentUpdateRequest request,
-            HttpServletRequest httpRequest
-    ) {
+            HttpServletRequest httpRequest) {
+        checkPermission(httpRequest, "goods.edit");
         Long userId = requireUserId(httpRequest);
         return shipmentService.updateShipment(id, request, userId);
     }
@@ -73,8 +73,8 @@ public class MarketingGoodsShipmentController extends BaseController {
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteShipment(
             @PathVariable Long id,
-            HttpServletRequest httpRequest
-    ) {
+            HttpServletRequest httpRequest) {
+        checkPermission(httpRequest, "goods.delete");
         Long userId = requireUserId(httpRequest);
         shipmentService.deleteShipment(id, userId);
         return ResponseEntity.noContent().build();

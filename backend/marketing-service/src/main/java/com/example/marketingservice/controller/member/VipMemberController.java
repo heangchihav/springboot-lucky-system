@@ -28,6 +28,7 @@ public class VipMemberController extends BaseController {
             @RequestParam(required = false) Long subAreaId,
             @RequestParam(required = false) Long branchId,
             HttpServletRequest httpRequest) {
+        checkPermission(httpRequest, "member.view");
         Long userId = requireUserId(httpRequest);
         return vipMemberService.findAllForUser(userId, areaId, subAreaId, branchId)
                 .stream()
@@ -36,13 +37,15 @@ public class VipMemberController extends BaseController {
     }
 
     @GetMapping("/{id}")
-    public VipMemberResponse get(@PathVariable Long id) {
+    public VipMemberResponse get(@PathVariable Long id, HttpServletRequest httpRequest) {
+        checkPermission(httpRequest, "member.view");
         return VipMemberResponse.fromEntity(vipMemberService.getById(id));
     }
 
     @PostMapping
     public ResponseEntity<VipMemberResponse> create(@Valid @RequestBody VipMemberRequest request,
             HttpServletRequest httpRequest) {
+        checkPermission(httpRequest, "member.create");
         Long creatorId = requireUserId(httpRequest);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(VipMemberResponse.fromEntity(vipMemberService.create(request, creatorId)));
@@ -52,6 +55,7 @@ public class VipMemberController extends BaseController {
     public VipMemberResponse update(@PathVariable Long id,
             @Valid @RequestBody VipMemberRequest request,
             HttpServletRequest httpRequest) {
+        checkPermission(httpRequest, "member.edit");
         Long userId = requireUserId(httpRequest);
         return VipMemberResponse.fromEntity(vipMemberService.update(id, request, userId));
     }
@@ -59,6 +63,7 @@ public class VipMemberController extends BaseController {
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(@PathVariable Long id, HttpServletRequest httpRequest) {
+        checkPermission(httpRequest, "member.delete");
         Long userId = requireUserId(httpRequest);
         vipMemberService.delete(id, userId);
     }

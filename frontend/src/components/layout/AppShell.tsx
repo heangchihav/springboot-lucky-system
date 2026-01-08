@@ -93,19 +93,22 @@ export function AppShell({ children }: AppShellProps) {
         return;
       }
 
-      const permissionsToCheck: Record<string, string> = {};
+      const permissionsToCheck: Record<string, { permission: string; service: string }> = {};
       MENU_SECTIONS.forEach((section) => {
         section.items.forEach((item) => {
           if (item.requiredPermission) {
-            permissionsToCheck[item.id] = item.requiredPermission;
+            permissionsToCheck[item.id] = {
+              permission: item.requiredPermission,
+              service: section.id, // Pass the service context (e.g., "call-service", "marketing-service")
+            };
           }
         });
       });
 
       const entries = Object.entries(permissionsToCheck);
       const results = await Promise.all(
-        entries.map(async ([itemId, permissionCode]) => {
-          const allowed = await hasPermission(permissionCode);
+        entries.map(async ([itemId, { permission, service }]) => {
+          const allowed = await hasPermission(permission, service);
           return allowed ? itemId : null;
         }),
       );

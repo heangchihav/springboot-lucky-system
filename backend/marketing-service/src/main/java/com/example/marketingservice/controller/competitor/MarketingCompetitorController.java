@@ -23,54 +23,68 @@ public class MarketingCompetitorController extends BaseController {
     }
 
     @GetMapping
-    public List<MarketingCompetitorResponse> getAllCompetitors() {
+    public List<MarketingCompetitorResponse> getAllCompetitors(HttpServletRequest httpRequest) {
+        checkPermission(httpRequest, "competitor.view");
         return competitorService.getAllCompetitors();
     }
 
     @GetMapping("/{id}")
-    public MarketingCompetitorResponse getCompetitorById(@PathVariable Long id) {
+    public MarketingCompetitorResponse getCompetitorById(@PathVariable Long id, HttpServletRequest httpRequest) {
+        checkPermission(httpRequest, "competitor.view");
         return competitorService.getCompetitorById(id)
                 .orElseThrow(() -> new RuntimeException("Competitor not found with id: " + id));
     }
 
     @GetMapping("/search")
-    public List<MarketingCompetitorResponse> searchCompetitors(@RequestParam String name) {
+    public List<MarketingCompetitorResponse> searchCompetitors(@RequestParam String name,
+            HttpServletRequest httpRequest) {
+        checkPermission(httpRequest, "competitor.view");
         return competitorService.searchCompetitorsByName(name);
     }
 
     @PostMapping
-    public ResponseEntity<MarketingCompetitorResponse> createCompetitor(@Valid @RequestBody MarketingCompetitorRequest request,
-                                                                        HttpServletRequest httpRequest) {
+    public ResponseEntity<MarketingCompetitorResponse> createCompetitor(
+            @Valid @RequestBody MarketingCompetitorRequest request,
+            HttpServletRequest httpRequest) {
+        checkPermission(httpRequest, "competitor.create");
         Long creatorId = requireUserId(httpRequest);
         MarketingCompetitorResponse createdCompetitor = competitorService.createCompetitor(request, creatorId);
         return ResponseEntity.status(HttpStatus.CREATED).body(createdCompetitor);
     }
 
     @PutMapping("/{id}")
-    public MarketingCompetitorResponse updateCompetitor(@PathVariable Long id, @Valid @RequestBody MarketingCompetitorRequest request) {
+    public MarketingCompetitorResponse updateCompetitor(@PathVariable Long id,
+            @Valid @RequestBody MarketingCompetitorRequest request, HttpServletRequest httpRequest) {
+        checkPermission(httpRequest, "competitor.edit");
         return competitorService.updateCompetitor(id, request);
     }
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void deleteCompetitor(@PathVariable Long id) {
+    public void deleteCompetitor(@PathVariable Long id, HttpServletRequest httpRequest) {
+        checkPermission(httpRequest, "competitor.delete");
         competitorService.deleteCompetitor(id);
     }
 
     @GetMapping("/count")
-    public ResponseEntity<java.util.Map<String, Long>> getCompetitorsCount() {
+    public ResponseEntity<java.util.Map<String, Long>> getCompetitorsCount(HttpServletRequest httpRequest) {
+        checkPermission(httpRequest, "competitor.view");
         long count = competitorService.count();
         return ResponseEntity.ok(java.util.Map.of("count", count));
     }
 
     @GetMapping("/exists/{id}")
-    public ResponseEntity<java.util.Map<String, Boolean>> checkCompetitorExists(@PathVariable Long id) {
+    public ResponseEntity<java.util.Map<String, Boolean>> checkCompetitorExists(@PathVariable Long id,
+            HttpServletRequest httpRequest) {
+        checkPermission(httpRequest, "competitor.view");
         boolean exists = competitorService.existsById(id);
         return ResponseEntity.ok(java.util.Map.of("exists", exists));
     }
 
     @GetMapping("/exists")
-    public ResponseEntity<java.util.Map<String, Boolean>> checkCompetitorExistsByName(@RequestParam String name) {
+    public ResponseEntity<java.util.Map<String, Boolean>> checkCompetitorExistsByName(@RequestParam String name,
+            HttpServletRequest httpRequest) {
+        checkPermission(httpRequest, "competitor.view");
         boolean exists = competitorService.existsByName(name);
         return ResponseEntity.ok(java.util.Map.of("exists", exists));
     }

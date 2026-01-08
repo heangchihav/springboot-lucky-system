@@ -25,6 +25,7 @@ public class MarketingAreaController extends BaseController {
 
     @GetMapping
     public List<MarketingAreaResponse> list(HttpServletRequest httpRequest) {
+        checkPermission(httpRequest, "area.view");
         Long userId = requireUserId(httpRequest);
         return marketingAreaService.findAllForUser(userId)
                 .stream()
@@ -33,13 +34,15 @@ public class MarketingAreaController extends BaseController {
     }
 
     @GetMapping("/{id}")
-    public MarketingAreaResponse get(@PathVariable Long id) {
+    public MarketingAreaResponse get(@PathVariable Long id, HttpServletRequest httpRequest) {
+        checkPermission(httpRequest, "area.view");
         return MarketingAreaResponse.fromEntity(marketingAreaService.getById(id));
     }
 
     @PostMapping
     public ResponseEntity<MarketingAreaResponse> create(@Valid @RequestBody MarketingAreaRequest request,
             HttpServletRequest httpRequest) {
+        checkPermission(httpRequest, "area.create");
         Long creatorId = requireUserId(httpRequest);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(MarketingAreaResponse.fromEntity(marketingAreaService.create(request, creatorId)));
@@ -48,6 +51,7 @@ public class MarketingAreaController extends BaseController {
     @PutMapping("/{id}")
     public MarketingAreaResponse update(@PathVariable Long id, @Valid @RequestBody MarketingAreaRequest request,
             HttpServletRequest httpRequest) {
+        checkPermission(httpRequest, "area.edit");
         Long userId = requireUserId(httpRequest);
         return MarketingAreaResponse.fromEntity(marketingAreaService.update(id, request, userId));
     }
@@ -55,6 +59,7 @@ public class MarketingAreaController extends BaseController {
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(@PathVariable Long id, HttpServletRequest httpRequest) {
+        checkPermission(httpRequest, "area.delete");
         Long userId = requireUserId(httpRequest);
         marketingAreaService.delete(id, userId);
     }

@@ -30,7 +30,7 @@ interface AuthContextType {
   clearError: () => void;
   hasServiceAccess: (serviceKey: string) => boolean;
   getAccessibleServices: () => string[];
-  hasPermission: (permissionCode: string) => Promise<boolean>;
+  hasPermission: (permissionCode: string, serviceContext?: string) => Promise<boolean>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -226,7 +226,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       .filter(Boolean);
   };
 
-  const hasPermission = async (permissionCode: string): Promise<boolean> => {
+  const hasPermission = async (permissionCode: string, serviceContext?: string): Promise<boolean> => {
     if (!user?.id) {
       return false;
     }
@@ -235,14 +235,25 @@ export function AuthProvider({ children }: AuthProviderProps) {
       return true;
     }
 
-    const cached = permissionCache[permissionCode];
+    const cacheKey = serviceContext ? `${serviceContext}:${permissionCode}` : permissionCode;
+    const cached = permissionCache[cacheKey];
     if (cached !== undefined) {
       return cached;
     }
 
+    // Determine which service to check based on service context
+    const serviceMap: Record<string, string> = {
+      "call-service": "calls",
+      "marketing-service": "marketing",
+      "delivery-service": "deliveries",
+      "user-service": "users",
+    };
+
+    const serviceEndpoint = serviceMap[serviceContext || ""] || "calls";
+
     try {
       const response = await fetch(
-        `${API_BASE_URL}/api/calls/permissions/user/${user.id}/check/${encodeURIComponent(permissionCode)}`,
+        `${API_BASE_URL}/api/${serviceEndpoint}/permissions/user/${user.id}/check/${encodeURIComponent(permissionCode)}`,
         {
           credentials: "include",
         },
@@ -257,12 +268,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       setPermissionCache((prev) => ({
         ...prev,
-        [permissionCode]: hasPerm,
+        [cacheKey]: hasPerm,
       }));
 
       return hasPerm;
     } catch (err) {
-      console.error("Permission check failed:", err);
+      console.error(`Permission check failed for ${permissionCode} in ${serviceEndpoint}:`, err);
       return false;
     }
   };

@@ -26,6 +26,7 @@ public class MarketingSubAreaController extends BaseController {
     @GetMapping
     public List<MarketingSubAreaResponse> list(@RequestParam(value = "areaId", required = false) Long areaId,
             HttpServletRequest httpRequest) {
+        checkPermission(httpRequest, "subarea.view");
         Long userId = requireUserId(httpRequest);
         return (areaId != null ? subAreaService.findByAreaIdForUser(areaId, userId)
                 : subAreaService.findAllForUser(userId))
@@ -35,13 +36,15 @@ public class MarketingSubAreaController extends BaseController {
     }
 
     @GetMapping("/{id}")
-    public MarketingSubAreaResponse get(@PathVariable Long id) {
+    public MarketingSubAreaResponse get(@PathVariable Long id, HttpServletRequest httpRequest) {
+        checkPermission(httpRequest, "subarea.view");
         return MarketingSubAreaResponse.fromEntity(subAreaService.getById(id));
     }
 
     @PostMapping
     public ResponseEntity<MarketingSubAreaResponse> create(@Valid @RequestBody MarketingSubAreaRequest request,
             HttpServletRequest httpRequest) {
+        checkPermission(httpRequest, "subarea.create");
         Long creatorId = requireUserId(httpRequest);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(MarketingSubAreaResponse.fromEntity(subAreaService.create(request, creatorId)));
@@ -51,6 +54,7 @@ public class MarketingSubAreaController extends BaseController {
     public MarketingSubAreaResponse update(@PathVariable Long id,
             @Valid @RequestBody MarketingSubAreaRequest request,
             HttpServletRequest httpRequest) {
+        checkPermission(httpRequest, "subarea.edit");
         Long userId = requireUserId(httpRequest);
         return MarketingSubAreaResponse.fromEntity(subAreaService.update(id, request, userId));
     }
@@ -58,6 +62,7 @@ public class MarketingSubAreaController extends BaseController {
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(@PathVariable Long id, HttpServletRequest httpRequest) {
+        checkPermission(httpRequest, "subarea.delete");
         Long userId = requireUserId(httpRequest);
         subAreaService.delete(id, userId);
     }
