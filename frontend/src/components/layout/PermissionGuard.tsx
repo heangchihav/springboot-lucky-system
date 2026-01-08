@@ -21,12 +21,14 @@ interface PermissionGuardProps {
   permission: string;
   children: React.ReactNode;
   fallback?: React.ReactNode;
+  serviceContext?: string;
 }
 
 export function PermissionGuard({
   permission,
   children,
   fallback = null,
+  serviceContext,
 }: PermissionGuardProps) {
   const { user, hasPermission } = useAuth();
   const [allowed, setAllowed] = useState<boolean | null>(null);
@@ -40,7 +42,7 @@ export function PermissionGuard({
         return;
       }
 
-      const result = await hasPermission(permission);
+      const result = await hasPermission(permission, serviceContext);
       if (!cancelled) {
         setAllowed(result);
       }
@@ -51,7 +53,7 @@ export function PermissionGuard({
     return () => {
       cancelled = true;
     };
-  }, [user, permission, hasPermission]);
+  }, [user, permission, serviceContext, hasPermission]);
 
   if (allowed === null) {
     return <div className="animate-pulse bg-gray-200 h-4 w-20 rounded"></div>;

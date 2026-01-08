@@ -438,15 +438,15 @@ export default function PermissionsPage() {
 
           {/* Roles Section */}
           <section className="glass-card animate-fade-in-up">
-            <div className="flex justify-between items-center">
-              <h2 className="text-xl font-semibold text-white">Roles</h2>
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-bold text-white">Roles</h2>
               <PermissionGuard
                 permission="menu.5.manage"
+                serviceContext="marketing-service"
                 fallback={
                   <button
                     disabled
                     className="glass-button px-4 py-2 text-sm font-semibold bg-gray-600 text-gray-400 cursor-not-allowed flex items-center gap-2"
-                    title="You don't have permission to manage roles"
                   >
                     <Plus className="h-4 w-4" />
                     Create Role (No Permission)
@@ -506,6 +506,7 @@ export default function PermissionsPage() {
                     <div className="flex items-center gap-2">
                       <PermissionGuard
                         permission="menu.5.assign"
+                        serviceContext="marketing-service"
                         fallback={
                           <button
                             disabled
@@ -526,6 +527,7 @@ export default function PermissionsPage() {
                       </PermissionGuard>
                       <PermissionGuard
                         permission="menu.5.manage"
+                        serviceContext="marketing-service"
                         fallback={
                           <button
                             disabled
@@ -546,6 +548,7 @@ export default function PermissionsPage() {
                       </PermissionGuard>
                       <PermissionGuard
                         permission="menu.5.manage"
+                        serviceContext="marketing-service"
                         fallback={
                           <button
                             disabled

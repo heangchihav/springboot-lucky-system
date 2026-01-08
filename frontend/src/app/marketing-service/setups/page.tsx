@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { MarketingServiceGuard } from "@/components/marketing-service/MarketingServiceGuard";
+import { PermissionGuard } from "@/components/layout/PermissionGuard";
 import {
   problemService,
   type MarketingProblem,
@@ -263,11 +264,10 @@ export default function SetupsPage() {
 
         {toast && (
           <div
-            className={`rounded-2xl border px-4 py-3 text-sm ${
-              toast.tone === "success"
+            className={`rounded-2xl border px-4 py-3 text-sm ${toast.tone === "success"
                 ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-100"
                 : "border-red-500/30 bg-red-500/10 text-red-100"
-            }`}
+              }`}
           >
             {toast.message}
           </div>
@@ -404,13 +404,26 @@ export default function SetupsPage() {
                                 >
                                   Edit
                                 </button>
-                                <button
-                                  onClick={() => void handleDeleteProblem(problem.id)}
-                                  disabled={problemLoading}
-                                  className="rounded-lg bg-red-600 px-3 py-1 text-xs font-semibold text-white disabled:opacity-50"
+                                <PermissionGuard
+                                  permission="problem.delete"
+                                  serviceContext="marketing-service"
+                                  fallback={
+                                    <button
+                                      disabled
+                                      className="rounded-lg bg-slate-600 px-3 py-1 text-xs font-semibold text-slate-400 cursor-not-allowed"
+                                    >
+                                      Delete
+                                    </button>
+                                  }
                                 >
-                                  Delete
-                                </button>
+                                  <button
+                                    onClick={() => void handleDeleteProblem(problem.id)}
+                                    disabled={problemLoading}
+                                    className="rounded-lg bg-red-600 px-3 py-1 text-xs font-semibold text-white disabled:opacity-50"
+                                  >
+                                    Delete
+                                  </button>
+                                </PermissionGuard>
                               </>
                             )}
                           </div>
@@ -553,13 +566,26 @@ export default function SetupsPage() {
                                 >
                                   Edit
                                 </button>
-                                <button
-                                  onClick={() => void handleDeleteCompetitor(competitor.id)}
-                                  disabled={competitorLoading}
-                                  className="rounded-lg bg-red-600 px-3 py-1 text-xs font-semibold text-white disabled:opacity-50"
+                                <PermissionGuard
+                                  permission="competitor.delete"
+                                  serviceContext="marketing-service"
+                                  fallback={
+                                    <button
+                                      disabled
+                                      className="rounded-lg bg-slate-600 px-3 py-1 text-xs font-semibold text-slate-400 cursor-not-allowed"
+                                    >
+                                      Delete
+                                    </button>
+                                  }
                                 >
-                                  Delete
-                                </button>
+                                  <button
+                                    onClick={() => void handleDeleteCompetitor(competitor.id)}
+                                    disabled={competitorLoading}
+                                    className="rounded-lg bg-red-600 px-3 py-1 text-xs font-semibold text-white disabled:opacity-50"
+                                  >
+                                    Delete
+                                  </button>
+                                </PermissionGuard>
                               </>
                             )}
                           </div>

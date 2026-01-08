@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { MarketingServiceGuard } from "@/components/marketing-service/MarketingServiceGuard";
+import { PermissionGuard } from "@/components/layout/PermissionGuard";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   marketingHierarchyService,
@@ -335,11 +336,11 @@ export default function GoodsInputPage() {
     }
     const hasAnyCount =
       codShipping +
-        codArrived +
-        codCompleted +
-        nonCodShipping +
-        nonCodArrived +
-        nonCodCompleted >
+      codArrived +
+      codCompleted +
+      nonCodShipping +
+      nonCodArrived +
+      nonCodCompleted >
       0;
     if (!hasAnyCount) {
       showToast("At least one goods count must be greater than zero.", "error");
@@ -662,14 +663,28 @@ export default function GoodsInputPage() {
               >
                 Cancel
               </button>
-              <button
-                type="button"
-                className="rounded-full border border-white/10 bg-emerald-500/20 px-5 py-2 text-sm font-semibold text-white transition hover:bg-emerald-500/30 disabled:cursor-not-allowed disabled:border-white/20 disabled:bg-transparent disabled:text-slate-400"
-                onClick={handleSaveEdit}
-                disabled={savingEdit}
+              <PermissionGuard
+                permission="goods.edit"
+                serviceContext="marketing-service"
+                fallback={
+                  <button
+                    type="button"
+                    disabled
+                    className="rounded-full border border-white/20 bg-transparent px-5 py-2 text-sm font-semibold text-slate-400 cursor-not-allowed"
+                  >
+                    Save changes (No Permission)
+                  </button>
+                }
               >
-                {savingEdit ? "Saving…" : "Save changes"}
-              </button>
+                <button
+                  type="button"
+                  className="rounded-full border border-white/10 bg-emerald-500/20 px-5 py-2 text-sm font-semibold text-white transition hover:bg-emerald-500/30 disabled:cursor-not-allowed disabled:border-white/20 disabled:bg-transparent disabled:text-slate-400"
+                  onClick={handleSaveEdit}
+                  disabled={savingEdit}
+                >
+                  {savingEdit ? "Saving…" : "Save changes"}
+                </button>
+              </PermissionGuard>
             </div>
           </div>
         </div>
@@ -705,11 +720,10 @@ export default function GoodsInputPage() {
 
         {toast && (
           <div
-            className={`rounded-2xl border px-4 py-3 text-sm ${
-              toast.tone === "success"
-                ? "border-emerald-400/40 bg-emerald-500/10 text-emerald-100"
-                : "border-rose-400/40 bg-rose-500/10 text-rose-100"
-            }`}
+            className={`rounded-2xl border px-4 py-3 text-sm ${toast.tone === "success"
+              ? "border-emerald-400/40 bg-emerald-500/10 text-emerald-100"
+              : "border-rose-400/40 bg-rose-500/10 text-rose-100"
+              }`}
           >
             {toast.message}
           </div>
@@ -1006,11 +1020,10 @@ export default function GoodsInputPage() {
                     key={option.value}
                     type="button"
                     onClick={() => setRecentScope(option.value)}
-                    className={`rounded-full px-4 py-1 transition ${
-                      recentScope === option.value
-                        ? "bg-amber-400/30 text-white"
-                        : "text-slate-400 hover:text-white"
-                    }`}
+                    className={`rounded-full px-4 py-1 transition ${recentScope === option.value
+                      ? "bg-amber-400/30 text-white"
+                      : "text-slate-400 hover:text-white"
+                      }`}
                   >
                     {option.label}
                   </button>
@@ -1166,7 +1179,7 @@ export default function GoodsInputPage() {
                       </td>
                       <td className="py-3 text-right">
                         {currentUserId !== null &&
-                        record.createdBy === currentUserId ? (
+                          record.createdBy === currentUserId ? (
                           <div className="inline-flex gap-2">
                             <button
                               type="button"
@@ -1180,16 +1193,30 @@ export default function GoodsInputPage() {
                                 ? "Saving…"
                                 : "Edit"}
                             </button>
-                            <button
-                              type="button"
-                              className="rounded-full border border-white/10 px-3 py-1 text-xs text-rose-200 hover:border-rose-400/50 hover:text-rose-100"
-                              onClick={() => handleDeleteRecord(record)}
-                              disabled={deletingId === record.id}
+                            <PermissionGuard
+                              permission="goods.delete"
+                              serviceContext="marketing-service"
+                              fallback={
+                                <button
+                                  type="button"
+                                  disabled
+                                  className="rounded-full border border-white/20 px-3 py-1 text-xs text-slate-500 cursor-not-allowed"
+                                >
+                                  Delete
+                                </button>
+                              }
                             >
-                              {deletingId === record.id
-                                ? "Deleting…"
-                                : "Delete"}
-                            </button>
+                              <button
+                                type="button"
+                                className="rounded-full border border-white/10 px-3 py-1 text-xs text-rose-200 hover:border-rose-400/50 hover:text-rose-100"
+                                onClick={() => handleDeleteRecord(record)}
+                                disabled={deletingId === record.id}
+                              >
+                                {deletingId === record.id
+                                  ? "Deleting…"
+                                  : "Delete"}
+                              </button>
+                            </PermissionGuard>
                           </div>
                         ) : (
                           <span className="text-xs text-slate-500">—</span>

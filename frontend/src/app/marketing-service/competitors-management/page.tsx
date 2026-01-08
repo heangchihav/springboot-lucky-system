@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import React from "react";
 import { ModalPortal } from "@/components/ModalPortal";
 import { MarketingServiceGuard } from "@/components/marketing-service/MarketingServiceGuard";
+import { PermissionGuard } from "@/components/layout/PermissionGuard";
 import {
   marketingHierarchyService,
   type MarketingArea,
@@ -1602,24 +1603,50 @@ export default function CompetitorsPage() {
                           </div>
                         </div>
                         <div className="flex flex-wrap gap-2 md:ml-4 md:flex-col md:items-end">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleOpenEditModal(assignment);
-                            }}
-                            className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-xs text-amber-300 hover:bg-amber-500/20"
+                          <PermissionGuard
+                            permission="competitor.edit"
+                            serviceContext="marketing-service"
+                            fallback={
+                              <button
+                                disabled
+                                className="rounded-xl border border-white/20 bg-slate-800/50 px-3 py-1 text-xs text-slate-500 cursor-not-allowed"
+                              >
+                                Edit
+                              </button>
+                            }
                           >
-                            Edit
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDeleteAssignment(assignment.id);
-                            }}
-                            className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-1 text-xs text-red-300 hover:bg-red-500/20"
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleOpenEditModal(assignment);
+                              }}
+                              className="rounded-xl border border-white/20 bg-slate-800/50 px-3 py-1 text-xs text-white hover:bg-slate-700/50"
+                            >
+                              Edit
+                            </button>
+                          </PermissionGuard>
+                          <PermissionGuard
+                            permission="competitor.delete"
+                            serviceContext="marketing-service"
+                            fallback={
+                              <button
+                                disabled
+                                className="rounded-xl border border-white/20 bg-slate-800/50 px-3 py-1 text-xs text-slate-500 cursor-not-allowed"
+                              >
+                                Delete
+                              </button>
+                            }
                           >
-                            Delete
-                          </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteAssignment(assignment.id);
+                              }}
+                              className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-1 text-xs text-red-300 hover:bg-red-500/20"
+                            >
+                              Delete
+                            </button>
+                          </PermissionGuard>
                         </div>
                       </div>
                     </div>

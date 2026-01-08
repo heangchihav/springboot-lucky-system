@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { MarketingServiceGuard } from "@/components/marketing-service/MarketingServiceGuard";
+import { PermissionGuard } from "@/components/layout/PermissionGuard";
 import {
   marketingHierarchyService,
   MarketingArea,
@@ -784,20 +785,48 @@ export default function MarketingVipManageUserPage() {
                           </td>
                           <td className="px-4 py-4 text-right">
                             <div className="flex flex-col gap-2 text-xs">
-                              <button
-                                type="button"
-                                onClick={() => handleEdit(member)}
-                                className="rounded-full border border-white/10 px-3 py-1 text-slate-200 hover:bg-white/10"
+                              <PermissionGuard
+                                permission="member.edit"
+                                serviceContext="marketing-service"
+                                fallback={
+                                  <button
+                                    type="button"
+                                    disabled
+                                    className="rounded-full border border-white/20 px-3 py-1 text-slate-500 cursor-not-allowed"
+                                  >
+                                    Edit
+                                  </button>
+                                }
                               >
-                                Edit
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleDelete(member)}
-                                className="rounded-full border border-rose-400/40 px-3 py-1 text-rose-200 hover:bg-rose-500/20"
+                                <button
+                                  type="button"
+                                  onClick={() => handleEdit(member)}
+                                  className="rounded-full border border-white/10 px-3 py-1 text-slate-200 hover:bg-white/10"
+                                >
+                                  Edit
+                                </button>
+                              </PermissionGuard>
+                              <PermissionGuard
+                                permission="member.delete"
+                                serviceContext="marketing-service"
+                                fallback={
+                                  <button
+                                    type="button"
+                                    disabled
+                                    className="rounded-full border border-white/20 px-3 py-1 text-slate-500 cursor-not-allowed"
+                                  >
+                                    Delete
+                                  </button>
+                                }
                               >
-                                Delete
-                              </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDelete(member)}
+                                  className="rounded-full border border-rose-400/40 px-3 py-1 text-rose-200 hover:bg-rose-500/20"
+                                >
+                                  Delete
+                                </button>
+                              </PermissionGuard>
                             </div>
                           </td>
                         </tr>
@@ -812,11 +841,10 @@ export default function MarketingVipManageUserPage() {
 
         {toast && (
           <div
-            className={`fixed bottom-6 right-6 z-50 rounded-2xl px-4 py-3 text-sm shadow-lg ${
-              toast.tone === "success"
+            className={`fixed bottom-6 right-6 z-50 rounded-2xl px-4 py-3 text-sm shadow-lg ${toast.tone === "success"
                 ? "bg-emerald-500/90 text-white"
                 : "bg-rose-500/90 text-white"
-            }`}
+              }`}
           >
             {toast.message}
           </div>

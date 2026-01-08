@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { MarketingServiceGuard } from "@/components/marketing-service/MarketingServiceGuard";
+import { PermissionGuard } from "@/components/layout/PermissionGuard";
 import {
   marketingHierarchyService,
   MarketingArea,
@@ -759,27 +760,55 @@ export default function MarketingAreaBranchPage() {
                     <div className="mt-3 flex items-center gap-2 text-xs text-slate-400">
                       <span>Updated {formatDate(area.updatedAt)}</span>
                       <span className="text-slate-600">•</span>
-                      <button
-                        className="text-amber-300 hover:text-amber-200"
-                        onClick={() => {
-                          setAreaForm({
-                            name: area.name,
-                            code: area.code,
-                            description: area.description,
-                            active: area.active,
-                          });
-                          setEditingArea(area);
-                        }}
+                      <PermissionGuard
+                        permission="area.edit"
+                        serviceContext="marketing-service"
+                        fallback={
+                          <button
+                            disabled
+                            className="text-slate-500 cursor-not-allowed"
+                            title="No permission to edit"
+                          >
+                            Edit
+                          </button>
+                        }
                       >
-                        Edit
-                      </button>
+                        <button
+                          className="text-amber-300 hover:text-amber-200"
+                          onClick={() => {
+                            setAreaForm({
+                              name: area.name,
+                              code: area.code,
+                              description: area.description,
+                              active: area.active,
+                            });
+                            setEditingArea(area);
+                          }}
+                        >
+                          Edit
+                        </button>
+                      </PermissionGuard>
                       <span className="text-slate-600">•</span>
-                      <button
-                        className="text-red-300 hover:text-red-200"
-                        onClick={() => void handleDelete("area", area.id)}
+                      <PermissionGuard
+                        permission="area.delete"
+                        serviceContext="marketing-service"
+                        fallback={
+                          <button
+                            disabled
+                            className="text-slate-500 cursor-not-allowed"
+                            title="No permission to delete"
+                          >
+                            Delete
+                          </button>
+                        }
                       >
-                        Delete
-                      </button>
+                        <button
+                          className="text-red-300 hover:text-red-200"
+                          onClick={() => void handleDelete("area", area.id)}
+                        >
+                          Delete
+                        </button>
+                      </PermissionGuard>
                     </div>
                   </article>
                 ))}
@@ -834,30 +863,58 @@ export default function MarketingAreaBranchPage() {
                       <div className="mt-3 flex items-center gap-2 text-xs text-slate-400">
                         <span>Updated {formatDate(subArea.updatedAt)}</span>
                         <span className="text-slate-600">•</span>
-                        <button
-                          className="text-amber-300 hover:text-amber-200"
-                          onClick={() => {
-                            setSubAreaForm({
-                              name: subArea.name,
-                              code: subArea.code,
-                              description: subArea.description,
-                              active: subArea.active,
-                              areaId: subArea.areaId,
-                            });
-                            setEditingSubArea(subArea);
-                          }}
-                        >
-                          Edit
-                        </button>
-                        <span className="text-slate-600">•</span>
-                        <button
-                          className="text-red-300 hover:text-red-200"
-                          onClick={() =>
-                            void handleDelete("subArea", subArea.id)
+                        <PermissionGuard
+                          permission="subarea.edit"
+                          serviceContext="marketing-service"
+                          fallback={
+                            <button
+                              disabled
+                              className="text-slate-500 cursor-not-allowed"
+                              title="No permission to edit"
+                            >
+                              Edit
+                            </button>
                           }
                         >
-                          Delete
-                        </button>
+                          <button
+                            className="text-amber-300 hover:text-amber-200"
+                            onClick={() => {
+                              setSubAreaForm({
+                                name: subArea.name,
+                                code: subArea.code,
+                                description: subArea.description,
+                                active: subArea.active,
+                                areaId: subArea.areaId,
+                              });
+                              setEditingSubArea(subArea);
+                            }}
+                          >
+                            Edit
+                          </button>
+                        </PermissionGuard>
+                        <span className="text-slate-600">•</span>
+                        <PermissionGuard
+                          permission="subarea.delete"
+                          serviceContext="marketing-service"
+                          fallback={
+                            <button
+                              disabled
+                              className="text-slate-500 cursor-not-allowed"
+                              title="No permission to delete"
+                            >
+                              Delete
+                            </button>
+                          }
+                        >
+                          <button
+                            className="text-red-300 hover:text-red-200"
+                            onClick={() =>
+                              void handleDelete("subArea", subArea.id)
+                            }
+                          >
+                            Delete
+                          </button>
+                        </PermissionGuard>
                       </div>
                     </article>
                   );
@@ -921,29 +978,57 @@ export default function MarketingAreaBranchPage() {
                       <div className="mt-3 flex items-center gap-2 text-xs text-slate-400">
                         <span>Updated {formatDate(branch.updatedAt)}</span>
                         <span className="text-slate-600">•</span>
-                        <button
-                          className="text-amber-300 hover:text-amber-200"
-                          onClick={() => {
-                            setBranchForm({
-                              name: branch.name,
-                              code: branch.code ?? undefined,
-                              description: branch.description ?? undefined,
-                              active: branch.active,
-                              areaId: branch.areaId,
-                              subAreaId: branch.subAreaId ?? undefined,
-                            });
-                            setEditingBranch(branch);
-                          }}
+                        <PermissionGuard
+                          permission="branch.edit"
+                          serviceContext="marketing-service"
+                          fallback={
+                            <button
+                              disabled
+                              className="text-slate-500 cursor-not-allowed"
+                              title="No permission to edit"
+                            >
+                              Edit
+                            </button>
+                          }
                         >
-                          Edit
-                        </button>
+                          <button
+                            className="text-amber-300 hover:text-amber-200"
+                            onClick={() => {
+                              setBranchForm({
+                                name: branch.name,
+                                code: branch.code ?? undefined,
+                                description: branch.description,
+                                active: branch.active,
+                                areaId: branch.areaId,
+                                subAreaId: branch.subAreaId,
+                              });
+                              setEditingBranch(branch);
+                            }}
+                          >
+                            Edit
+                          </button>
+                        </PermissionGuard>
                         <span className="text-slate-600">•</span>
-                        <button
-                          className="text-red-300 hover:text-red-200"
-                          onClick={() => void handleDelete("branch", branch.id)}
+                        <PermissionGuard
+                          permission="branch.delete"
+                          serviceContext="marketing-service"
+                          fallback={
+                            <button
+                              disabled
+                              className="text-slate-500 cursor-not-allowed"
+                              title="No permission to delete"
+                            >
+                              Delete
+                            </button>
+                          }
                         >
-                          Delete
-                        </button>
+                          <button
+                            className="text-red-300 hover:text-red-200"
+                            onClick={() => void handleDelete("branch", branch.id)}
+                          >
+                            Delete
+                          </button>
+                        </PermissionGuard>
                       </div>
                     </article>
                   );

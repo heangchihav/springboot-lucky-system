@@ -2,11 +2,11 @@
 
 import React, { useState, useEffect, useMemo } from "react";
 import { userService, User, CreateUserRequest } from "@/services/userService";
+import { PermissionGuard } from "@/components/layout/PermissionGuard";
 import { serviceService } from "@/services/serviceService";
 import { marketingUserService } from "@/services/marketing-service/marketingUserService";
 import { marketingUserAssignmentService, MarketingUserAssignment, AssignUserRequest } from "@/services/marketingUserAssignmentService";
 import { marketingHierarchyService, MarketingArea, MarketingSubArea, MarketingBranch } from "@/services/marketing-service/marketingHierarchyService";
-import { PermissionGuard } from "@/components/layout/PermissionGuard";
 import { API_BASE_URL } from "@/config/env";
 
 const getStoredUserId = (): number | null => {
@@ -1016,12 +1016,25 @@ export default function ManageUserPage() {
                               </button>
                             }
                           >
-                            <button
-                              onClick={() => startEditUser(user)}
-                              className="px-3 py-1 bg-blue-100 text-blue-800 rounded text-xs font-medium hover:bg-blue-200 transition-colors"
+                            <PermissionGuard
+                              permission="menu.5.view"
+                              serviceContext="marketing-service"
+                              fallback={
+                                <button
+                                  disabled
+                                  className="px-3 py-1 bg-slate-200 text-slate-400 rounded text-xs font-medium cursor-not-allowed"
+                                >
+                                  Edit
+                                </button>
+                              }
                             >
-                              Edit
-                            </button>
+                              <button
+                                onClick={() => startEditUser(user)}
+                                className="px-3 py-1 bg-blue-100 text-blue-800 rounded text-xs font-medium hover:bg-blue-200 transition-colors"
+                              >
+                                Edit
+                              </button>
+                            </PermissionGuard>
                           </PermissionGuard>
                           <PermissionGuard
                             permission="menu.4.edit"
@@ -1057,12 +1070,25 @@ export default function ManageUserPage() {
                               </button>
                             }
                           >
-                            <button
-                              onClick={() => deleteUser(user.id)}
-                              className="px-3 py-1 bg-red-100 text-red-800 rounded text-xs font-medium hover:bg-red-200 transition-colors"
+                            <PermissionGuard
+                              permission="menu.5.view"
+                              serviceContext="marketing-service"
+                              fallback={
+                                <button
+                                  disabled
+                                  className="px-3 py-1 bg-slate-200 text-slate-400 rounded text-xs font-medium cursor-not-allowed"
+                                >
+                                  Delete
+                                </button>
+                              }
                             >
-                              Delete
-                            </button>
+                              <button
+                                onClick={() => deleteUser(user.id)}
+                                className="px-3 py-1 bg-red-100 text-red-800 rounded text-xs font-medium hover:bg-red-200 transition-colors"
+                              >
+                                Delete
+                              </button>
+                            </PermissionGuard>
                           </PermissionGuard>
                         </div>
                       </td>
