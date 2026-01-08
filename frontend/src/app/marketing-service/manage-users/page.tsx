@@ -1005,7 +1005,8 @@ export default function ManageUserPage() {
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                         <div className="flex space-x-2">
                           <PermissionGuard
-                            permission="menu.4.edit"
+                            permission="user.edit"
+                            serviceContext="marketing-service"
                             fallback={
                               <button
                                 disabled
@@ -1016,28 +1017,16 @@ export default function ManageUserPage() {
                               </button>
                             }
                           >
-                            <PermissionGuard
-                              permission="menu.5.view"
-                              serviceContext="marketing-service"
-                              fallback={
-                                <button
-                                  disabled
-                                  className="px-3 py-1 bg-slate-200 text-slate-400 rounded text-xs font-medium cursor-not-allowed"
-                                >
-                                  Edit
-                                </button>
-                              }
+                            <button
+                              onClick={() => startEditUser(user)}
+                              className="px-3 py-1 bg-blue-100 text-blue-800 rounded text-xs font-medium hover:bg-blue-200 transition-colors"
                             >
-                              <button
-                                onClick={() => startEditUser(user)}
-                                className="px-3 py-1 bg-blue-100 text-blue-800 rounded text-xs font-medium hover:bg-blue-200 transition-colors"
-                              >
-                                Edit
-                              </button>
-                            </PermissionGuard>
+                              Edit
+                            </button>
                           </PermissionGuard>
                           <PermissionGuard
-                            permission="menu.4.edit"
+                            permission="user.edit"
+                            serviceContext="marketing-service"
                             fallback={
                               <button
                                 disabled
@@ -1059,7 +1048,8 @@ export default function ManageUserPage() {
                             </button>
                           </PermissionGuard>
                           <PermissionGuard
-                            permission="menu.4.delete"
+                            permission="user.delete"
+                            serviceContext="marketing-service"
                             fallback={
                               <button
                                 disabled
@@ -1070,25 +1060,12 @@ export default function ManageUserPage() {
                               </button>
                             }
                           >
-                            <PermissionGuard
-                              permission="menu.5.view"
-                              serviceContext="marketing-service"
-                              fallback={
-                                <button
-                                  disabled
-                                  className="px-3 py-1 bg-slate-200 text-slate-400 rounded text-xs font-medium cursor-not-allowed"
-                                >
-                                  Delete
-                                </button>
-                              }
+                            <button
+                              onClick={() => deleteUser(user.id)}
+                              className="px-3 py-1 bg-red-100 text-red-800 rounded text-xs font-medium hover:bg-red-200 transition-colors"
                             >
-                              <button
-                                onClick={() => deleteUser(user.id)}
-                                className="px-3 py-1 bg-red-100 text-red-800 rounded text-xs font-medium hover:bg-red-200 transition-colors"
-                              >
-                                Delete
-                              </button>
-                            </PermissionGuard>
+                              Delete
+                            </button>
                           </PermissionGuard>
                         </div>
                       </td>

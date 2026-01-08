@@ -72,27 +72,41 @@ public class PermissionDataInitializer implements CommandLineRunner {
                 new Permission("goods.edit", "Edit Goods Shipments", "Can edit goods shipment records"),
                 new Permission("goods.delete", "Delete Goods Shipments", "Can delete goods shipment records"),
 
+                new Permission("user.view", "View Users", "Can view marketing service users"),
+                new Permission("user.create", "Create Users", "Can create new users"),
+                new Permission("user.edit", "Edit Users", "Can edit existing users"),
+                new Permission("user.delete", "Delete Users", "Can delete users"),
+
                 new Permission("menu.5.view", "View Permissions", "Can view permission settings"),
                 new Permission("menu.5.manage", "Manage Permissions", "Can manage roles and permissions"),
                 new Permission("menu.5.assign", "Assign Permissions", "Can assign permissions to roles"));
 
         long existingCount = permissionRepository.count();
-        if (existingCount > 0) {
-            logger.info("Permissions already exist ({}), skipping initialization", existingCount);
-            return;
-        }
+        logger.info("Found {} existing permissions in database", existingCount);
 
-        logger.info("No existing permissions found, creating default permissions...");
+        int createdCount = 0;
+        int skippedCount = 0;
 
         for (Permission permission : defaultPermissions) {
             try {
+                // Check if permission already exists
+                if (permissionRepository.existsByCode(permission.getCode())) {
+                    skippedCount++;
+                    logger.debug("Permission already exists, skipping: {}", permission.getCode());
+                    continue;
+                }
+
+                // Create new permission
                 setMenuMetadata(permission);
                 permissionRepository.save(permission);
-                logger.debug("Created permission: {}", permission.getCode());
+                createdCount++;
+                logger.info("Created new permission: {}", permission.getCode());
             } catch (Exception e) {
                 logger.error("Failed to create permission {}: {}", permission.getCode(), e.getMessage());
             }
         }
+
+        logger.info("Permission initialization complete: {} created, {} skipped", createdCount, skippedCount);
 
         long totalPermissions = permissionRepository.count();
         logger.info("Successfully initialized {} permissions for marketing-service", totalPermissions);
@@ -142,6 +156,12 @@ public class PermissionDataInitializer implements CommandLineRunner {
         if (code.startsWith("goods.")) {
             permission.setMenuGroup("Goods Shipments");
             permission.setMenuNumber("8");
+            return;
+        }
+
+        if (code.startsWith("user.")) {
+            permission.setMenuGroup("User Management");
+            permission.setMenuNumber("9");
             return;
         }
 
