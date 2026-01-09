@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cloudflared-config
+  namespace: demo
+data:
+  config.yml: |
+    tunnel: ${CLOUDFLARE_TUNNEL_NAME}
+    credentials-file: /etc/cloudflared/credentials/${CLOUDFLARE_TUNNEL_NAME}.json
+
+    ingress:
+      - hostname: ${CLOUDFLARE_DOMAIN}
+        service: ${CLOUDFLARE_SERVICE}
+      - service: http_status:404

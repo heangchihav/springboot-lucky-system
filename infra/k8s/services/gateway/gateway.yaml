@@ -31,8 +31,13 @@ spec:
               value: http://call-service:8082
             - name: DELIVERY_SERVICE_URL
               value: http://delivery-service:8083
+            - name: MARKETING_SERVICE_URL
+              value: http://marketing-service:8084
             - name: GATEWAY_CORS_ALLOWED_ORIGIN_PATTERNS
-              value: http://localhost:*,https://test.mooniris.com
+              valueFrom:
+                configMapKeyRef:
+                  name: demo-config
+                  key: GATEWAY_CORS_ALLOWED_ORIGIN_PATTERNS
           readinessProbe:
             httpGet:
               path: /actuator/health

@@ -1,0 +1,7 @@
+tunnel: ${CLOUDFLARE_TUNNEL_NAME:-demo-tunnel}
+credentials-file: /etc/cloudflared/${CLOUDFLARE_TUNNEL_NAME:-demo-tunnel}.json
+
+ingress:
+  - hostname: ${CLOUDFLARE_DOMAIN:-test.mooniris.com}
+    service: ${CLOUDFLARE_SERVICE:-http://nginx:80}
+  - service: http_status:404

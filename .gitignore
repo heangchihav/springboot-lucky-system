@@ -28,12 +28,15 @@ build/
 .vscode/
 
 ### Environment ###
-.env
-**/.env
-**/.env.*
+# Only ignore root .env file (centralized configuration)
+/.env
+
+# Ignore all other .env files except examples
+**/.env.local
+**/.env.*.local
 !**/.env.example
-infra/docker/.env
-infra/docker/.env\ copy.example
+
+# Temporary files
 cookies.txt
 *.log
 *.tmp

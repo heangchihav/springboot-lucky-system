@@ -14,3 +14,8 @@ data:
   SPRING_DATASOURCE_URL_DELIVERY_SERVICE: "jdbc:postgresql://postgres-service:5432/delivery_service_db"
   REDIS_HOST: "redis-service"
   REDIS_PORT: "6379"
+  
+  # Gateway CORS configuration
+  GATEWAY_CORS_ALLOWED_ORIGIN_PATTERNS: "${GATEWAY_CORS_ALLOWED_ORIGIN_PATTERNS}"
+  ALLOWED_ORIGINS: "${ALLOWED_ORIGINS}"
+  COOKIE_SECURE: "${COOKIE_SECURE}"

@@ -5,10 +5,10 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_DB: postgres
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     ports:
-      - "5433:5432" # Use 5433 externally to avoid conflict with local postgres
+      - "5433:5432"
     volumes:
       - db-data:/var/lib/postgresql/data
       - ./initdb:/docker-entrypoint-initdb.d
@@ -23,7 +23,7 @@ services:
     container_name: demo-redis
     restart: unless-stopped
     ports:
-      - "6380:6379" # Use 6380 externally to avoid conflict with local redis
+      - "6380:6379"
     volumes:
       - redis-data:/data
     healthcheck:
@@ -31,22 +31,6 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
-
-  gateway:
-    build:
-      context: ../..
-      dockerfile: backend/Dockerfile
-      args:
-        MODULE: gateway
-    container_name: demo-gateway
-    restart: unless-stopped
-    env_file:
-      - ./.env
-    ports:
-      - "8080:8080"
-    depends_on:
-      user-service:
-        condition: service_healthy
 
   user-service:
     build:
@@ -156,6 +140,28 @@ services:
       redis:
         condition: service_healthy
 
+  gateway:
+    build:
+      context: ../..
+      dockerfile: backend/Dockerfile
+      args:
+        MODULE: gateway
+    container_name: demo-gateway
+    restart: unless-stopped
+    env_file:
+      - ./.env
+    ports:
+      - "8080:8080"
+    depends_on:
+      user-service:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD-SHELL", "curl -f http://localhost:8080/actuator/health/readiness || exit 1" ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
   nginx:
     image: nginx:alpine
     container_name: demo-proxy
@@ -167,30 +173,27 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
-      - gateway
+      gateway:
+        condition: service_healthy
     healthcheck:
-      test: [ "CMD-SHELL", "busybox wget -q -O- http://127.0.0.1/healthz > /dev/null" ]
+      test: [ "CMD-SHELL", "wget -qO- http://127.0.0.1/healthz | grep UP || exit 1" ]
       interval: 5s
       timeout: 3s
       retries: 10
-      start_period: 10s
+      start_period: 20s
 
   cloudflared:
     image: cloudflare/cloudflared:latest
     container_name: demo-cloudflared
     restart: always
-    env_file:
-      - ./.env
-    command: tunnel --no-autoupdate run --token ${CLOUDFLARED_TUNNEL_TOKEN}
+    volumes:
+      - ../cloudflared:/etc/cloudflared
+    command: [ "tunnel", "run", "demo-tunnel" ]
     depends_on:
       nginx:
         condition: service_healthy
     healthcheck:
-      test: [ "CMD-SHELL", "wget -q --spider http://nginx:80/healthz || exit 1" ]
-      interval: 5s
-      timeout: 3s
-      retries: 2
-      start_period: 10s
+      disable: true
 
   prometheus:
     image: prom/prometheus:v2.54.1
@@ -202,7 +205,8 @@ services:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus-data:/prometheus
     depends_on:
-      - gateway
+      gateway:
+        condition: service_healthy
 
   grafana:
     image: grafana/grafana:11.3.0

@@ -57,8 +57,9 @@ security:
 
 management:
   endpoint:
-    gateway:
-      enabled: true
+    health:
+      probes:
+        enabled: true
   endpoints:
     web:
       exposure:
