@@ -106,23 +106,16 @@ export const MENU_SECTIONS: MenuSection[] = [
     items: [
       {
         id: "marketing-competitors",
-        label: "Competitors",
+        label: "Competitors Dashboard",
         description: "Competitor analysis and benchmarking",
         path: "/marketing-service/competitors-dashboard",
         menuNumber: "1",
         requiredPermission: "competitor.view",
       },
-      {
-        id: "marketing-competitors-management",
-        label: "Competitor Management",
-        description: "Manage competitor profiles and area assignments",
-        path: "/marketing-service/competitors-management",
-        menuNumber: "1.1",
-        requiredPermission: "competitor.create",
-      },
+  
       {
         id: "marketing-vip",
-        label: "VIP Members",
+        label: "VIP Members Dashboard",
         description: "VIP member tracking and engagement",
         path: "/marketing-service/vip-members-dashboard",
         menuNumber: "2",
@@ -130,18 +123,26 @@ export const MENU_SECTIONS: MenuSection[] = [
       },
       {
         id: "marketing-goods",
-        label: "Goods",
+        label: "Goods Dashboard",
         description: "Product category and demand monitoring",
         path: "/marketing-service/goods-dashboard",
         menuNumber: "3",
         requiredPermission: "goods.view",
       },
       {
+        id: "marketing-competitors-management",
+        label: "Competitor Management",
+        description: "Manage competitor profiles and area assignments",
+        path: "/marketing-service/competitors-management",
+        menuNumber: "4",
+        requiredPermission: "competitor.create",
+      },
+      {
         id: "marketing-goods-input",
         label: "Record Goods Data",
         description: "Record VIP member shipment data",
         path: "/marketing-service/goods-input",
-        menuNumber: "3.1",
+        menuNumber: "5",
         requiredPermission: "goods.create",
       },
       {
@@ -149,7 +150,7 @@ export const MENU_SECTIONS: MenuSection[] = [
         label: "Area · Sub Area · Branch",
         description: "Manage marketing regions and branches",
         path: "/marketing-service/area-branch",
-        menuNumber: "4",
+        menuNumber: "6",
         requiredPermission: "area.view",
       },
       {
@@ -157,7 +158,7 @@ export const MENU_SECTIONS: MenuSection[] = [
         label: "Manage VIP Members",
         description: "Manage VIP member assignments",
         path: "/marketing-service/manage-vip-members",
-        menuNumber: "5",
+        menuNumber: "7",
         requiredPermission: "member.create",
       },
       {
@@ -165,7 +166,7 @@ export const MENU_SECTIONS: MenuSection[] = [
         label: "Manage Users",
         description: "Manage marketing service users",
         path: "/marketing-service/manage-users",
-        menuNumber: "6",
+        menuNumber: "8",
         requiredPermission: "menu.5.view",
       },
       {
@@ -173,7 +174,7 @@ export const MENU_SECTIONS: MenuSection[] = [
         label: "Permissions",
         description: "Manage marketing service permissions",
         path: "/marketing-service/permissions",
-        menuNumber: "6.1",
+        menuNumber: "9",
         requiredPermission: "menu.5.view",
       },
       {
@@ -181,7 +182,7 @@ export const MENU_SECTIONS: MenuSection[] = [
         label: "Setups",
         description: "Manage marketing operation setups",
         path: "/marketing-service/setups",
-        menuNumber: "7",
+        menuNumber: "10",
         requiredPermission: "problem.view",
       },
 
