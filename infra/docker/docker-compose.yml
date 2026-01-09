@@ -204,6 +204,33 @@ services:
     depends_on:
       - prometheus
 
+  postgres-backup:
+    image: postgres:16
+    container_name: demo-postgres-backup
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-30}
+    volumes:
+      - ./backups:/backups
+      - ./scripts/backup-cron.sh:/usr/local/bin/backup-cron.sh:ro
+    entrypoint: [ "/bin/sh", "-c" ]
+    command: >
+      "while true; do
+        CURRENT_HOUR=$$(date +%H);
+        CURRENT_MINUTE=$$(date +%M);
+        if [ \"$$CURRENT_HOUR\" = \"02\" ] && [ \"$$CURRENT_MINUTE\" = \"00\" ]; then
+          echo \"[$(date)] Running scheduled backup...\";
+          /usr/local/bin/backup-cron.sh;
+          sleep 120;
+        fi;
+        sleep 30;
+      done"
+    depends_on:
+      db:
+        condition: service_healthy
+
 volumes:
   db-data:
   redis-data:

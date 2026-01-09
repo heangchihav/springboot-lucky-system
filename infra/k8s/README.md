@@ -6,7 +6,12 @@
 k8s/
 ├── .env                    # Centralized configuration (symlink to root)
 ├── deploy.sh              # Deployment script
+├── update.sh              # Build & push Docker images
 ├── kustomization.yaml     # Kustomize configuration
+│
+├── scripts/               # Backup & maintenance scripts
+│   ├── backup.sh          # Manual database backup
+│   └── restore.sh         # Database restore
 │
 ├── base/                  # Base resources
 │   ├── namespace/
@@ -22,6 +27,8 @@ k8s/
 │   │   └── postgres.yaml
 │   ├── cache/
 │   │   └── redis.yaml
+│   ├── backup/
+│   │   └── postgres-backup-cronjob.yaml
 │   └── proxy/
 │       ├── nginx-configmap.yaml
 │       ├── nginx.yaml
@@ -120,6 +127,7 @@ Core Kubernetes resources that everything depends on:
 Platform services that applications depend on:
 - **database**: PostgreSQL with persistent storage
 - **cache**: Redis for caching
+- **backup**: Automated database backups (CronJob)
 - **proxy**: Nginx reverse proxy and ingress
 
 ### Services
@@ -232,6 +240,43 @@ kubectl apply -k .
 5. ✅ **Deployment order** - Dependencies first
 6. ❌ **Don't mix concerns** - Keep infrastructure separate from services
 7. ❌ **Don't hardcode** - Use environment variables
+
+## Database Backups
+
+### Automated Backups (Included)
+
+The deployment includes automated database backups via Kubernetes CronJob:
+
+```bash
+# Check backup CronJob status
+kubectl get cronjob -n demo
+
+# View recent backup jobs
+kubectl get jobs -n demo | grep backup
+
+# View backup logs
+kubectl logs -n demo -l app=postgres-backup --tail=50
+```
+
+### Manual Backups
+
+```bash
+# Create manual backup
+./scripts/backup.sh
+
+# Restore from backup
+./scripts/restore.sh backups/all_databases_20260109_140000.sql.gz
+```
+
+### Full Documentation
+
+See [BACKUP_GUIDE.md](./BACKUP_GUIDE.md) for:
+- Complete backup procedures
+- Emergency recovery steps
+- Cloud storage integration
+- Production best practices
+
+---
 
 ## Cleanup
 

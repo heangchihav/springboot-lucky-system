@@ -36,6 +36,11 @@ build/
 **/.env.*.local
 !**/.env.example
 
+# Database backups (sensitive data - do not commit)
+**/backups/
+*.sql
+*.sql.gz
+
 # Temporary files
 cookies.txt
 *.log

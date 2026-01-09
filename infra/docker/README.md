@@ -26,11 +26,17 @@ Before starting, ensure you have the latest images:
 docker compose pull
 ```
 
-### 2. Start All Services
+### 2. Start All Services (Including Automated Backups)
 
 ```bash
 docker compose up -d
 ```
+
+This single command starts:
+- All microservices (user, gateway, call, delivery, marketing)
+- Infrastructure (postgres, redis, nginx, cloudflared)
+- Monitoring (prometheus, grafana)
+- **Automated backup service** (runs daily at 2 AM)
 
 ### 3. Check Service Status
 

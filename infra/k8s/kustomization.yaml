@@ -21,6 +21,9 @@ resources:
   - infrastructure/proxy/nginx.yaml
   - infrastructure/proxy/ingress.yaml
   
+  # Infrastructure - Backup
+  - infrastructure/backup/postgres-backup-cronjob.yaml
+  
   # Services - Backend
   - services/backend/user-service.yaml
   - services/backend/call-service.yaml

@@ -75,6 +75,10 @@ echo "→ Applying infrastructure (database & cache)..."
 kubectl apply -f "$TMP_DIR/infrastructure/database/postgres.yaml"
 kubectl apply -f "$TMP_DIR/infrastructure/cache/redis.yaml"
 
+# Infrastructure - Backup
+echo "→ Applying infrastructure (backup)..."
+kubectl apply -f "$TMP_DIR/infrastructure/backup/postgres-backup-cronjob.yaml"
+
 # Infrastructure - Proxy
 echo "→ Applying infrastructure (proxy & ingress)..."
 kubectl apply -f infrastructure/proxy/nginx-configmap.yaml
