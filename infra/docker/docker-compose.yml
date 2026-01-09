@@ -33,11 +33,7 @@ services:
       retries: 10
 
   user-service:
-    build:
-      context: ../..
-      dockerfile: backend/Dockerfile
-      args:
-        MODULE: user-service
+    image: ${DOCKER_HUB_USERNAME}/user-service:${IMAGE_TAG}
     container_name: demo-user-service
     restart: unless-stopped
     ports:
@@ -64,11 +60,7 @@ services:
       start_period: 30s
 
   call-service:
-    build:
-      context: ../..
-      dockerfile: backend/Dockerfile
-      args:
-        MODULE: call-service
+    image: ${DOCKER_HUB_USERNAME}/call-service:${IMAGE_TAG}
     container_name: demo-call-service
     restart: unless-stopped
     ports:
@@ -90,11 +82,7 @@ services:
         condition: service_healthy
 
   marketing-service:
-    build:
-      context: ../..
-      dockerfile: backend/Dockerfile
-      args:
-        MODULE: marketing-service
+    image: ${DOCKER_HUB_USERNAME}/marketing-service:${IMAGE_TAG}
     container_name: demo-marketing-service
     restart: unless-stopped
     ports:
@@ -116,11 +104,7 @@ services:
         condition: service_healthy
 
   delivery-service:
-    build:
-      context: ../..
-      dockerfile: backend/Dockerfile
-      args:
-        MODULE: delivery-service
+    image: ${DOCKER_HUB_USERNAME}/delivery-service:${IMAGE_TAG}
     container_name: demo-delivery-service
     restart: unless-stopped
     ports:
@@ -141,11 +125,7 @@ services:
         condition: service_healthy
 
   gateway:
-    build:
-      context: ../..
-      dockerfile: backend/Dockerfile
-      args:
-        MODULE: gateway
+    image: ${DOCKER_HUB_USERNAME}/gateway:${IMAGE_TAG}
     container_name: demo-gateway
     restart: unless-stopped
     env_file:
