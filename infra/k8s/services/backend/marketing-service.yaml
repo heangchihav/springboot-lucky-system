@@ -51,7 +51,7 @@ spec:
                   name: demo-config
                   key: SPRING_JPA_HIBERNATE_DDL_AUTO
             - name: USER_SERVICE_URL
-              value: http://gateway:8080
+              value: http://user-service:8081
           readinessProbe:
             httpGet:
               path: /actuator/health
