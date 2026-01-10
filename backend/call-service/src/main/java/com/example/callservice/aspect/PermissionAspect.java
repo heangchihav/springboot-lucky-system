@@ -18,41 +18,53 @@ import java.util.Map;
 @Aspect
 @Component
 public class PermissionAspect {
-    
+
     private static final Logger logger = LoggerFactory.getLogger(PermissionAspect.class);
-    
+
     private final PermissionCheckService permissionCheckService;
-    
+
     public PermissionAspect(PermissionCheckService permissionCheckService) {
         this.permissionCheckService = permissionCheckService;
     }
-    
+
     @Around("@annotation(requirePermission)")
     public Object checkPermission(ProceedingJoinPoint joinPoint, RequirePermission requirePermission) throws Throwable {
         try {
-            // Get user ID from request header (assuming it's passed as X-User-Id)
-            HttpServletRequest request = ((ServletRequestAttributes) RequestContextHolder.currentRequestAttributes()).getRequest();
+            HttpServletRequest request = ((ServletRequestAttributes) RequestContextHolder.currentRequestAttributes())
+                    .getRequest();
             String userIdHeader = request.getHeader("X-User-Id");
-            
+            String usernameHeader = request.getHeader("X-Username");
+
+            logger.info("PermissionAspect - X-User-Id: {}, X-Username: {}", userIdHeader, usernameHeader);
+
             if (userIdHeader == null) {
                 logger.warn("Missing X-User-Id header for permission check");
                 return ResponseEntity.status(401).body(Map.of("error", "Unauthorized", "message", "User ID required"));
             }
-            
+
             Long userId = Long.valueOf(userIdHeader);
             String permissionCode = requirePermission.value();
-            
+
+            // Check if user is root - bypass all permission checks
+            if ("root".equalsIgnoreCase(usernameHeader)) {
+                logger.info("Root user {} bypassing permission check for {}", userId, permissionCode);
+                return joinPoint.proceed();
+            }
+
+            // Check permission for non-root users
             if (!permissionCheckService.hasPermission(userId, permissionCode)) {
                 logger.warn("User {} does not have permission: {}", userId, permissionCode);
-                return ResponseEntity.status(403).body(Map.of("error", "Forbidden", "message", "Insufficient permissions"));
+                return ResponseEntity.status(403)
+                        .body(Map.of("error", "Forbidden", "message", "Insufficient permissions"));
             }
-            
+
             logger.debug("User {} has permission: {}", userId, permissionCode);
             return joinPoint.proceed();
-            
+
         } catch (Exception e) {
             logger.error("Error during permission check: {}", e.getMessage(), e);
-            return ResponseEntity.status(500).body(Map.of("error", "Internal Server Error", "message", "Permission check failed"));
+            return ResponseEntity.status(500)
+                    .body(Map.of("error", "Internal Server Error", "message", "Permission check failed"));
         }
     }
 }

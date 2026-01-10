@@ -1,81 +1,63 @@
 package com.example.callservice.api.user;
 
-import com.example.callservice.dto.user.UserResponse;
-import com.example.callservice.service.user.UserService;
-import com.example.callservice.annotation.RequirePermission;
-import com.example.callservice.api.base.BaseController;
-import jakarta.servlet.http.HttpServletRequest;
+import com.example.callservice.service.shared.CallServiceIdProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.client.RestTemplate;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/calls/users")
-public class UserController extends BaseController {
-    
+public class UserController {
+
     private static final Logger logger = LoggerFactory.getLogger(UserController.class);
-    
-    private final UserService userService;
-    
-    public UserController(UserService userService) {
-        this.userService = userService;
-    }
-    
+
+    @Autowired
+    private RestTemplate restTemplate;
+
+    @Autowired
+    private CallServiceIdProvider serviceIdProvider;
+
+    @Value("${user.service.url:http://gateway:8080}")
+    private String userServiceUrl;
+
     @GetMapping
-    public ResponseEntity<List<UserResponse>> getAllUsers(HttpServletRequest request) {
-        ResponseEntity<List<UserResponse>> permissionCheck = checkPermissionAndReturn(request, "menu.4.view");
-        if (permissionCheck != null) {
-            return permissionCheck;
+    public ResponseEntity<List<Map<String, Object>>> getCallUsers() {
+        logger.info("GET /api/calls/users - Fetching call service users");
+        try {
+            // Get call service ID
+            Long callServiceId = serviceIdProvider.getCallServiceId();
+            if (callServiceId == null) {
+                logger.error("Call service ID not found");
+                return ResponseEntity.ok(new ArrayList<>());
+            }
+
+            logger.info("Fetching users for call service ID: {}", callServiceId);
+
+            // Get users assigned to call service from user-service
+            String url = userServiceUrl + "/api/services/services/" + callServiceId + "/users";
+            logger.info("Calling user-service URL: {}", url);
+
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> callUsers = restTemplate.getForObject(url, List.class);
+
+            if (callUsers == null) {
+                logger.warn("Received null response from user-service");
+                return ResponseEntity.ok(new ArrayList<>());
+            }
+
+            logger.info("Found {} call users", callUsers.size());
+            return ResponseEntity.ok(callUsers);
+        } catch (Exception e) {
+            logger.error("Error fetching call users: {}", e.getMessage(), e);
+            return ResponseEntity.ok(new ArrayList<>());
         }
-        
-        Long currentUserId = getCurrentUserId(request);
-        if (currentUserId == null) {
-            return ResponseEntity.status(401).build();
-        }
-        
-        boolean isRootUser = isRootUser(currentUserId);
-        logger.info("Fetching users for user {} (root: {})", currentUserId, isRootUser);
-        
-        List<UserResponse> users = userService.getUsersInSameBranch(currentUserId, isRootUser);
-        return ResponseEntity.ok(users);
-    }
-    
-    @PostMapping
-    @RequirePermission("menu.4.create")
-    public ResponseEntity<UserResponse> createUser(@RequestBody Object request, HttpServletRequest httpRequest) {
-        ResponseEntity<UserResponse> permissionCheck = checkPermissionAndReturn(httpRequest, "menu.4.create");
-        if (permissionCheck != null) {
-            return permissionCheck;
-        }
-        logger.info("Creating new user");
-        // TODO: Implement user creation logic
-        return ResponseEntity.status(501).build();
-    }
-    
-    @PutMapping("/{id}")
-    @RequirePermission("menu.4.edit")
-    public ResponseEntity<UserResponse> updateUser(@PathVariable Long id, @RequestBody Object request, HttpServletRequest httpRequest) {
-        ResponseEntity<UserResponse> permissionCheck = checkPermissionAndReturn(httpRequest, "menu.4.edit");
-        if (permissionCheck != null) {
-            return permissionCheck;
-        }
-        logger.info("Updating user {}", id);
-        // TODO: Implement user update logic
-        return ResponseEntity.status(501).build();
-    }
-    
-    @DeleteMapping("/{id}")
-    @RequirePermission("menu.4.delete")
-    public ResponseEntity<Void> deleteUser(@PathVariable Long id, HttpServletRequest request) {
-        ResponseEntity<Void> permissionCheck = checkPermissionAndReturn(request, "menu.4.delete");
-        if (permissionCheck != null) {
-            return permissionCheck;
-        }
-        logger.info("Deleting user with id: {}", id);
-        // TODO: Implement user deletion logic
-        return ResponseEntity.status(501).build();
     }
 }

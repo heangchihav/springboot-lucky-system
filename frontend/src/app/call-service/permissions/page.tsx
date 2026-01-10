@@ -10,6 +10,7 @@ import {
   UpdateRoleRequest,
 } from "@/services/permissionsService";
 import { userService, User } from "@/services/userService";
+import { callUserService } from "@/services/call-service/callUserService";
 import { PermissionGuard } from "@/components/layout/PermissionGuard";
 import {
   Plus,
@@ -255,8 +256,8 @@ export default function PermissionsPage() {
       setRoleForm({ name: role.name, description: role.description });
       const filteredCodes = allowedPermissionCodes
         ? role.permissions
-            .map((p) => p.code)
-            .filter((code) => allowedPermissionCodes.has(code))
+          .map((p) => p.code)
+          .filter((code) => allowedPermissionCodes.has(code))
         : role.permissions.map((p) => p.code);
       setSelectedPermissions(filteredCodes);
     } else {
@@ -306,8 +307,8 @@ export default function PermissionsPage() {
     setShowUserAssignment(true);
 
     try {
-      // Fetch fresh user data from real user-service
-      const freshUsers = await userService.getActiveUsers();
+      // Fetch fresh user data from call-service
+      const freshUsers = await callUserService.getCallUsers();
       setAvailableUsers(freshUsers);
 
       // Get users already assigned to this role
@@ -483,7 +484,7 @@ export default function PermissionsPage() {
                           </span>
                         </div>
                         {roleUsers.get(role.id) &&
-                        roleUsers.get(role.id)!.length > 0 ? (
+                          roleUsers.get(role.id)!.length > 0 ? (
                           <div className="flex flex-wrap gap-2">
                             {roleUsers.get(role.id)!.map((user) => (
                               <span
@@ -659,11 +660,10 @@ export default function PermissionsPage() {
                           return (
                             <label
                               key={permission.code}
-                              className={`flex items-center space-x-3 p-2 rounded ${
-                                isAllowed
-                                  ? "cursor-pointer hover:bg-white/5"
-                                  : "cursor-not-allowed opacity-40"
-                              }`}
+                              className={`flex items-center space-x-3 p-2 rounded ${isAllowed
+                                ? "cursor-pointer hover:bg-white/5"
+                                : "cursor-not-allowed opacity-40"
+                                }`}
                             >
                               <input
                                 type="checkbox"

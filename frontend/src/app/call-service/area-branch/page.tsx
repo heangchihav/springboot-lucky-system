@@ -194,9 +194,7 @@ export default function AreaBranchManagement() {
         phone: branchForm.phone,
         email: branchForm.email,
         active: branchForm.active ?? true,
-        area: {
-          id: branchForm.areaId!,
-        },
+        areaId: branchForm.areaId!,
       };
 
       if (editingBranch) {
@@ -297,21 +295,19 @@ export default function AreaBranchManagement() {
         <nav className="-mb-px flex space-x-8">
           <button
             onClick={() => setActiveTab("areas")}
-            className={`py-2 px-1 border-b-2 font-medium text-sm ${
-              activeTab === "areas"
+            className={`py-2 px-1 border-b-2 font-medium text-sm ${activeTab === "areas"
                 ? "border-blue-500 text-blue-400"
                 : "border-transparent text-slate-400 hover:text-slate-300 hover:border-slate-600"
-            }`}
+              }`}
           >
             Areas
           </button>
           <button
             onClick={() => setActiveTab("branches")}
-            className={`py-2 px-1 border-b-2 font-medium text-sm ${
-              activeTab === "branches"
+            className={`py-2 px-1 border-b-2 font-medium text-sm ${activeTab === "branches"
                 ? "border-blue-500 text-blue-400"
                 : "border-transparent text-slate-400 hover:text-slate-300 hover:border-slate-600"
-            }`}
+              }`}
           >
             Branches
           </button>
@@ -459,11 +455,10 @@ export default function AreaBranchManagement() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span
-                        className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                          area.active
+                        className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${area.active
                             ? "bg-green-100 text-green-800"
                             : "bg-red-100 text-red-800"
-                        }`}
+                          }`}
                       >
                         {area.active ? "Active" : "Inactive"}
                       </span>
@@ -765,11 +760,10 @@ export default function AreaBranchManagement() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span
-                        className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                          branch.active
+                        className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${branch.active
                             ? "bg-green-100 text-green-800"
                             : "bg-red-100 text-red-800"
-                        }`}
+                          }`}
                       >
                         {branch.active ? "Active" : "Inactive"}
                       </span>

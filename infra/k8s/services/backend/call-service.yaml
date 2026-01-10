@@ -25,6 +25,8 @@ spec:
             - secretRef:
                 name: demo-secrets
           env:
+            - name: USER_SERVICE_URL
+              value: http://user-service:8081
             - name: SPRING_DATASOURCE_URL
               valueFrom:
                 configMapKeyRef:

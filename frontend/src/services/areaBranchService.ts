@@ -60,9 +60,7 @@ export interface CreateBranchRequest {
   phone?: string;
   email?: string;
   active: boolean;
-  area: {
-    id: number;
-  };
+  areaId: number;
 }
 
 class AreaBranchService {
