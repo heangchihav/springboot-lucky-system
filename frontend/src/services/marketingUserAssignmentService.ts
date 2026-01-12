@@ -1,4 +1,5 @@
 import { API_BASE_URL } from "@/config/env";
+import { apiFetch } from "@/services/httpClient";
 
 const API_BASE = `${API_BASE_URL}/api`;
 
@@ -42,12 +43,11 @@ class MarketingUserAssignmentService {
     }
 
     async getAllAssignments(): Promise<MarketingUserAssignment[]> {
-        const response = await fetch(
-            `${API_BASE}/marketing/user-assignments`,
+        const response = await apiFetch(
+            `/api/marketing/user-assignments`,
             {
                 method: "GET",
                 headers: getAuthHeaders(),
-                credentials: "include",
             },
         );
 
@@ -55,12 +55,11 @@ class MarketingUserAssignmentService {
     }
 
     async getAssignmentById(id: number): Promise<MarketingUserAssignment> {
-        const response = await fetch(
-            `${API_BASE}/marketing/user-assignments/${id}`,
+        const response = await apiFetch(
+            `/api/marketing/user-assignments/${id}`,
             {
                 method: "GET",
                 headers: getAuthHeaders(),
-                credentials: "include",
             },
         );
 
@@ -68,12 +67,11 @@ class MarketingUserAssignmentService {
     }
 
     async getUserAssignments(userId: number): Promise<MarketingUserAssignment[]> {
-        const response = await fetch(
-            `${API_BASE}/marketing/user-assignments/user/${userId}`,
+        const response = await apiFetch(
+            `/api/marketing/user-assignments/user/${userId}`,
             {
                 method: "GET",
                 headers: getAuthHeaders(),
-                credentials: "include",
             },
         );
 
@@ -81,12 +79,11 @@ class MarketingUserAssignmentService {
     }
 
     async getAssignmentsByArea(areaId: number): Promise<MarketingUserAssignment[]> {
-        const response = await fetch(
-            `${API_BASE}/marketing/user-assignments/area/${areaId}`,
+        const response = await apiFetch(
+            `/api/marketing/user-assignments/area/${areaId}`,
             {
                 method: "GET",
                 headers: getAuthHeaders(),
-                credentials: "include",
             },
         );
 
@@ -94,12 +91,11 @@ class MarketingUserAssignmentService {
     }
 
     async getAssignmentsBySubArea(subAreaId: number): Promise<MarketingUserAssignment[]> {
-        const response = await fetch(
-            `${API_BASE}/marketing/user-assignments/sub-area/${subAreaId}`,
+        const response = await apiFetch(
+            `/api/marketing/user-assignments/sub-area/${subAreaId}`,
             {
                 method: "GET",
                 headers: getAuthHeaders(),
-                credentials: "include",
             },
         );
 
@@ -107,12 +103,11 @@ class MarketingUserAssignmentService {
     }
 
     async getAssignmentsByBranch(branchId: number): Promise<MarketingUserAssignment[]> {
-        const response = await fetch(
-            `${API_BASE}/marketing/user-assignments/branch/${branchId}`,
+        const response = await apiFetch(
+            `/api/marketing/user-assignments/branch/${branchId}`,
             {
                 method: "GET",
                 headers: getAuthHeaders(),
-                credentials: "include",
             },
         );
 
@@ -120,12 +115,11 @@ class MarketingUserAssignmentService {
     }
 
     async assignUser(request: AssignUserRequest): Promise<MarketingUserAssignment> {
-        const response = await fetch(
-            `${API_BASE}/marketing/user-assignments/assign`,
+        const response = await apiFetch(
+            `/api/marketing/user-assignments/assign`,
             {
                 method: "POST",
                 headers: getAuthHeaders(),
-                credentials: "include",
                 body: JSON.stringify(request),
             },
         );
@@ -134,12 +128,11 @@ class MarketingUserAssignmentService {
     }
 
     async removeAssignment(assignmentId: number, userId: number): Promise<MarketingUserAssignment> {
-        const response = await fetch(
-            `${API_BASE}/marketing/user-assignments/remove/${assignmentId}?userId=${userId}`,
+        const response = await apiFetch(
+            `/api/marketing/user-assignments/remove/${assignmentId}?userId=${userId}`,
             {
                 method: "POST",
                 headers: getAuthHeaders(),
-                credentials: "include",
             },
         );
 
@@ -147,12 +140,11 @@ class MarketingUserAssignmentService {
     }
 
     async deleteAssignment(id: number): Promise<void> {
-        const response = await fetch(
-            `${API_BASE}/marketing/user-assignments/${id}`,
+        const response = await apiFetch(
+            `/api/marketing/user-assignments/${id}`,
             {
                 method: "DELETE",
                 headers: getAuthHeaders(),
-                credentials: "include",
             },
         );
 
@@ -165,12 +157,11 @@ class MarketingUserAssignmentService {
     }
 
     async getAssignmentCountForUser(userId: number): Promise<number> {
-        const response = await fetch(
-            `${API_BASE}/marketing/user-assignments/user/${userId}/count`,
+        const response = await apiFetch(
+            `/api/marketing/user-assignments/user/${userId}/count`,
             {
                 method: "GET",
                 headers: getAuthHeaders(),
-                credentials: "include",
             },
         );
 
@@ -178,12 +169,11 @@ class MarketingUserAssignmentService {
     }
 
     async getAssignmentCountForArea(areaId: number): Promise<number> {
-        const response = await fetch(
-            `${API_BASE}/marketing/user-assignments/area/${areaId}/count`,
+        const response = await apiFetch(
+            `/api/marketing/user-assignments/area/${areaId}/count`,
             {
                 method: "GET",
                 headers: getAuthHeaders(),
-                credentials: "include",
             },
         );
 
@@ -191,12 +181,11 @@ class MarketingUserAssignmentService {
     }
 
     async getAssignmentCountForSubArea(subAreaId: number): Promise<number> {
-        const response = await fetch(
-            `${API_BASE}/marketing/user-assignments/sub-area/${subAreaId}/count`,
+        const response = await apiFetch(
+            `/api/marketing/user-assignments/sub-area/${subAreaId}/count`,
             {
                 method: "GET",
                 headers: getAuthHeaders(),
-                credentials: "include",
             },
         );
 
@@ -204,12 +193,11 @@ class MarketingUserAssignmentService {
     }
 
     async getAssignmentCountForBranch(branchId: number): Promise<number> {
-        const response = await fetch(
-            `${API_BASE}/marketing/user-assignments/branch/${branchId}/count`,
+        const response = await apiFetch(
+            `/api/marketing/user-assignments/branch/${branchId}/count`,
             {
                 method: "GET",
                 headers: getAuthHeaders(),
-                credentials: "include",
             },
         );
 

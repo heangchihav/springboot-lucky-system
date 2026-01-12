@@ -1,4 +1,5 @@
 import { API_BASE_URL } from "@/config/env";
+import { apiFetch } from "@/services/httpClient";
 import { User } from "./userService";
 
 export interface Permission {
@@ -50,10 +51,8 @@ export interface AssignUsersRequest {
 
 class MarketingPermissionsService {
     private getAuthHeaders() {
-        const token = localStorage.getItem("token");
         return {
             "Content-Type": "application/json",
-            Authorization: token ? `Bearer ${token}` : "",
         };
     }
 
@@ -72,11 +71,10 @@ class MarketingPermissionsService {
 
     // Permissions
     async getPermissions(): Promise<Permission[]> {
-        const response = await fetch(`${API_BASE_URL}/api/marketing/permissions`, {
+        const response = await apiFetch(`/api/marketing/permissions`, {
             headers: {
                 "Content-Type": "application/json",
             },
-            credentials: "include",
         });
         return this.handleResponse<Permission[]>(response);
     }
@@ -162,46 +160,42 @@ class MarketingPermissionsService {
 
     // Roles
     async getRoles(): Promise<Role[]> {
-        const response = await fetch(`${API_BASE_URL}/api/marketing/roles`, {
+        const response = await apiFetch(`/api/marketing/roles`, {
             headers: {
                 "Content-Type": "application/json",
             },
-            credentials: "include",
         });
         return this.handleResponse<Role[]>(response);
     }
 
     async createRole(role: CreateRoleRequest): Promise<Role> {
-        const response = await fetch(`${API_BASE_URL}/api/marketing/roles`, {
+        const response = await apiFetch(`/api/marketing/roles`, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
             },
-            credentials: "include",
             body: JSON.stringify(role),
         });
         return this.handleResponse<Role>(response);
     }
 
     async updateRole(id: number, role: UpdateRoleRequest): Promise<Role> {
-        const response = await fetch(`${API_BASE_URL}/api/marketing/roles/${id}`, {
+        const response = await apiFetch(`/api/marketing/roles/${id}`, {
             method: "PUT",
             headers: {
                 "Content-Type": "application/json",
             },
-            credentials: "include",
             body: JSON.stringify(role),
         });
         return this.handleResponse<Role>(response);
     }
 
     async deleteRole(id: number): Promise<void> {
-        const response = await fetch(`${API_BASE_URL}/api/marketing/roles/${id}`, {
+        const response = await apiFetch(`/api/marketing/roles/${id}`, {
             method: "DELETE",
             headers: {
                 "Content-Type": "application/json",
             },
-            credentials: "include",
         });
         if (!response.ok) {
             const errorText = await response.text();
@@ -212,11 +206,10 @@ class MarketingPermissionsService {
     // Users
     async getUsers(): Promise<User[]> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/users`, {
+            const response = await apiFetch(`/api/users`, {
                 headers: {
                     "Content-Type": "application/json",
                 },
-                credentials: "include",
             });
             return this.handleResponse<User[]>(response);
         } catch (error) {
@@ -226,14 +219,13 @@ class MarketingPermissionsService {
     }
 
     async assignUsersToRole(roleId: number, userIds: number[]): Promise<void> {
-        const response = await fetch(
-            `${API_BASE_URL}/api/marketing/roles/${roleId}/assign-users`,
+        const response = await apiFetch(
+            `/api/marketing/roles/${roleId}/assign-users`,
             {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
                 },
-                credentials: "include",
                 body: JSON.stringify({ userIds }),
             },
         );
@@ -249,14 +241,13 @@ class MarketingPermissionsService {
     }
 
     async removeUsersFromRole(roleId: number, userIds: number[]): Promise<void> {
-        const response = await fetch(
-            `${API_BASE_URL}/api/marketing/roles/${roleId}/remove-users`,
+        const response = await apiFetch(
+            `/api/marketing/roles/${roleId}/remove-users`,
             {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
                 },
-                credentials: "include",
                 body: JSON.stringify({ userIds }),
             },
         );
@@ -273,13 +264,12 @@ class MarketingPermissionsService {
 
     async getUsersInRole(roleId: number): Promise<User[]> {
         try {
-            const response = await fetch(
-                `${API_BASE_URL}/api/marketing/roles/${roleId}/users`,
+            const response = await apiFetch(
+                `/api/marketing/roles/${roleId}/users`,
                 {
                     headers: {
                         "Content-Type": "application/json",
                     },
-                    credentials: "include",
                 },
             );
             if (!response.ok) {
@@ -299,11 +289,10 @@ class MarketingPermissionsService {
         permissionCode: string,
     ): Promise<boolean> {
         try {
-            const response = await fetch(
-                `${API_BASE_URL}/api/marketing/permissions/user/${userId}/check/${permissionCode}`,
+            const response = await apiFetch(
+                `/api/marketing/permissions/user/${userId}/check/${permissionCode}`,
                 {
                     headers: this.getAuthHeaders(),
-                    credentials: "include",
                 },
             );
             const result = await this.handleResponse<{ hasPermission: boolean }>(

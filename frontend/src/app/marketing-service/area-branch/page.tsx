@@ -224,11 +224,16 @@ export default function MarketingAreaBranchPage() {
           payload,
         );
         showToast("Sub area/Province updated");
+        setSubAreaForm(defaultSubAreaForm); // Full reset after editing
       } else {
         await marketingHierarchyService.createSubArea(payload);
         showToast("Sub area/Province created");
+        // Keep area selection for new sub-area creation
+        setSubAreaForm({
+          ...defaultSubAreaForm,
+          areaId: subAreaForm.areaId,
+        });
       }
-      setSubAreaForm(defaultSubAreaForm);
       setEditingSubArea(null);
       await loadAll();
     } catch (error) {
@@ -259,11 +264,17 @@ export default function MarketingAreaBranchPage() {
       if (editingBranch) {
         await marketingHierarchyService.updateBranch(editingBranch.id, payload);
         showToast("Branch updated");
+        setBranchForm(defaultBranchForm); // Full reset after editing
       } else {
         await marketingHierarchyService.createBranch(payload);
         showToast("Branch created");
+        // Keep area and subArea selections for new branch creation
+        setBranchForm({
+          ...defaultBranchForm,
+          areaId: branchForm.areaId,
+          subAreaId: branchForm.subAreaId,
+        });
       }
-      setBranchForm(defaultBranchForm);
       setEditingBranch(null);
       await loadAll();
     } catch (error) {

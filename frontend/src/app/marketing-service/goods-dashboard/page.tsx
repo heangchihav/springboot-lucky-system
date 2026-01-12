@@ -167,9 +167,6 @@ const TotalsTooltip = ({
   }
   const data = payload[0].payload as {
     total: number;
-    shipping: number;
-    arrived: number;
-    completed: number;
   };
 
   return (
@@ -178,29 +175,6 @@ const TotalsTooltip = ({
       <p className="text-xs text-amber-300">
         Total: {data.total.toLocaleString()} goods
       </p>
-      <div className="mt-3 space-y-1.5">
-        {STATUS_KEYS.map((key) => {
-          const value = data[key] ?? 0;
-          const percent = data.total
-            ? Math.round((value / data.total) * 100)
-            : 0;
-          return (
-            <div key={key} className="flex items-center justify-between">
-              <span className="flex items-center gap-2">
-                <span
-                  className="h-2 w-2 rounded-full"
-                  style={{ backgroundColor: STATUS_META[key].color }}
-                />
-                {STATUS_META[key].label}
-              </span>
-              <span className="font-semibold text-white">
-                {value.toLocaleString()}{" "}
-                <span className="text-slate-400">({percent}%)</span>
-              </span>
-            </div>
-          );
-        })}
-      </div>
     </div>
   );
 };
@@ -1034,258 +1008,6 @@ export default function GoodsDashboardPage() {
             </div>
           </div>
         </section>
-
-        <section className="rounded-3xl border border-white/10 bg-white/5 p-6">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <p className="text-xs uppercase tracking-[0.3em] text-amber-300/70">
-                Shipment status
-              </p>
-              <h2 className="text-xl font-semibold text-white">
-                {shipmentViewMode === "goods-type"
-                  ? "All vs COD performance"
-                  : "Goods status totals"}
-              </h2>
-              <p className="text-sm text-slate-300">
-                {resolvedMember
-                  ? `Tracking ${resolvedMember.name} (${resolvedMember.phone ?? "no phone"})`
-                  : `Aggregated across ${displayedMemberCount} VIP member(s)`}
-              </p>
-            </div>
-            <div className="flex flex-col items-start gap-2 text-sm text-slate-300 lg:items-end">
-              {shipmentsLoading && (
-                <span className="text-[0.6rem] uppercase tracking-[0.3em] text-slate-500">
-                  Refreshing shipments…
-                </span>
-              )}
-              <div className="flex items-center gap-3">
-                <span className="text-[0.65rem] uppercase tracking-[0.3em] text-slate-500">
-                  View by
-                </span>
-                <div className="rounded-full border border-white/10 bg-slate-900/60 p-1">
-                  {(
-                    [
-                      { key: "goods-type", label: "Goods type" },
-                      { key: "goods-status", label: "Goods status" },
-                    ] as const
-                  ).map((mode) => (
-                    <button
-                      key={mode.key}
-                      className={`rounded-full px-4 py-1 text-xs uppercase tracking-[0.2em] ${shipmentViewMode === mode.key
-                        ? "bg-amber-400/20 text-white"
-                        : "text-slate-400 hover:text-white"
-                        }`}
-                      onClick={() => setShipmentViewMode(mode.key)}
-                    >
-                      {mode.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-          <div className="mt-6 grid gap-6 lg:grid-cols-2">
-            <div className="h-80 w-full">
-              {chartData.length === 0 ? (
-                <div className="flex h-full items-center justify-center text-sm text-slate-400">
-                  No shipments match your filters.
-                </div>
-              ) : (
-                <ResponsiveContainer width="100%" height="100%">
-                  {shipmentViewMode === "goods-type" ? (
-                    <BarChart
-                      data={goodsTypeChartData}
-                      margin={{ top: 40, left: 16, right: 16, bottom: 0 }}
-                    >
-                      <CartesianGrid
-                        strokeDasharray="3 3"
-                        stroke="#475569"
-                        opacity={0.2}
-                      />
-                      <XAxis dataKey="label" stroke="#94a3b8" />
-                      <YAxis stroke="#94a3b8" allowDecimals={false} />
-                      <Tooltip
-                        cursor={{ fill: "rgba(255,255,255,0.05)" }}
-                        contentStyle={TOOLTIP_STYLES.content}
-                        labelStyle={TOOLTIP_STYLES.label}
-                        itemStyle={TOOLTIP_STYLES.item}
-                      />
-                      <Bar dataKey="value" radius={[12, 12, 0, 0]} barSize={56}>
-                        {goodsTypeChartData.map((entry) => (
-                          <Cell key={entry.key} fill={entry.color} />
-                        ))}
-                        <LabelList
-                          dataKey="value"
-                          position="top"
-                          fill="#f1f5f9"
-                          fontSize={12}
-                          offset={10}
-                        />
-                      </Bar>
-                    </BarChart>
-                  ) : (
-                    <BarChart
-                      data={statusComparisonData}
-                      margin={{ top: 40, left: 16, right: 16, bottom: 0 }}
-                    >
-                      <CartesianGrid
-                        strokeDasharray="3 3"
-                        stroke="#475569"
-                        opacity={0.2}
-                      />
-                      <XAxis dataKey="metric" stroke="#94a3b8" />
-                      <YAxis stroke="#94a3b8" allowDecimals={false} />
-                      <Tooltip
-                        cursor={{ fill: "rgba(255,255,255,0.05)" }}
-                        contentStyle={TOOLTIP_STYLES.content}
-                        labelStyle={TOOLTIP_STYLES.label}
-                        itemStyle={TOOLTIP_STYLES.item}
-                        formatter={(value: number, name) => [
-                          `${value.toLocaleString()} goods`,
-                          name ?? "Goods",
-                        ]}
-                      />
-                      <Bar
-                        dataKey="allGoods"
-                        radius={[12, 12, 0, 0]}
-                        barSize={56}
-                        fill={GOODS_TYPE_COLORS.ALL}
-                        name="ALL goods"
-                      >
-                        <LabelList
-                          dataKey="allGoods"
-                          position="top"
-                          fill="#f1f5f9"
-                          fontSize={12}
-                          offset={10}
-                        />
-                      </Bar>
-                      <Bar
-                        dataKey="codGoods"
-                        radius={[12, 12, 0, 0]}
-                        barSize={56}
-                        fill={GOODS_TYPE_COLORS.COD}
-                        name="COD goods"
-                      >
-                        <LabelList
-                          dataKey="codGoods"
-                          position="top"
-                          fill="#e0f2fe"
-                          fontSize={12}
-                          offset={10}
-                        />
-                      </Bar>
-                    </BarChart>
-                  )}
-                </ResponsiveContainer>
-              )}
-            </div>
-            <div className="flex h-80 w-full flex-col">
-              <div className="flex items-center justify-between text-sm text-slate-300">
-                <div>
-                  <p className="text-xs uppercase tracking-[0.3em] text-amber-300/70">
-                    Donut view
-                  </p>
-                  <h3 className="text-lg font-semibold text-white">
-                    {shipmentViewMode === "goods-type"
-                      ? "ALL vs COD share"
-                      : "Status mix"}
-                  </h3>
-                </div>
-              </div>
-              <div className="mt-4 flex-1">
-                {comparativeData.length === 0 ? (
-                  <div className="flex h-full items-center justify-center text-sm text-slate-400">
-                    No summary available.
-                  </div>
-                ) : (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Tooltip
-                        contentStyle={TOOLTIP_STYLES.content}
-                        labelStyle={TOOLTIP_STYLES.label}
-                        itemStyle={TOOLTIP_STYLES.item}
-                        formatter={(value: number, name: string) => [
-                          `${value.toLocaleString()} goods`,
-                          name,
-                        ]}
-                      />
-                      <Pie
-                        data={comparativeData}
-                        dataKey="value"
-                        nameKey="label"
-                        innerRadius={70}
-                        outerRadius={110}
-                        paddingAngle={4}
-                      >
-                        {comparativeData.map((entry) => (
-                          <Cell key={entry.key} fill={entry.color} />
-                        ))}
-                        <Label
-                          position="center"
-                          content={({ viewBox }) => {
-                            if (
-                              !viewBox ||
-                              !("cx" in viewBox) ||
-                              !("cy" in viewBox)
-                            ) {
-                              return null;
-                            }
-                            const total = comparativeData.reduce(
-                              (sum, item) => sum + item.value,
-                              0,
-                            );
-                            return (
-                              <text
-                                x={viewBox.cx}
-                                y={viewBox.cy}
-                                textAnchor="middle"
-                                fill="#fefce8"
-                              >
-                                <tspan
-                                  x={viewBox.cx}
-                                  dy="-0.4em"
-                                  className="text-sm font-semibold uppercase tracking-[0.3em] text-slate-400"
-                                >
-                                  Total
-                                </tspan>
-                                <tspan
-                                  x={viewBox.cx}
-                                  dy="1.4em"
-                                  className="text-2xl font-bold text-white"
-                                >
-                                  {total.toLocaleString()}
-                                </tspan>
-                                <tspan
-                                  x={viewBox.cx}
-                                  dy="1.2em"
-                                  className="text-xs text-slate-400"
-                                >
-                                  goods
-                                </tspan>
-                              </text>
-                            );
-                          }}
-                        />
-                      </Pie>
-                      <Legend
-                        verticalAlign="bottom"
-                        align="center"
-                        iconType="circle"
-                        formatter={(value) => (
-                          <span className="text-xs uppercase tracking-[0.25em] text-slate-200">
-                            {value}
-                          </span>
-                        )}
-                      />
-                    </PieChart>
-                  </ResponsiveContainer>
-                )}
-              </div>
-            </div>
-          </div>
-        </section>
-
         <section className="rounded-3xl border border-white/10 bg-white/5 p-6">
           <div className="flex flex-col gap-2 pb-6 lg:flex-row lg:items-center lg:justify-between">
             <div>
@@ -1353,52 +1075,15 @@ export default function GoodsDashboardPage() {
                     content={<TotalsTooltip />}
                   />
                   <Bar
-                    dataKey="shipping"
-                    stackId="totals"
+                    dataKey="total"
                     barSize={56}
-                    fill={STATUS_META.shipping.color}
-                    name={STATUS_META.shipping.label}
-                    radius={[0, 0, 0, 0]}
-                  >
-                    <LabelList
-                      dataKey="shipping"
-                      content={(props) => (
-                        <SegmentPercentLabel {...props} segment="shipping" />
-                      )}
-                    />
-                  </Bar>
-                  <Bar
-                    dataKey="arrived"
-                    stackId="totals"
-                    barSize={56}
-                    fill={STATUS_META.arrived.color}
-                    name={STATUS_META.arrived.label}
-                    radius={[0, 0, 0, 0]}
-                  >
-                    <LabelList
-                      dataKey="arrived"
-                      content={(props) => (
-                        <SegmentPercentLabel {...props} segment="arrived" />
-                      )}
-                    />
-                  </Bar>
-                  <Bar
-                    dataKey="completed"
-                    stackId="totals"
-                    barSize={56}
-                    fill={STATUS_META.completed.color}
-                    name={STATUS_META.completed.label}
+                    fill={GOODS_TYPE_COLORS.ALL}
+                    name="Total Goods"
                     radius={[12, 12, 0, 0]}
                   >
                     <LabelList
                       dataKey="total"
                       content={(props) => <TotalsTopLabel {...props} />}
-                    />
-                    <LabelList
-                      dataKey="completed"
-                      content={(props) => (
-                        <SegmentPercentLabel {...props} segment="completed" />
-                      )}
                     />
                   </Bar>
                 </BarChart>

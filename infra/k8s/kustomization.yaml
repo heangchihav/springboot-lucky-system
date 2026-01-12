@@ -24,6 +24,11 @@ resources:
   # Infrastructure - Backup
   - infrastructure/backup/postgres-backup-cronjob.yaml
   
+  # Infrastructure - Monitoring
+  - infrastructure/monitoring/grafana.yaml
+  - infrastructure/monitoring/grafana-service.yaml
+  - infrastructure/monitoring/grafana-configmap.yaml
+  
   # Services - Backend
   - services/backend/user-service.yaml
   - services/backend/call-service.yaml

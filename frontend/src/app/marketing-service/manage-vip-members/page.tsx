@@ -200,11 +200,23 @@ export default function MarketingVipManageUserPage() {
     }
   }, [filteredBranchesForForm, form.branchId]);
 
-  const resetForm = () => {
-    setForm({
-      ...defaultForm,
-      memberCreatedAt: new Date().toISOString().split("T")[0],
-    });
+  const resetForm = (keepLocation = false) => {
+    if (keepLocation && form.areaId && form.branchId) {
+      // Keep location data for new member creation
+      setForm({
+        ...defaultForm,
+        memberCreatedAt: new Date().toISOString().split("T")[0],
+        areaId: form.areaId,
+        subAreaId: form.subAreaId,
+        branchId: form.branchId,
+      });
+    } else {
+      // Full reset for editing or manual reset
+      setForm({
+        ...defaultForm,
+        memberCreatedAt: new Date().toISOString().split("T")[0],
+      });
+    }
     setEditingMember(null);
   };
 
@@ -309,11 +321,12 @@ export default function MarketingVipManageUserPage() {
       if (editingMember) {
         await vipMemberService.updateMember(editingMember.id, payload);
         showToast("VIP member updated");
+        resetForm(false); // Full reset after editing
       } else {
         await vipMemberService.createMember(payload);
         showToast("VIP member created");
+        resetForm(true); // Keep location for new member creation
       }
-      resetForm();
       setFilters((prev) => ({ ...prev }));
     } catch (error) {
       showToast(
@@ -517,7 +530,7 @@ export default function MarketingVipManageUserPage() {
                   <button
                     type="button"
                     className="rounded-full border border-white/10 px-4 py-2 text-xs text-white hover:bg-white/10"
-                    onClick={resetForm}
+                    onClick={() => resetForm(false)}
                   >
                     Cancel edit
                   </button>
@@ -842,8 +855,8 @@ export default function MarketingVipManageUserPage() {
         {toast && (
           <div
             className={`fixed bottom-6 right-6 z-50 rounded-2xl px-4 py-3 text-sm shadow-lg ${toast.tone === "success"
-                ? "bg-emerald-500/90 text-white"
-                : "bg-rose-500/90 text-white"
+              ? "bg-emerald-500/90 text-white"
+              : "bg-rose-500/90 text-white"
               }`}
           >
             {toast.message}

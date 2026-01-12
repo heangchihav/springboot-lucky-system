@@ -1,4 +1,5 @@
 import { API_BASE_URL } from "@/config/env";
+import { apiFetch } from "@/services/httpClient";
 
 export interface MarketingUser {
     id: number;
@@ -21,9 +22,8 @@ class MarketingUserService {
 
     async getMarketingUsers(): Promise<MarketingUser[]> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/marketing/users`, {
+            const response = await apiFetch(`/api/marketing/users`, {
                 headers: this.getAuthHeaders(),
-                credentials: "include",
             });
 
             if (!response.ok) {
