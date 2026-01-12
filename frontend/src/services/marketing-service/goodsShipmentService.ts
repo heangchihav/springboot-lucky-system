@@ -41,17 +41,10 @@ async function request<T>(
   }
 }
 
-export type GoodsStatus = {
-  shipping: number;
-  arrived: number;
-  complete: number;
-};
-
 export type UserGoodsRecord = {
   userId: string;
   sendDate: string;
-  cod_goods: GoodsStatus;
-  non_cod_goods: GoodsStatus;
+  totalGoods: number;
 };
 
 export type MarketingGoodsShipmentRecord = {
@@ -61,8 +54,7 @@ export type MarketingGoodsShipmentRecord = {
   branchId: number;
   branchName: string;
   sendDate: string;
-  codGoods: GoodsStatus;
-  nonCodGoods: GoodsStatus;
+  totalGoods: number;
   createdAt: string;
   createdBy: number;
 };
@@ -146,6 +138,5 @@ export const goodsShipmentService = {
 
 export type MarketingGoodsShipmentRecordUpdatePayload = {
   sendDate: string;
-  codGoods: GoodsStatus;
-  nonCodGoods: GoodsStatus;
+  totalGoods: number;
 };

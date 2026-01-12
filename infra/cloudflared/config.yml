@@ -2,6 +2,6 @@ tunnel: demo-tunnel
 credentials-file: /etc/cloudflared/demo-tunnel.json
 
 ingress:
-  - hostname: test.mooniris.com
+  - hostname: vetapi.mooniris.com
     service: http://nginx:80
   - service: http_status:404

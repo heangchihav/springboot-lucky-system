@@ -17,7 +17,6 @@ import {
 } from "@/services/marketing-service/vipMemberService";
 import {
   goodsShipmentService,
-  GoodsStatus,
   MarketingGoodsShipmentRecord,
   UserGoodsRecord,
 } from "@/services/marketing-service/goodsShipmentService";
@@ -26,12 +25,7 @@ type FilterValue = number | "all";
 
 type EntryFormState = {
   goodsDate: string;
-  codShipping: string;
-  codArrived: string;
-  codCompleted: string;
-  nonCodShipping: string;
-  nonCodArrived: string;
-  nonCodCompleted: string;
+  totalGoods: string;
 };
 
 type PendingEntry = {
@@ -41,8 +35,7 @@ type PendingEntry = {
   branchId: number;
   branchName: string;
   goodsDate: string;
-  cod_goods: GoodsStatus;
-  non_cod_goods: GoodsStatus;
+  totalGoods: number;
 };
 
 const today = new Date().toISOString().split("T")[0];
@@ -50,12 +43,7 @@ const EDIT_MODAL_TITLE_ID = "goods-shipment-edit-title";
 
 const defaultEntryForm: EntryFormState = {
   goodsDate: today,
-  codShipping: "",
-  codArrived: "",
-  codCompleted: "",
-  nonCodShipping: "",
-  nonCodArrived: "",
-  nonCodCompleted: "",
+  totalGoods: "",
 };
 
 const countIsValid = (value: string) =>
@@ -65,12 +53,7 @@ const mapRecordToForm = (
   record: MarketingGoodsShipmentRecord,
 ): EntryFormState => ({
   goodsDate: record.sendDate,
-  codShipping: String(record.codGoods.shipping),
-  codArrived: String(record.codGoods.arrived),
-  codCompleted: String(record.codGoods.complete),
-  nonCodShipping: String(record.nonCodGoods.shipping),
-  nonCodArrived: String(record.nonCodGoods.arrived),
-  nonCodCompleted: String(record.nonCodGoods.complete),
+  totalGoods: String(record.totalGoods || 0),
 });
 
 export default function GoodsInputPage() {
@@ -314,50 +297,14 @@ export default function GoodsInputPage() {
   };
 
   const parseCounts = (form: EntryFormState) => {
-    const codShipping = Number(form.codShipping || 0);
-    const codArrived = Number(form.codArrived || 0);
-    const codCompleted = Number(form.codCompleted || 0);
-    const nonCodShipping = Number(form.nonCodShipping || 0);
-    const nonCodArrived = Number(form.nonCodArrived || 0);
-    const nonCodCompleted = Number(form.nonCodCompleted || 0);
+    const totalGoods = Number(form.totalGoods || 0);
 
-    if (
-      [
-        codShipping,
-        codArrived,
-        codCompleted,
-        nonCodShipping,
-        nonCodArrived,
-        nonCodCompleted,
-      ].some((value) => Number.isNaN(value))
-    ) {
-      showToast("Counts must be numeric.", "error");
+    if (totalGoods < 0) {
+      showToast("Invalid goods count.", "error");
       return null;
     }
-    const hasAnyCount =
-      codShipping +
-      codArrived +
-      codCompleted +
-      nonCodShipping +
-      nonCodArrived +
-      nonCodCompleted >
-      0;
-    if (!hasAnyCount) {
-      showToast("At least one goods count must be greater than zero.", "error");
-      return null;
-    }
-    return {
-      cod: {
-        shipping: codShipping,
-        arrived: codArrived,
-        complete: codCompleted,
-      },
-      nonCod: {
-        shipping: nonCodShipping,
-        arrived: nonCodArrived,
-        complete: nonCodCompleted,
-      },
-    };
+
+    return totalGoods;
   };
 
   const validateEntry = () => {
@@ -374,8 +321,8 @@ export default function GoodsInputPage() {
   };
 
   const handleAddEntry = () => {
-    const counts = validateEntry();
-    if (!counts || !selectedMember) {
+    const totalGoods = validateEntry();
+    if (!totalGoods || !selectedMember) {
       return;
     }
 
@@ -390,8 +337,7 @@ export default function GoodsInputPage() {
         branchName:
           selectedMember.branchName ?? `Branch #${selectedMember.branchId}`,
         goodsDate: entryForm.goodsDate,
-        cod_goods: counts.cod,
-        non_cod_goods: counts.nonCod,
+        totalGoods: totalGoods,
       },
     ]);
     resetForm();
@@ -437,8 +383,7 @@ export default function GoodsInputPage() {
     try {
       await goodsShipmentService.update(editingRecord.id, {
         sendDate: editForm.goodsDate,
-        codGoods: counts.cod,
-        nonCodGoods: counts.nonCod,
+        totalGoods: counts,
       });
       await refreshRecentShipments();
       showToast("Shipment updated.");
@@ -491,8 +436,7 @@ export default function GoodsInputPage() {
     const payload: UserGoodsRecord[] = pendingEntries.map((entry) => ({
       userId: String(entry.memberId),
       sendDate: entry.goodsDate,
-      cod_goods: entry.cod_goods,
-      non_cod_goods: entry.non_cod_goods,
+      totalGoods: entry.totalGoods,
     }));
 
     setSubmitting(true);
@@ -578,75 +522,33 @@ export default function GoodsInputPage() {
             </div>
           </div>
 
-          <div className="mt-6 grid gap-4 md:grid-cols-2">
-            {[
-              {
-                title: "COD goods (Cash on delivery)",
-                description: "Orders where the courier collects payment.",
-                shippingField: "codShipping",
-                arrivedField: "codArrived",
-                completedField: "codCompleted",
-                accent: "text-sky-300",
-              },
-              {
-                title: "Non-COD goods",
-                description: "Pre-paid or zero cash-handling parcels.",
-                shippingField: "nonCodShipping",
-                arrivedField: "nonCodArrived",
-                completedField: "nonCodCompleted",
-                accent: "text-amber-300",
-              },
-            ].map((card) => (
-              <div
-                key={card.title}
-                className="rounded-3xl border border-white/10 bg-slate-950/40 p-4 text-white"
-              >
-                <p
-                  className={`text-xs uppercase tracking-[0.3em] ${card.accent}`}
-                >
-                  Segment
-                </p>
-                <h3 className="text-lg font-semibold text-white">
-                  {card.title}
-                </h3>
-                <p className="text-xs text-slate-400">{card.description}</p>
-                <div className="mt-4 grid gap-3 md:grid-cols-3">
-                  {[
-                    {
-                      label: "Shipping",
-                      field: card.shippingField as keyof EntryFormState,
-                    },
-                    {
-                      label: "Arrived",
-                      field: card.arrivedField as keyof EntryFormState,
-                    },
-                    {
-                      label: "Completed",
-                      field: card.completedField as keyof EntryFormState,
-                    },
-                  ].map((input) => (
-                    <div
-                      key={input.field}
-                      className="flex flex-col text-sm text-white"
-                    >
-                      <label className="text-[0.6rem] uppercase tracking-[0.3em] text-slate-400">
-                        {input.label}
-                      </label>
-                      <input
-                        inputMode="numeric"
-                        pattern="\d*"
-                        className="mt-1 rounded-2xl border border-white/10 bg-slate-900/60 px-3 py-2 text-white focus:border-amber-400/60 focus:outline-none"
-                        value={editForm[input.field]}
-                        onChange={(event) =>
-                          handleEditChange(input.field, event.target.value)
-                        }
-                        placeholder="0"
-                      />
-                    </div>
-                  ))}
-                </div>
+          <div className="mt-6 rounded-3xl border border-white/10 bg-slate-950/40 p-4 text-white">
+            <p className="text-xs uppercase tracking-[0.3em] text-amber-300">
+              Total Goods
+            </p>
+            <h3 className="text-lg font-semibold text-white">
+              Total goods shipped
+            </h3>
+            <p className="text-xs text-slate-400">
+              Total number of goods items shipped for this date
+            </p>
+            <div className="mt-4">
+              <div className="flex flex-col text-sm text-white">
+                <label className="text-[0.6rem] uppercase tracking-[0.3em] text-slate-400">
+                  Total Goods
+                </label>
+                <input
+                  inputMode="numeric"
+                  pattern="\d*"
+                  className="mt-1 rounded-2xl border border-white/10 bg-slate-900/60 px-3 py-2 text-white focus:border-amber-400/60 focus:outline-none"
+                  value={editForm.totalGoods}
+                  onChange={(event) =>
+                    handleEditChange("totalGoods", event.target.value)
+                  }
+                  placeholder="0"
+                />
               </div>
-            ))}
+            </div>
           </div>
 
           <div className="mt-6 flex flex-col gap-3 text-sm text-slate-200 lg:flex-row lg:items-center lg:justify-between">
@@ -794,75 +696,33 @@ export default function GoodsInputPage() {
             </div>
           </div>
 
-          <div className="mt-6 grid gap-4 md:grid-cols-2">
-            {[
-              {
-                title: "COD goods (Cash on delivery)",
-                description: "Orders where the courier collects payment.",
-                shippingField: "codShipping",
-                arrivedField: "codArrived",
-                completedField: "codCompleted",
-                accent: "text-sky-300",
-              },
-              {
-                title: "Non-COD goods",
-                description: "Pre-paid or zero cash-handling parcels.",
-                shippingField: "nonCodShipping",
-                arrivedField: "nonCodArrived",
-                completedField: "nonCodCompleted",
-                accent: "text-amber-300",
-              },
-            ].map((card) => (
-              <div
-                key={card.title}
-                className="rounded-3xl border border-white/10 bg-slate-950/40 p-4 text-white"
-              >
-                <p
-                  className={`text-xs uppercase tracking-[0.3em] ${card.accent}`}
-                >
-                  Segment
-                </p>
-                <h3 className="text-lg font-semibold text-white">
-                  {card.title}
-                </h3>
-                <p className="text-xs text-slate-400">{card.description}</p>
-                <div className="mt-4 grid gap-3 md:grid-cols-3">
-                  {[
-                    {
-                      label: "Shipping",
-                      field: card.shippingField as keyof EntryFormState,
-                    },
-                    {
-                      label: "Arrived",
-                      field: card.arrivedField as keyof EntryFormState,
-                    },
-                    {
-                      label: "Completed",
-                      field: card.completedField as keyof EntryFormState,
-                    },
-                  ].map((input) => (
-                    <div
-                      key={input.field}
-                      className="flex flex-col text-sm text-white"
-                    >
-                      <label className="text-[0.6rem] uppercase tracking-[0.3em] text-slate-400">
-                        {input.label}
-                      </label>
-                      <input
-                        inputMode="numeric"
-                        pattern="\d*"
-                        className="mt-1 rounded-2xl border border-white/10 bg-slate-900/60 px-3 py-2 text-white focus:border-amber-400/60 focus:outline-none"
-                        value={entryForm[input.field]}
-                        onChange={(event) =>
-                          handleEntryChange(input.field, event.target.value)
-                        }
-                        placeholder="0"
-                      />
-                    </div>
-                  ))}
-                </div>
+          <div className="mt-6 rounded-3xl border border-white/10 bg-slate-950/40 p-4 text-white">
+            <p className="text-xs uppercase tracking-[0.3em] text-amber-300">
+              Total Goods
+            </p>
+            <h3 className="text-lg font-semibold text-white">
+              Total goods shipped
+            </h3>
+            <p className="text-xs text-slate-400">
+              Total number of goods items shipped for this date
+            </p>
+            <div className="mt-4">
+              <div className="flex flex-col text-sm text-white">
+                <label className="text-[0.6rem] uppercase tracking-[0.3em] text-slate-400">
+                  Total Goods
+                </label>
+                <input
+                  inputMode="numeric"
+                  pattern="\d*"
+                  className="mt-1 rounded-2xl border border-white/10 bg-slate-900/60 px-3 py-2 text-white focus:border-amber-400/60 focus:outline-none"
+                  value={entryForm.totalGoods}
+                  onChange={(event) =>
+                    handleEntryChange("totalGoods", event.target.value)
+                  }
+                  placeholder="0"
+                />
               </div>
-            ))}
+            </div>
           </div>
 
           <div className="mt-6 flex flex-col gap-3 text-sm text-slate-200 lg:flex-row lg:items-center lg:justify-between">
@@ -912,13 +772,9 @@ export default function GoodsInputPage() {
                 <thead>
                   <tr className="text-xs uppercase tracking-[0.3em] text-slate-400">
                     <th className="pb-3 pr-4">Date</th>
-                    <th className="pb-3 pr-4">Type</th>
                     <th className="pb-3 pr-4">Branch</th>
                     <th className="pb-3 pr-4">Member</th>
-                    <th className="pb-3 pr-4 text-right">Shipping</th>
-                    <th className="pb-3 pr-4 text-right">Arrived</th>
-                    <th className="pb-3 pr-4 text-right">Completed</th>
-                    <th className="pb-3 pr-4">Remark</th>
+                    <th className="pb-3 pr-4 text-right">Total Goods</th>
                     <th className="pb-3 text-right">Actions</th>
                   </tr>
                 </thead>
@@ -929,22 +785,7 @@ export default function GoodsInputPage() {
                       <td className="py-3 pr-4">{entry.branchName}</td>
                       <td className="py-3 pr-4">{entry.memberName}</td>
                       <td className="py-3 pr-4 text-right font-semibold text-white">
-                        {entry.cod_goods.shipping.toLocaleString()}
-                      </td>
-                      <td className="py-3 pr-4 text-right text-amber-200">
-                        {entry.cod_goods.arrived.toLocaleString()}
-                      </td>
-                      <td className="py-3 pr-4 text-right text-emerald-200">
-                        {entry.cod_goods.complete.toLocaleString()}
-                      </td>
-                      <td className="py-3 pr-4 text-right font-semibold text-white">
-                        {entry.non_cod_goods.shipping.toLocaleString()}
-                      </td>
-                      <td className="py-3 pr-4 text-right text-amber-200">
-                        {entry.non_cod_goods.arrived.toLocaleString()}
-                      </td>
-                      <td className="py-3 pr-4 text-right text-emerald-200">
-                        {entry.non_cod_goods.complete.toLocaleString()}
+                        {entry.totalGoods.toLocaleString()}
                       </td>
                       <td className="py-3 text-right">
                         <button
@@ -1140,12 +981,7 @@ export default function GoodsInputPage() {
                     <th className="pb-3 pr-4">Date</th>
                     <th className="pb-3 pr-4">Member</th>
                     <th className="pb-3 pr-4">Branch</th>
-                    <th className="pb-3 pr-4 text-right">COD ship</th>
-                    <th className="pb-3 pr-4 text-right">COD arrived</th>
-                    <th className="pb-3 pr-4 text-right">COD done</th>
-                    <th className="pb-3 pr-4 text-right">Non-COD ship</th>
-                    <th className="pb-3 pr-4 text-right">Non-COD arrived</th>
-                    <th className="pb-3 pr-4 text-right">Non-COD done</th>
+                    <th className="pb-3 pr-4 text-right">Total Goods</th>
                     <th className="pb-3 pr-4 text-right">Logged</th>
                     <th className="pb-3 text-right">Actions</th>
                   </tr>
@@ -1156,23 +992,8 @@ export default function GoodsInputPage() {
                       <td className="py-3 pr-4">{record.sendDate}</td>
                       <td className="py-3 pr-4">{record.memberName}</td>
                       <td className="py-3 pr-4">{record.branchName}</td>
-                      <td className="py-3 pr-4 text-right text-white">
-                        {record.codGoods.shipping.toLocaleString()}
-                      </td>
-                      <td className="py-3 pr-4 text-right text-amber-200">
-                        {record.codGoods.arrived.toLocaleString()}
-                      </td>
-                      <td className="py-3 pr-4 text-right text-emerald-200">
-                        {record.codGoods.complete.toLocaleString()}
-                      </td>
-                      <td className="py-3 pr-4 text-right text-white">
-                        {record.nonCodGoods.shipping.toLocaleString()}
-                      </td>
-                      <td className="py-3 pr-4 text-right text-amber-200">
-                        {record.nonCodGoods.arrived.toLocaleString()}
-                      </td>
-                      <td className="py-3 pr-4 text-right text-emerald-200">
-                        {record.nonCodGoods.complete.toLocaleString()}
+                      <td className="py-3 pr-4 text-right text-white font-semibold">
+                        {record.totalGoods?.toLocaleString() || 0}
                       </td>
                       <td className="py-3 pr-4 text-right text-xs text-slate-400">
                         {new Date(record.createdAt).toLocaleString()}

@@ -25,28 +25,8 @@ public class MarketingGoodsShipment {
     private LocalDate sendDate;
 
     @Min(0)
-    @Column(name = "cod_shipping", nullable = false)
-    private Integer codShipping;
-
-    @Min(0)
-    @Column(name = "cod_arrived", nullable = false)
-    private Integer codArrived;
-
-    @Min(0)
-    @Column(name = "cod_complete", nullable = false)
-    private Integer codComplete;
-
-    @Min(0)
-    @Column(name = "non_cod_shipping", nullable = false)
-    private Integer nonCodShipping;
-
-    @Min(0)
-    @Column(name = "non_cod_arrived", nullable = false)
-    private Integer nonCodArrived;
-
-    @Min(0)
-    @Column(name = "non_cod_complete", nullable = false)
-    private Integer nonCodComplete;
+    @Column(name = "total_goods", nullable = false)
+    private Integer totalGoods;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -79,52 +59,12 @@ public class MarketingGoodsShipment {
         this.sendDate = sendDate;
     }
 
-    public Integer getCodShipping() {
-        return codShipping;
+    public Integer getTotalGoods() {
+        return totalGoods;
     }
 
-    public void setCodShipping(Integer codShipping) {
-        this.codShipping = codShipping;
-    }
-
-    public Integer getCodArrived() {
-        return codArrived;
-    }
-
-    public void setCodArrived(Integer codArrived) {
-        this.codArrived = codArrived;
-    }
-
-    public Integer getCodComplete() {
-        return codComplete;
-    }
-
-    public void setCodComplete(Integer codComplete) {
-        this.codComplete = codComplete;
-    }
-
-    public Integer getNonCodShipping() {
-        return nonCodShipping;
-    }
-
-    public void setNonCodShipping(Integer nonCodShipping) {
-        this.nonCodShipping = nonCodShipping;
-    }
-
-    public Integer getNonCodArrived() {
-        return nonCodArrived;
-    }
-
-    public void setNonCodArrived(Integer nonCodArrived) {
-        this.nonCodArrived = nonCodArrived;
-    }
-
-    public Integer getNonCodComplete() {
-        return nonCodComplete;
-    }
-
-    public void setNonCodComplete(Integer nonCodComplete) {
-        this.nonCodComplete = nonCodComplete;
+    public void setTotalGoods(Integer totalGoods) {
+        this.totalGoods = totalGoods;
     }
 
     public LocalDateTime getCreatedAt() {

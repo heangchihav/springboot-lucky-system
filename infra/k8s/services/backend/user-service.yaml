@@ -51,7 +51,7 @@ spec:
                   name: demo-config
                   key: REDIS_PORT
             - name: ALLOWED_ORIGINS
-              value: http://localhost:3000,https://test.mooniris.com
+              value: http://localhost:3000,https://vetapi.mooniris.com,https://dev.mooniris.com
             - name: APP_SPA_ENABLED
               value: "false"
             - name: COOKIE_SECURE

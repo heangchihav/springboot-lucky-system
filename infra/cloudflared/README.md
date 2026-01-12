@@ -17,7 +17,7 @@ The configuration supports the following environment variables for flexibility:
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `CLOUDFLARE_TUNNEL_NAME` | `demo-tunnel` | Name of the tunnel |
-| `CLOUDFLARE_DOMAIN` | `test.mooniris.com` | Domain to route through tunnel |
+| `CLOUDFLARE_DOMAIN` | `vetapi.mooniris.com,https://dev.mooniris.com` | Domain to route through tunnel |
 | `CLOUDFLARE_SERVICE` | `http://nginx:80` | Backend service URL |
 
 ## Changing Domain
@@ -48,7 +48,7 @@ CLOUDFLARE_DOMAIN=dev.mooniris.com
 CLOUDFLARE_DOMAIN=staging.mooniris.com
 
 # .env.prod
-CLOUDFLARE_DOMAIN=test.mooniris.com
+CLOUDFLARE_DOMAIN=vetapi.mooniris.com,https://dev.mooniris.com
 ```
 
 Use with:

@@ -205,12 +205,6 @@ const TotalsTooltip = ({
   );
 };
 
-type CountStats = {
-  shipping: number;
-  arrived: number;
-  completed: number;
-};
-
 type MemberShipmentSummary = {
   memberId: number;
   memberName: string;
@@ -221,9 +215,7 @@ type MemberShipmentSummary = {
   areaName?: string;
   subAreaId?: number | null;
   subAreaName?: string | null;
-  all: CountStats;
-  cod: CountStats;
-  nonCod: CountStats;
+  totalGoods: number;
   lastDate: string;
 };
 
@@ -559,26 +551,11 @@ export default function GoodsDashboardPage() {
           subArea?.name ??
           memberInfo?.subAreaName ??
           (subAreaId ? "Unassigned sub-area" : null),
-        all: { shipping: 0, arrived: 0, completed: 0 },
-        cod: { shipping: 0, arrived: 0, completed: 0 },
-        nonCod: { shipping: 0, arrived: 0, completed: 0 },
+        totalGoods: 0,
         lastDate: "",
       };
 
-      summary.cod.shipping += shipment.codGoods.shipping;
-      summary.cod.arrived += shipment.codGoods.arrived;
-      summary.cod.completed += shipment.codGoods.complete;
-
-      summary.nonCod.shipping += shipment.nonCodGoods.shipping;
-      summary.nonCod.arrived += shipment.nonCodGoods.arrived;
-      summary.nonCod.completed += shipment.nonCodGoods.complete;
-
-      summary.all.shipping +=
-        shipment.codGoods.shipping + shipment.nonCodGoods.shipping;
-      summary.all.arrived +=
-        shipment.codGoods.arrived + shipment.nonCodGoods.arrived;
-      summary.all.completed +=
-        shipment.codGoods.complete + shipment.nonCodGoods.complete;
+      summary.totalGoods += shipment.totalGoods || 0;
 
       const shipmentDate = new Date(shipment.sendDate).getTime();
       const recordedDate = summary.lastDate
@@ -634,86 +611,56 @@ export default function GoodsDashboardPage() {
 
     const totals = filteredSummaries.reduce(
       (acc, summary) => {
-        acc.ALL.shipping += summary.all.shipping;
-        acc.ALL.arrived += summary.all.arrived;
-        acc.ALL.completed += summary.all.completed;
-
-        acc.COD.shipping += summary.cod.shipping;
-        acc.COD.arrived += summary.cod.arrived;
-        acc.COD.completed += summary.cod.completed;
+        acc.TOTAL += summary.totalGoods;
 
         return acc;
       },
       {
-        ALL: { shipping: 0, arrived: 0, completed: 0 },
-        COD: { shipping: 0, arrived: 0, completed: 0 },
+        TOTAL: 0,
       },
     );
 
     return [
       {
-        metric: STATUS_META.shipping.label,
-        statusKey: "shipping" as StatusKey,
-        ALL: totals.ALL.shipping,
-        COD: totals.COD.shipping,
-      },
-      {
-        metric: STATUS_META.arrived.label,
-        statusKey: "arrived" as StatusKey,
-        ALL: totals.ALL.arrived,
-        COD: totals.COD.arrived,
-      },
-      {
-        metric: STATUS_META.completed.label,
-        statusKey: "completed" as StatusKey,
-        ALL: totals.ALL.completed,
-        COD: totals.COD.completed,
+        metric: "Total Goods",
+        TOTAL: totals.TOTAL,
       },
     ];
   }, [filteredSummaries]);
 
   const goodsTypeTotals = useMemo(() => {
     if (chartData.length === 0) {
-      return { ALL: 0, COD: 0 };
+      return { TOTAL: 0 };
     }
     return chartData.reduce(
       (acc, row) => {
-        acc.ALL += row.ALL;
-        acc.COD += row.COD;
+        acc.TOTAL += row.TOTAL;
         return acc;
       },
-      { ALL: 0, COD: 0 },
+      { TOTAL: 0 },
     );
   }, [chartData]);
 
   const goodsTypeChartData = useMemo(
     () =>
-      (["ALL", "COD"] as GoodsTypeLabel[]).map((type) => ({
-        key: type,
-        label: type === "ALL" ? "ALL goods" : "COD goods",
-        value: goodsTypeTotals[type],
-        color: GOODS_TYPE_COLORS[type],
-      })),
+      [{
+        key: "TOTAL",
+        label: "Total Goods",
+        value: goodsTypeTotals.TOTAL,
+        color: GOODS_TYPE_COLORS.ALL,
+      }],
     [goodsTypeTotals],
   );
 
   const goodsTypeDonutData = useMemo(() => {
-    const totalAll = goodsTypeTotals.ALL;
-    const totalCod = goodsTypeTotals.COD;
-    const nonCod = Math.max(totalAll - totalCod, 0);
+    const total = goodsTypeTotals.TOTAL;
 
     return [
       {
-        key: "non-cod",
-        label: "Non-COD goods",
-        value: nonCod,
+        key: "total",
+        label: "Total Goods",
+        value: total,
         color: GOODS_TYPE_COLORS.ALL,
-      },
-      {
-        key: "cod",
-        label: "COD goods",
-        value: totalCod,
-        color: GOODS_TYPE_COLORS.COD,
       },
     ];
   }, [goodsTypeTotals]);
@@ -721,10 +668,10 @@ export default function GoodsDashboardPage() {
   const statusTotalsData = useMemo(
     () =>
       chartData.map((row) => ({
-        key: row.statusKey,
+        key: "total",
         label: row.metric,
-        value: row.ALL,
-        color: STATUS_META[row.statusKey].color,
+        value: row.TOTAL,
+        color: GOODS_TYPE_COLORS.ALL,
       })),
     [chartData],
   );
@@ -739,8 +686,7 @@ export default function GoodsDashboardPage() {
     () =>
       chartData.map((row) => ({
         metric: row.metric,
-        allGoods: row.ALL,
-        codGoods: row.COD,
+        totalGoods: row.TOTAL,
       })),
     [chartData],
   );
@@ -754,9 +700,6 @@ export default function GoodsDashboardPage() {
       string,
       {
         label: string;
-        shipping: number;
-        arrived: number;
-        completed: number;
         total: number;
       }
     >();
@@ -778,18 +721,12 @@ export default function GoodsDashboardPage() {
       if (!grouped.has(key)) {
         grouped.set(key, {
           label,
-          shipping: 0,
-          arrived: 0,
-          completed: 0,
           total: 0,
         });
       }
 
       const bucket = grouped.get(key)!;
-      bucket.shipping += summary.all.shipping;
-      bucket.arrived += summary.all.arrived;
-      bucket.completed += summary.all.completed;
-      bucket.total = bucket.shipping + bucket.arrived + bucket.completed;
+      bucket.total += summary.totalGoods;
     });
 
     return Array.from(grouped.values()).sort((a, b) => b.total - a.total);
@@ -801,13 +738,7 @@ export default function GoodsDashboardPage() {
     }
 
     const totalsByDate = shipments.reduce((map, record) => {
-      const totalGoods =
-        record.codGoods.shipping +
-        record.codGoods.arrived +
-        record.codGoods.complete +
-        record.nonCodGoods.shipping +
-        record.nonCodGoods.arrived +
-        record.nonCodGoods.complete;
+      const totalGoods = record.totalGoods || 0;
       map.set(record.sendDate, (map.get(record.sendDate) ?? 0) + totalGoods);
       return map;
     }, new Map<string, number>());
@@ -874,23 +805,12 @@ export default function GoodsDashboardPage() {
     () =>
       shipments.map((record) => {
         const memberInfo = memberMap.get(record.memberId);
-        const all = {
-          shipping: record.codGoods.shipping + record.nonCodGoods.shipping,
-          arrived: record.codGoods.arrived + record.nonCodGoods.arrived,
-          completed: record.codGoods.complete + record.nonCodGoods.complete,
-        };
         return {
           id: record.id,
           member: record.memberName,
           phone: memberInfo?.phone ?? "—",
           date: formatDate(record.sendDate),
-          all,
-          cod: {
-            shipping: record.codGoods.shipping,
-            arrived: record.codGoods.arrived,
-            completed: record.codGoods.complete,
-          },
-          totalGoods: all.shipping + all.arrived + all.completed,
+          totalGoods: record.totalGoods || 0,
         };
       }),
     [shipments, memberMap],
@@ -1151,11 +1071,10 @@ export default function GoodsDashboardPage() {
                   ).map((mode) => (
                     <button
                       key={mode.key}
-                      className={`rounded-full px-4 py-1 text-xs uppercase tracking-[0.2em] ${
-                        shipmentViewMode === mode.key
-                          ? "bg-amber-400/20 text-white"
-                          : "text-slate-400 hover:text-white"
-                      }`}
+                      className={`rounded-full px-4 py-1 text-xs uppercase tracking-[0.2em] ${shipmentViewMode === mode.key
+                        ? "bg-amber-400/20 text-white"
+                        : "text-slate-400 hover:text-white"
+                        }`}
                       onClick={() => setShipmentViewMode(mode.key)}
                     >
                       {mode.label}
@@ -1385,11 +1304,10 @@ export default function GoodsDashboardPage() {
                 {(["area", "branch", "member"] as const).map((view) => (
                   <button
                     key={view}
-                    className={`rounded-full px-4 py-1 text-xs uppercase tracking-[0.2em] ${
-                      totalsView === view
-                        ? "bg-amber-400/20 text-white"
-                        : "text-slate-400 hover:text-white"
-                    }`}
+                    className={`rounded-full px-4 py-1 text-xs uppercase tracking-[0.2em] ${totalsView === view
+                      ? "bg-amber-400/20 text-white"
+                      : "text-slate-400 hover:text-white"
+                      }`}
                     onClick={() => setTotalsView(view)}
                   >
                     {view}
@@ -1508,11 +1426,10 @@ export default function GoodsDashboardPage() {
                 {TREND_VIEW_OPTIONS.map((option) => (
                   <button
                     key={option.key}
-                    className={`rounded-full px-4 py-1 ${
-                      trendView === option.key
-                        ? "bg-amber-400/30 text-white"
-                        : "text-slate-400 hover:text-white"
-                    }`}
+                    className={`rounded-full px-4 py-1 ${trendView === option.key
+                      ? "bg-amber-400/30 text-white"
+                      : "text-slate-400 hover:text-white"
+                      }`}
                     onClick={() => setTrendView(option.key)}
                   >
                     {option.label}
@@ -1580,19 +1497,13 @@ export default function GoodsDashboardPage() {
                   <th className="pb-3 pr-6 whitespace-nowrap">Member</th>
                   <th className="pb-3 pr-6 whitespace-nowrap">Phone</th>
                   <th className="pb-3 pr-6 whitespace-nowrap">Date</th>
-                  <th className="pb-3 pr-6 whitespace-nowrap">Shipping</th>
-                  <th className="pb-3 pr-6 whitespace-nowrap">Arrived</th>
-                  <th className="pb-3 pr-6 whitespace-nowrap">Completed</th>
-                  <th className="pb-3 pr-6 whitespace-nowrap">Shipping</th>
-                  <th className="pb-3 pr-6 whitespace-nowrap">Arrived</th>
-                  <th className="pb-3 pr-6 whitespace-nowrap">Completed</th>
-                  <th className="pb-3 whitespace-nowrap">Total goods</th>
+                  <th className="pb-3 whitespace-nowrap">Total Goods</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5">
                 {shipmentRows.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="py-6 text-center text-slate-400">
+                    <td colSpan={4} className="py-6 text-center text-slate-400">
                       No shipment details for the current filters.
                     </td>
                   </tr>
@@ -1608,40 +1519,9 @@ export default function GoodsDashboardPage() {
                       <td className="py-3 pr-6 whitespace-nowrap">
                         {row.date}
                       </td>
-                      <td className="py-3 pr-1 whitespace-nowrap">
-                        <div className="rounded-l-2xl border border-white/10 bg-white/5 px-4 py-2 text-white">
-                          {row.all.shipping}
-                        </div>
-                      </td>
-                      <td className="py-3 px-1 whitespace-nowrap">
-                        <div className="border-y border-white/10 bg-white/5 px-4 py-2 text-amber-200">
-                          {row.all.arrived}
-                        </div>
-                      </td>
-                      <td className="py-3 pl-1 pr-1 whitespace-nowrap">
-                        <div className="rounded-r-2xl border border-white/10 bg-white/5 px-4 py-2 text-emerald-200">
-                          {row.all.completed}
-                        </div>
-                      </td>
-
-                      <td className="py-3 pr-1 pl-1 whitespace-nowrap">
-                        <div className="rounded-l-2xl border border-sky-300/30 bg-sky-500/10 px-4 py-2 text-white">
-                          {row.cod.shipping}
-                        </div>
-                      </td>
-                      <td className="py-3 px-1 whitespace-nowrap">
-                        <div className="border-y border-sky-300/30 bg-sky-500/10 px-4 py-2 text-amber-200">
-                          {row.cod.arrived}
-                        </div>
-                      </td>
-                      <td className="py-3 pl-1 whitespace-nowrap">
-                        <div className="rounded-r-2xl border border-sky-300/30 bg-sky-500/10 px-4 py-2 text-emerald-200">
-                          {row.cod.completed}
-                        </div>
-                      </td>
-                      <td className="py-3 pl-1 whitespace-nowrap">
-                        <div className="rounded-2xl border border-amber-300/30 bg-amber-500/10 px-4 py-2 text-white">
-                          {row.totalGoods}
+                      <td className="py-3 whitespace-nowrap">
+                        <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-white font-semibold">
+                          {row.totalGoods.toLocaleString()}
                         </div>
                       </td>
                     </tr>

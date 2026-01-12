@@ -32,7 +32,7 @@ public class MarketingGoodsShipmentService {
     private final VipMemberRepository vipMemberRepository;
 
     public MarketingGoodsShipmentService(MarketingGoodsShipmentRepository shipmentRepository,
-                                         VipMemberRepository vipMemberRepository) {
+            VipMemberRepository vipMemberRepository) {
         this.shipmentRepository = shipmentRepository;
         this.vipMemberRepository = vipMemberRepository;
     }
@@ -42,16 +42,12 @@ public class MarketingGoodsShipmentService {
         List<MarketingGoodsShipment> shipments = records.stream()
                 .map(record -> {
                     VipMember member = vipMemberRepository.findById(Long.valueOf(record.getUserId()))
-                            .orElseThrow(() -> new ResourceNotFoundException("VIP member not found: " + record.getUserId()));
+                            .orElseThrow(
+                                    () -> new ResourceNotFoundException("VIP member not found: " + record.getUserId()));
                     MarketingGoodsShipment shipment = new MarketingGoodsShipment();
                     shipment.setMember(member);
                     shipment.setSendDate(record.getSendDate());
-                    shipment.setCodShipping(record.getCod_goods().getShipping());
-                    shipment.setCodArrived(record.getCod_goods().getArrived());
-                    shipment.setCodComplete(record.getCod_goods().getComplete());
-                    shipment.setNonCodShipping(record.getNon_cod_goods().getShipping());
-                    shipment.setNonCodArrived(record.getNon_cod_goods().getArrived());
-                    shipment.setNonCodComplete(record.getNon_cod_goods().getComplete());
+                    shipment.setTotalGoods(record.getTotalGoods());
                     shipment.setCreatedBy(creatorId);
                     return shipment;
                 })
@@ -71,8 +67,7 @@ public class MarketingGoodsShipmentService {
             String memberQuery,
             int limit,
             LocalDate startDate,
-            LocalDate endDate
-    ) {
+            LocalDate endDate) {
         int sanitizedLimit = Math.min(Math.max(limit, 1), 100);
         Pageable pageable = PageRequest.of(0, sanitizedLimit, Sort.by(Sort.Direction.DESC, "sendDate", "id"));
 
@@ -113,8 +108,7 @@ public class MarketingGoodsShipmentService {
                 Join<MarketingGoodsShipment, VipMember> memberJoin = root.join("member");
                 return cb.or(
                         cb.like(cb.lower(memberJoin.get("name")), likePattern),
-                        cb.like(cb.lower(memberJoin.get("phone")), likePattern)
-                );
+                        cb.like(cb.lower(memberJoin.get("phone")), likePattern));
             });
         }
 
@@ -135,20 +129,15 @@ public class MarketingGoodsShipmentService {
 
     @Transactional
     public MarketingGoodsShipmentResponse updateShipment(Long shipmentId,
-                                                         MarketingGoodsShipmentUpdateRequest request,
-                                                         Long requesterId) {
+            MarketingGoodsShipmentUpdateRequest request,
+            Long requesterId) {
         MarketingGoodsShipment shipment = shipmentRepository.findById(shipmentId)
                 .orElseThrow(() -> new ResourceNotFoundException("Goods shipment not found: " + shipmentId));
 
         requireOwnership(shipment, requesterId);
 
         shipment.setSendDate(request.getSendDate());
-        shipment.setCodShipping(request.getCodGoods().getShipping());
-        shipment.setCodArrived(request.getCodGoods().getArrived());
-        shipment.setCodComplete(request.getCodGoods().getComplete());
-        shipment.setNonCodShipping(request.getNonCodGoods().getShipping());
-        shipment.setNonCodArrived(request.getNonCodGoods().getArrived());
-        shipment.setNonCodComplete(request.getNonCodGoods().getComplete());
+        shipment.setTotalGoods(request.getTotalGoods());
 
         MarketingGoodsShipment saved = shipmentRepository.save(shipment);
         return MarketingGoodsShipmentResponse.fromEntity(saved);

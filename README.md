@@ -76,15 +76,15 @@ All configuration is managed through **one `.env` file** at the project root:
 ```bash
 # Cloudflare Tunnel
 CLOUDFLARE_TUNNEL_NAME=demo-tunnel
-CLOUDFLARE_DOMAIN=test.mooniris.com
+CLOUDFLARE_DOMAIN=vetapi.mooniris.com,https://dev.mooniris.com
 
 # Database
 POSTGRES_USER=postgres
 POSTGRES_PASSWORD=your-password
 
 # Gateway & CORS
-GATEWAY_CORS_ALLOWED_ORIGIN_PATTERNS=http://localhost:*,https://test.mooniris.com
-ALLOWED_ORIGINS=http://localhost:3000,https://test.mooniris.com
+GATEWAY_CORS_ALLOWED_ORIGIN_PATTERNS=http://localhost:*,https://vetapi.mooniris.com,https://dev.mooniris.com
+ALLOWED_ORIGINS=http://localhost:3000,https://vetapi.mooniris.com,https://dev.mooniris.com
 
 # And more...
 ```
@@ -134,7 +134,7 @@ cp .env .env.prod
 # Edit each with environment-specific values
 nano .env.dev     # dev.mooniris.com
 nano .env.staging # staging.mooniris.com
-nano .env.prod    # test.mooniris.com
+nano .env.prod    # vetapi.mooniris.com,https://dev.mooniris.com
 
 # Use specific environment
 cp .env.prod .env

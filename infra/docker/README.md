@@ -133,7 +133,7 @@ The docker-compose.yml includes:
 - Grafana: http://localhost:3300
 
 ### External Access (via Cloudflare Tunnel)
-- Domain: https://test.mooniris.com
+- Domain: https://vetapi.mooniris.com,https://dev.mooniris.com
 
 ## Health Checks
 
@@ -147,7 +147,7 @@ curl http://localhost:8081/actuator/health
 curl http://localhost:8080/actuator/health/readiness
 
 # Via domain
-curl https://test.mooniris.com/actuator/health
+curl https://vetapi.mooniris.com,https://dev.mooniris.com/actuator/health
 ```
 
 ## Troubleshooting

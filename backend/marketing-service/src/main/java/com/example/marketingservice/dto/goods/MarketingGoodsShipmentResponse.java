@@ -12,8 +12,7 @@ public class MarketingGoodsShipmentResponse {
     private Long branchId;
     private String branchName;
     private LocalDate sendDate;
-    private GoodsStatus codGoods;
-    private GoodsStatus nonCodGoods;
+    private Integer totalGoods;
     private LocalDateTime createdAt;
     private Long createdBy;
 
@@ -65,20 +64,12 @@ public class MarketingGoodsShipmentResponse {
         this.sendDate = sendDate;
     }
 
-    public GoodsStatus getCodGoods() {
-        return codGoods;
+    public Integer getTotalGoods() {
+        return totalGoods;
     }
 
-    public void setCodGoods(GoodsStatus codGoods) {
-        this.codGoods = codGoods;
-    }
-
-    public GoodsStatus getNonCodGoods() {
-        return nonCodGoods;
-    }
-
-    public void setNonCodGoods(GoodsStatus nonCodGoods) {
-        this.nonCodGoods = nonCodGoods;
+    public void setTotalGoods(Integer totalGoods) {
+        this.totalGoods = totalGoods;
     }
 
     public LocalDateTime getCreatedAt() {
@@ -105,21 +96,9 @@ public class MarketingGoodsShipmentResponse {
         response.branchId = shipment.getMember().getBranch().getId();
         response.branchName = shipment.getMember().getBranch().getName();
         response.sendDate = shipment.getSendDate();
-        response.codGoods = new GoodsStatus(
-                shipment.getCodShipping(),
-                shipment.getCodArrived(),
-                shipment.getCodComplete()
-        );
-        response.nonCodGoods = new GoodsStatus(
-                shipment.getNonCodShipping(),
-                shipment.getNonCodArrived(),
-                shipment.getNonCodComplete()
-        );
+        response.totalGoods = shipment.getTotalGoods();
         response.createdAt = shipment.getCreatedAt();
         response.createdBy = shipment.getCreatedBy();
         return response;
-    }
-
-    public record GoodsStatus(int shipping, int arrived, int complete) {
     }
 }

@@ -1,6 +1,5 @@
 package com.example.marketingservice.dto.goods;
 
-import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -11,7 +10,6 @@ import java.util.List;
 public class UserGoodsRecordRequest {
 
     @NotNull
-    @Valid
     private List<GoodsRecord> records;
 
     public List<GoodsRecord> getRecords() {
@@ -29,13 +27,8 @@ public class UserGoodsRecordRequest {
         @NotNull
         private LocalDate sendDate;
 
-        @NotNull
-        @Valid
-        private GoodsStatus cod_goods;
-
-        @NotNull
-        @Valid
-        private GoodsStatus non_cod_goods;
+        @Min(0)
+        private Integer totalGoods;
 
         public String getUserId() {
             return userId;
@@ -53,55 +46,12 @@ public class UserGoodsRecordRequest {
             this.sendDate = sendDate;
         }
 
-        public GoodsStatus getCod_goods() {
-            return cod_goods;
+        public Integer getTotalGoods() {
+            return totalGoods;
         }
 
-        public void setCod_goods(GoodsStatus cod_goods) {
-            this.cod_goods = cod_goods;
-        }
-
-        public GoodsStatus getNon_cod_goods() {
-            return non_cod_goods;
-        }
-
-        public void setNon_cod_goods(GoodsStatus non_cod_goods) {
-            this.non_cod_goods = non_cod_goods;
-        }
-    }
-
-    public static class GoodsStatus {
-        @Min(0)
-        private int shipping;
-
-        @Min(0)
-        private int arrived;
-
-        @Min(0)
-        private int complete;
-
-        public int getShipping() {
-            return shipping;
-        }
-
-        public void setShipping(int shipping) {
-            this.shipping = shipping;
-        }
-
-        public int getArrived() {
-            return arrived;
-        }
-
-        public void setArrived(int arrived) {
-            this.arrived = arrived;
-        }
-
-        public int getComplete() {
-            return complete;
-        }
-
-        public void setComplete(int complete) {
-            this.complete = complete;
+        public void setTotalGoods(Integer totalGoods) {
+            this.totalGoods = totalGoods;
         }
     }
 }

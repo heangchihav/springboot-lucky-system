@@ -1,6 +1,5 @@
 package com.example.marketingservice.dto.goods;
 
-import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 
@@ -11,13 +10,8 @@ public class MarketingGoodsShipmentUpdateRequest {
     @NotNull
     private LocalDate sendDate;
 
-    @NotNull
-    @Valid
-    private GoodsStatus codGoods;
-
-    @NotNull
-    @Valid
-    private GoodsStatus nonCodGoods;
+    @Min(0)
+    private Integer totalGoods;
 
     public LocalDate getSendDate() {
         return sendDate;
@@ -27,54 +21,11 @@ public class MarketingGoodsShipmentUpdateRequest {
         this.sendDate = sendDate;
     }
 
-    public GoodsStatus getCodGoods() {
-        return codGoods;
+    public Integer getTotalGoods() {
+        return totalGoods;
     }
 
-    public void setCodGoods(GoodsStatus codGoods) {
-        this.codGoods = codGoods;
-    }
-
-    public GoodsStatus getNonCodGoods() {
-        return nonCodGoods;
-    }
-
-    public void setNonCodGoods(GoodsStatus nonCodGoods) {
-        this.nonCodGoods = nonCodGoods;
-    }
-
-    public static class GoodsStatus {
-        @Min(0)
-        private int shipping;
-
-        @Min(0)
-        private int arrived;
-
-        @Min(0)
-        private int complete;
-
-        public int getShipping() {
-            return shipping;
-        }
-
-        public void setShipping(int shipping) {
-            this.shipping = shipping;
-        }
-
-        public int getArrived() {
-            return arrived;
-        }
-
-        public void setArrived(int arrived) {
-            this.arrived = arrived;
-        }
-
-        public int getComplete() {
-            return complete;
-        }
-
-        public void setComplete(int complete) {
-            this.complete = complete;
-        }
+    public void setTotalGoods(Integer totalGoods) {
+        this.totalGoods = totalGoods;
     }
 }
