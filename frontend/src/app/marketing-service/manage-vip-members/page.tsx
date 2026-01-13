@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { MarketingServiceGuard } from "@/components/marketing-service/MarketingServiceGuard";
 import { PermissionGuard } from "@/components/layout/PermissionGuard";
+import { useToast } from "@/components/ui/Toast";
 import {
   marketingHierarchyService,
   MarketingArea,
@@ -30,8 +31,6 @@ type MemberFormState = {
   deleteRemark?: string;
 };
 
-type ToastState = { message: string; tone: "success" | "error" };
-
 const today = new Date().toISOString().split("T")[0];
 
 const defaultForm: MemberFormState = {
@@ -47,6 +46,7 @@ const defaultForm: MemberFormState = {
 };
 
 export default function MarketingVipManageUserPage() {
+  const { showToast } = useToast();
   const [areas, setAreas] = useState<MarketingArea[]>([]);
   const [subAreas, setSubAreas] = useState<MarketingSubArea[]>([]);
   const [branches, setBranches] = useState<MarketingBranch[]>([]);
@@ -64,19 +64,91 @@ export default function MarketingVipManageUserPage() {
 
   const [form, setForm] = useState<MemberFormState>(defaultForm);
   const [editingMember, setEditingMember] = useState<VipMember | null>(null);
+  const [showQuickPaste, setShowQuickPaste] = useState(false);
 
   const [lookupLoading, setLookupLoading] = useState(true);
   const [membersLoading, setMembersLoading] = useState(false);
   const [formSubmitting, setFormSubmitting] = useState(false);
 
-  const [toast, setToast] = useState<ToastState | null>(null);
+  const [pasteText, setPasteText] = useState("");
+  const [parsedMembers, setParsedMembers] = useState<Array<{ name: string; phone: string }>>([]);
 
-  const showToast = (
-    message: string,
-    tone: "success" | "error" = "success",
-  ) => {
-    setToast({ message, tone });
-    setTimeout(() => setToast(null), 3500);
+  const parsePasteText = (text: string) => {
+    const lines = text.trim().split('\n');
+    const members: Array<{ name: string; phone: string }> = [];
+
+    for (const line of lines) {
+      const parts = line.split('\t');
+      if (parts.length >= 2) {
+        let name = parts[0].trim();
+        let phone = parts[1].trim();
+
+        // Add 0 prefix if phone doesn't start with 0
+        if (phone && !phone.startsWith('0')) {
+          phone = '0' + phone;
+        }
+
+        if (name && phone) {
+          members.push({ name, phone });
+        }
+      }
+    }
+
+    return members;
+  };
+
+  const handleBulkCreate = async () => {
+    if (!form.branchId) {
+      showToast("Please select a branch first", "error");
+      return;
+    }
+
+    let successCount = 0;
+    let failCount = 0;
+    let duplicateCount = 0;
+    const duplicates: string[] = [];
+
+    for (const member of parsedMembers) {
+      // Check for phone number duplicate
+      if (checkPhoneDuplicate(member.phone)) {
+        duplicateCount++;
+        const existingMember = members.find((m) => m.phone.trim() === member.phone.trim());
+        if (existingMember) {
+          duplicates.push(`${member.name} (already exists as ${existingMember.name})`);
+        }
+        continue; // Skip this member
+      }
+
+      try {
+        await vipMemberService.createMember({
+          name: member.name,
+          phone: member.phone,
+          branchId: form.branchId,
+          memberCreatedAt: form.memberCreatedAt,
+          createRemark: form.createRemark,
+        });
+        successCount++;
+      } catch (error) {
+        console.error(`Failed to create ${member.name}:`, error);
+        failCount++;
+      }
+    }
+
+    // Show results
+    if (successCount > 0) {
+      showToast(`Successfully created ${successCount} member${successCount > 1 ? 's' : ''}`, "success");
+    }
+    if (failCount > 0) {
+      showToast(`Failed to create ${failCount} member${failCount > 1 ? 's' : ''}`, "error");
+    }
+    if (duplicateCount > 0) {
+      showToast(`Skipped ${duplicateCount} duplicate member${duplicateCount > 1 ? 's' : ''}`, "error");
+      console.log('Skipped duplicates:', duplicates);
+    }
+
+    setPasteText("");
+    setParsedMembers([]);
+    setFilters((prev) => ({ ...prev }));
   };
 
   const loadLookups = async () => {
@@ -152,33 +224,38 @@ export default function MarketingVipManageUserPage() {
   }, [filters]);
 
   const filteredSubAreasForForm = useMemo(() => {
-    if (!form.areaId) return [];
+    // If no area selected, show all sub areas
+    if (!form.areaId) return subAreas;
     return subAreas.filter((subArea) => subArea.areaId === form.areaId);
   }, [form.areaId, subAreas]);
 
   const filteredBranchesForForm = useMemo(() => {
-    if (!form.areaId) return [];
+    // If no area selected, show all branches
+    if (!form.areaId) return branches;
+
     return branches.filter((branch) => {
       if (branch.areaId !== form.areaId) {
         return false;
       }
-      if (form.subAreaId === "all") {
-        return true;
+      if (form.subAreaId && form.subAreaId !== "all") {
+        return branch.subAreaId === form.subAreaId;
       }
-      return branch.subAreaId === form.subAreaId;
+      return true;
     });
-  }, [branches, form.areaId, form.subAreaId]);
+  }, [form.areaId, form.subAreaId, branches]);
 
   const filterSubAreas = useMemo(() => {
+    // If "all areas" selected, show all sub areas
     if (filters.areaId === "all") {
-      return [];
+      return subAreas;
     }
     return subAreas.filter((subArea) => subArea.areaId === filters.areaId);
   }, [filters.areaId, subAreas]);
 
   const filterBranches = useMemo(() => {
+    // If "all areas" selected, show all branches
     if (filters.areaId === "all") {
-      return [];
+      return branches;
     }
     return branches.filter((branch) => {
       if (branch.areaId !== filters.areaId) {
@@ -192,13 +269,15 @@ export default function MarketingVipManageUserPage() {
   }, [branches, filters.areaId, filters.subAreaId]);
 
   useEffect(() => {
+    // Only clear branch selection if area is selected and branch is not in filtered list
     if (
+      form.areaId &&
       form.branchId &&
       !filteredBranchesForForm.some((branch) => branch.id === form.branchId)
     ) {
       setForm((prev) => ({ ...prev, branchId: undefined }));
     }
-  }, [filteredBranchesForForm, form.branchId]);
+  }, [filteredBranchesForForm, form.branchId, form.areaId]);
 
   const resetForm = (keepLocation = false) => {
     if (keepLocation && form.areaId && form.branchId) {
@@ -282,26 +361,76 @@ export default function MarketingVipManageUserPage() {
     setForm((prev) => ({ ...prev, branchId: Number(value) }));
   };
 
+  const checkPhoneDuplicate = (phone: string) => {
+    const normalizedPhone = phone.trim();
+    const existingMember = members.find(member =>
+      member.phone.trim() === normalizedPhone
+    );
+
+    if (existingMember) {
+      const branch = branches.find(b => b.id === existingMember.branchId);
+      const area = branch ? areas.find(a => a.id === branch.areaId) : null;
+      const location = area && branch ? `${area.name} - ${branch.name}` : branch?.name || 'Unknown';
+      showToast(`Phone number already exists for ${existingMember.name} at ${location}`, "error");
+      return true;
+    }
+    return false;
+  };
+
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
-    if (!form.name.trim()) {
-      showToast("Member name is required", "error");
+
+    // Check if we have quick paste data or single member form data
+    const hasSingleMemberData = form.name.trim() && form.phone.trim();
+
+    if (!parsedMembers.length && !hasSingleMemberData) {
+      showToast("Please enter member name and phone number, or use quick paste", "error");
       return;
     }
-    if (!form.phone.trim()) {
-      showToast("Phone number is required", "error");
+
+    // For quick paste, validate branch selection
+    if (parsedMembers.length > 0 && !form.branchId) {
+      showToast("Please select a branch for quick paste members", "error");
       return;
     }
-    if (!form.areaId) {
-      showToast("Please select an area", "error");
-      return;
+
+    // For single member, validate individual fields
+    if (!parsedMembers.length) {
+      if (!form.name.trim()) {
+        showToast("Member name is required", "error");
+        return;
+      }
+      if (!form.phone.trim()) {
+        showToast("Phone number is required", "error");
+        return;
+      }
+
+      // Check for phone number duplicates (only for new members, not edits)
+      if (!editingMember && checkPhoneDuplicate(form.phone)) {
+        return;
+      }
     }
+
     if (!form.branchId) {
       showToast("Please select a branch", "error");
       return;
     }
+
+    // Validate removal date and remark
+    if (form.memberDeletedAt && !form.deleteRemark?.trim()) {
+      showToast("Removal remark is required when removal date is specified", "error");
+      return;
+    }
     setFormSubmitting(true);
     try {
+      const hasQuickPasteData = parsedMembers.length > 0;
+      // If we have quick paste data, use bulk create
+      if (hasQuickPasteData) {
+        await handleBulkCreate();
+        return;
+      }
+
+      // Single member creation/editing
       const payload: VipMemberPayload = {
         name: form.name.trim(),
         phone: form.phone.trim(),
@@ -404,90 +533,7 @@ export default function MarketingVipManageUserPage() {
         </header>
 
         <section className="rounded-3xl border border-white/10 bg-white/5 p-5">
-          <div className="grid gap-4 lg:grid-cols-3">
-            <div className="rounded-2xl border border-white/10 bg-slate-950/40 p-4">
-              <div className="flex items-center justify-between text-xs uppercase tracking-[0.3em] text-amber-200/80">
-                <span>Filters</span>
-                <button
-                  className="rounded-full border border-white/10 px-3 py-1 text-[0.6rem] text-white/70 hover:text-white"
-                  onClick={() =>
-                    setFilters({
-                      areaId: "all",
-                      subAreaId: "all",
-                      branchId: "all",
-                    })
-                  }
-                >
-                  Reset
-                </button>
-              </div>
-              <div className="mt-3 space-y-3 text-xs text-slate-300">
-                <div className="flex flex-col">
-                  <label className="text-[0.6rem] uppercase tracking-[0.25em] text-slate-400">
-                    Area
-                  </label>
-                  <select
-                    className="mt-1 rounded-xl border border-white/10 bg-slate-900/60 px-3 py-2 text-sm text-white focus:border-amber-400/60 focus:outline-none"
-                    value={filters.areaId}
-                    onChange={(event) =>
-                      handleFilterAreaChange(event.target.value)
-                    }
-                  >
-                    <option value="all">All areas</option>
-                    {areas.map((area) => (
-                      <option key={area.id} value={area.id}>
-                        {area.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {filters.areaId !== "all" && (
-                  <div className="flex flex-col">
-                    <label className="text-[0.6rem] uppercase tracking-[0.25em] text-slate-400">
-                      Sub area
-                    </label>
-                    <select
-                      className="mt-1 rounded-xl border border-white/10 bg-slate-900/60 px-3 py-2 text-sm text-white focus:border-amber-400/60 focus:outline-none"
-                      value={filters.subAreaId}
-                      onChange={(event) =>
-                        handleFilterSubAreaChange(event.target.value)
-                      }
-                    >
-                      <option value="all">All sub areas</option>
-                      {filterSubAreas.map((subArea) => (
-                        <option key={subArea.id} value={subArea.id}>
-                          {subArea.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-
-                {filters.areaId !== "all" && (
-                  <div className="flex flex-col">
-                    <label className="text-[0.6rem] uppercase tracking-[0.25em] text-slate-400">
-                      Branch
-                    </label>
-                    <select
-                      className="mt-1 rounded-xl border border-white/10 bg-slate-900/60 px-3 py-2 text-sm text-white focus:border-amber-400/60 focus:outline-none"
-                      value={filters.branchId}
-                      onChange={(event) =>
-                        handleFilterBranchChange(event.target.value)
-                      }
-                    >
-                      <option value="all">All branches</option>
-                      {filterBranches.map((branch) => (
-                        <option key={branch.id} value={branch.id}>
-                          {branch.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-              </div>
-            </div>
-
+          <div className="grid gap-4 lg:grid-cols-2">
             <div className="rounded-2xl border border-white/10 bg-emerald-500/10 p-4">
               <p className="text-xs uppercase tracking-[0.3em] text-emerald-200/80">
                 Active
@@ -515,123 +561,91 @@ export default function MarketingVipManageUserPage() {
         </section>
 
         <section className="rounded-3xl border border-white/10 bg-white/5 p-6">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
-            <form className="flex-1 space-y-4" onSubmit={handleSubmit}>
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs uppercase tracking-[0.3em] text-amber-300/70">
-                    {editingMember ? "Edit member" : "Add new member"}
-                  </p>
-                  <h2 className="text-xl font-semibold text-white">
-                    {editingMember ? editingMember.name : "Create VIP member"}
-                  </h2>
-                </div>
-                {editingMember && (
-                  <button
-                    type="button"
-                    className="rounded-full border border-white/10 px-4 py-2 text-xs text-white hover:bg-white/10"
-                    onClick={() => resetForm(false)}
-                  >
-                    Cancel edit
-                  </button>
-                )}
+          <form className="space-y-4" onSubmit={handleSubmit}>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs uppercase tracking-[0.3em] text-amber-300/70">
+                  {editingMember ? "Edit member" : "Add new member"}
+                </p>
+                <h2 className="text-xl font-semibold text-white">
+                  {editingMember ? editingMember.name : "Create VIP member"}
+                </h2>
               </div>
+              {editingMember && (
+                <button
+                  type="button"
+                  className="rounded-full border border-white/10 px-4 py-2 text-xs text-white hover:bg-white/10"
+                  onClick={() => resetForm(false)}
+                >
+                  Cancel edit
+                </button>
+              )}
+            </div>
 
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="flex flex-col text-xs text-slate-300">
-                  <label className="text-[0.6rem] uppercase tracking-[0.25em] text-slate-400">
-                    Full name
-                  </label>
-                  <input
-                    type="text"
-                    value={form.name}
-                    onChange={(event) =>
-                      setForm((prev) => ({ ...prev, name: event.target.value }))
-                    }
-                    className="mt-1 rounded-xl border border-white/10 bg-slate-900/60 px-3 py-2 text-sm text-white focus:border-amber-400/60 focus:outline-none"
-                    placeholder="Enter full name"
-                  />
-                </div>
-
-                <div className="flex flex-col text-xs text-slate-300">
-                  <label className="text-[0.6rem] uppercase tracking-[0.25em] text-slate-400">
-                    Phone number
-                  </label>
-                  <input
-                    type="tel"
-                    value={form.phone}
-                    onChange={(event) =>
-                      setForm((prev) => ({
-                        ...prev,
-                        phone: event.target.value,
-                      }))
-                    }
-                    className="mt-1 rounded-xl border border-white/10 bg-slate-900/60 px-3 py-2 text-sm text-white focus:border-amber-400/60 focus:outline-none"
-                    placeholder="0x-xxx-xxx"
-                  />
-                </div>
-
-                <div className="flex flex-col text-xs text-slate-300 md:col-span-2">
-                  <label className="text-[0.6rem] uppercase tracking-[0.25em] text-slate-400">
-                    Area
-                  </label>
-                  <select
-                    value={form.areaId ?? ""}
-                    onChange={(event) =>
-                      handleFormAreaChange(event.target.value)
-                    }
-                    className="mt-1 rounded-xl border border-white/10 bg-slate-900/60 px-3 py-2 text-sm text-white focus:border-amber-400/60 focus:outline-none"
-                  >
-                    <option value="">Select area</option>
-                    {areas.map((area) => (
-                      <option key={area.id} value={area.id}>
-                        {area.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {filteredSubAreasForForm.length > 0 && (
+            <div className="grid gap-6 lg:grid-cols-2">
+              {/* Left Column: Location, Dates, Remarks */}
+              <div className="space-y-4">
+                <div className="grid gap-3 grid-cols-3">
                   <div className="flex flex-col text-xs text-slate-300">
                     <label className="text-[0.6rem] uppercase tracking-[0.25em] text-slate-400">
-                      Sub area
+                      Area
                     </label>
                     <select
-                      value={form.subAreaId}
+                      value={form.areaId ?? ""}
                       onChange={(event) =>
-                        handleFormSubAreaChange(event.target.value)
+                        handleFormAreaChange(event.target.value)
                       }
                       className="mt-1 rounded-xl border border-white/10 bg-slate-900/60 px-3 py-2 text-sm text-white focus:border-amber-400/60 focus:outline-none"
                     >
-                      <option value="all">All sub areas</option>
-                      {filteredSubAreasForForm.map((subArea) => (
-                        <option key={subArea.id} value={subArea.id}>
-                          {subArea.name}
+                      <option value="">All areas</option>
+                      {areas.map((area) => (
+                        <option key={area.id} value={area.id}>
+                          {area.name}
                         </option>
                       ))}
                     </select>
                   </div>
-                )}
+                  {(
+                    <div className="flex flex-col text-xs text-slate-300">
+                      <label className="text-[0.6rem] uppercase tracking-[0.25em] text-slate-400">
+                        Sub area
+                      </label>
+                      <select
+                        value={form.subAreaId}
+                        onChange={(event) =>
+                          handleFormSubAreaChange(event.target.value)
+                        }
+                        className="mt-1 rounded-xl border border-white/10 bg-slate-900/60 px-3 py-2 text-sm text-white focus:border-amber-400/60 focus:outline-none"
+                      >
+                        <option value="all">All sub areas</option>
+                        {filteredSubAreasForForm.map((subArea) => (
+                          <option key={subArea.id} value={subArea.id}>
+                            {subArea.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
 
-                <div className="flex flex-col text-xs text-slate-300">
-                  <label className="text-[0.6rem] uppercase tracking-[0.25em] text-slate-400">
-                    Branch
-                  </label>
-                  <select
-                    value={form.branchId ?? ""}
-                    onChange={(event) =>
-                      handleFormBranchChange(event.target.value)
-                    }
-                    disabled={!form.areaId}
-                    className="mt-1 rounded-xl border border-white/10 bg-slate-900/60 px-3 py-2 text-sm text-white disabled:cursor-not-allowed disabled:opacity-40 focus:border-amber-400/60 focus:outline-none"
-                  >
-                    <option value="">Select branch</option>
-                    {filteredBranchesForForm.map((branch) => (
-                      <option key={branch.id} value={branch.id}>
-                        {branch.name}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="flex flex-col text-xs text-slate-300">
+                    <label className="text-[0.6rem] uppercase tracking-[0.25em] text-slate-400">
+                      Branch
+                    </label>
+                    <select
+                      value={form.branchId ?? ""}
+                      onChange={(event) =>
+                        handleFormBranchChange(event.target.value)
+                      }
+                      className="mt-1 rounded-xl border border-white/10 bg-slate-900/60 px-3 py-2 text-sm text-white focus:border-amber-400/60 focus:outline-none"
+                    >
+                      <option value="">All branches</option>
+                      {filteredBranchesForForm.map((branch) => (
+                        <option key={branch.id} value={branch.id}>
+                          {branch.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
 
                 <div className="flex flex-col text-xs text-slate-300">
@@ -668,7 +682,7 @@ export default function MarketingVipManageUserPage() {
                   />
                 </div>
 
-                <div className="flex flex-col text-xs text-slate-300 md:col-span-2">
+                <div className="flex flex-col text-xs text-slate-300">
                   <label className="text-[0.6rem] uppercase tracking-[0.25em] text-slate-400">
                     Registration remark
                   </label>
@@ -685,7 +699,7 @@ export default function MarketingVipManageUserPage() {
                   />
                 </div>
 
-                <div className="flex flex-col text-xs text-slate-300 md:col-span-2">
+                <div className="flex flex-col text-xs text-slate-300">
                   <label className="text-[0.6rem] uppercase tracking-[0.25em] text-slate-400">
                     Removal remark
                   </label>
@@ -703,165 +717,405 @@ export default function MarketingVipManageUserPage() {
                 </div>
               </div>
 
-              <button
-                type="submit"
-                disabled={formSubmitting}
-                className="w-full rounded-2xl bg-linear-to-r from-amber-400/80 to-rose-500/80 px-6 py-3 text-center text-sm font-semibold uppercase tracking-[0.35em] text-white shadow-lg shadow-rose-900/30 disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                {formSubmitting
-                  ? "Saving…"
-                  : editingMember
-                    ? "Update member"
-                    : "Create member"}
-              </button>
-            </form>
+              {/* Right Column: Member Info & Quick Input */}
+              <div className="space-y-4">
+                <div className="flex flex-col text-xs text-slate-300">
+                  <label className="text-[0.6rem] uppercase tracking-[0.25em] text-slate-400">
+                    Full name
+                  </label>
+                  <input
+                    type="text"
+                    value={form.name}
+                    onChange={(event) =>
+                      setForm((prev) => ({ ...prev, name: event.target.value }))
+                    }
+                    className="mt-1 rounded-xl border border-white/10 bg-slate-900/60 px-3 py-2 text-sm text-white focus:border-amber-400/60 focus:outline-none"
+                    placeholder="Enter full name"
+                  />
+                </div>
 
-            <div className="min-h-full flex-1 rounded-2xl border border-white/10 bg-slate-950/40 p-4">
-              <div className="flex items-center justify-between text-xs uppercase tracking-[0.3em] text-amber-200/70">
-                <span>Directory</span>
-                <span className="text-[0.6rem] text-white/60">
-                  {membersLoading ? "Refreshing…" : `${members.length} records`}
-                </span>
+                <div className="flex flex-col text-xs text-slate-300">
+                  <label className="text-[0.6rem] uppercase tracking-[0.25em] text-slate-400">
+                    Phone number
+                  </label>
+                  <input
+                    type="tel"
+                    value={form.phone}
+                    onChange={(event) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        phone: event.target.value,
+                      }))
+                    }
+                    className="mt-1 rounded-xl border border-white/10 bg-slate-900/60 px-3 py-2 text-sm text-white focus:border-amber-400/60 focus:outline-none"
+                    placeholder="0x-xxx-xxx"
+                  />
+                </div>
+
+                <div>
+                  <button
+                    type="button"
+                    onClick={() => setShowQuickPaste(!showQuickPaste)}
+                    className="mb-2 flex items-center gap-2 text-[0.6rem] uppercase tracking-[0.25em] text-slate-400 hover:text-slate-300 transition-colors"
+                  >
+                    📋 Quick Paste Multiple Members
+                    <span className={`transform transition-transform ${showQuickPaste ? 'rotate-90' : ''}`}>
+                      ▶
+                    </span>
+                  </button>
+
+                  {showQuickPaste && (
+                    <div className="space-y-2">
+                      <textarea
+                        value={pasteText}
+                        onChange={(e) => {
+                          setPasteText(e.target.value);
+                          setParsedMembers(parsePasteText(e.target.value));
+                        }}
+                        rows={8}
+                        disabled={!form.branchId}
+                        className="w-full rounded-xl border border-white/10 bg-slate-900/60 px-3 py-3 text-base text-white focus:border-amber-400/60 focus:outline-none font-mono disabled:opacity-40 disabled:cursor-not-allowed"
+                        placeholder={form.branchId ? "Paste tab-separated data: Name[TAB]Phone (one per line)\nExample:\nLY ROZA\t87232002\nប្រេងរឹតសរសៃខ្មែរ\t89232373" : "Please select a branch first"}
+                      />
+                      <p className="text-sm text-slate-500">
+                        Phone numbers without 0 prefix will be auto-corrected.
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {parsedMembers.length > 0 && form.branchId && (
+                  <div>
+                    <div className="rounded-xl border border-amber-400/40 bg-amber-500/5 overflow-hidden">
+                      <div className="bg-amber-500/10 px-4 py-2 flex items-center justify-between">
+                        <h4 className="text-sm font-semibold text-amber-300">
+                          Preview ({parsedMembers.length} members
+                          {(() => {
+                            const duplicateCount = parsedMembers.filter(member =>
+                              members.some(m => m.phone.trim() === member.phone.trim())
+                            ).length;
+                            return duplicateCount > 0 ? `, ${duplicateCount} duplicates` : '';
+                          })()})
+                        </h4>
+                        <button
+                          type="button"
+                          onClick={handleBulkCreate}
+                          disabled={formSubmitting}
+                          className="rounded-lg bg-amber-500/20 px-3 py-1 text-xs font-semibold text-amber-200 hover:bg-amber-500/30 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                        >
+                          Create All
+                        </button>
+                      </div>
+                      <div className="max-h-60 overflow-y-auto">
+                        <table className="w-full text-sm">
+                          <thead className="bg-slate-900/40 text-xs uppercase tracking-[0.2em] text-slate-400 sticky top-0">
+                            <tr>
+                              <th className="px-4 py-2 text-left font-medium">#</th>
+                              <th className="px-4 py-2 text-left font-medium">Name</th>
+                              <th className="px-4 py-2 text-left font-medium">Phone</th>
+                              <th className="px-4 py-2 text-left font-medium">Branch</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {parsedMembers.map((member, index) => {
+                              const selectedBranch = branches.find(b => b.id === form.branchId);
+                              const selectedArea = selectedBranch ? areas.find(a => a.id === selectedBranch.areaId) : null;
+
+                              // Check if phone number already exists
+                              const existingMember = members.find(m => m.phone.trim() === member.phone.trim());
+                              const isDuplicate = !!existingMember;
+
+                              return (
+                                <tr
+                                  key={index}
+                                  className={`border-t border-white/5 hover:bg-slate-900/20 ${isDuplicate ? 'bg-rose-500/10' : ''
+                                    }`}
+                                >
+                                  <td className="px-4 py-2 text-slate-400">{index + 1}</td>
+                                  <td className="px-4 py-2 text-white font-medium">
+                                    {member.name}
+                                    {isDuplicate && (
+                                      <span className="ml-2 text-xs text-rose-400">(duplicate)</span>
+                                    )}
+                                  </td>
+                                  <td className="px-4 py-2">
+                                    <span className={isDuplicate ? 'text-rose-300 font-medium' : 'text-slate-300'}>
+                                      {member.phone}
+                                    </span>
+                                    {isDuplicate && existingMember && (
+                                      <div className="text-xs text-rose-200 mt-1">
+                                        Already exists as {existingMember.name}
+                                      </div>
+                                    )}
+                                  </td>
+                                  <td className="px-4 py-2 text-slate-300">
+                                    {selectedBranch ? (
+                                      <span className="text-xs">
+                                        {selectedBranch.name}
+                                        {selectedArea && <span className="text-slate-500 ml-1">({selectedArea.name})</span>}
+                                      </span>
+                                    ) : (
+                                      <span className="text-slate-500">—</span>
+                                    )}
+                                    {isDuplicate && existingMember && (
+                                      <div className="text-xs text-rose-200 mt-1">
+                                        Current: {existingMember.branchName}
+                                      </div>
+                                    )}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
-              <div className="mt-3 max-h-120 overflow-auto rounded-2xl border border-white/10 bg-slate-900/40">
-                <table className="min-w-full divide-y divide-white/5 text-sm text-slate-100">
-                  <thead className="bg-white/5 text-xs uppercase tracking-[0.25em] text-slate-400">
+            </div>
+
+            <button
+              type="submit"
+              disabled={formSubmitting}
+              className="w-full rounded-2xl bg-linear-to-r from-amber-400/80 to-rose-500/80 px-6 py-3 text-center text-sm font-semibold uppercase tracking-[0.35em] text-white shadow-lg shadow-rose-900/30 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {formSubmitting
+                ? "Saving…"
+                : editingMember
+                  ? "Update member"
+                  : "Create member"}
+            </button>
+          </form>
+        </section>
+
+        <section className="rounded-3xl border border-white/10 bg-white/5 p-6">
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs uppercase tracking-[0.3em] text-amber-300/70">
+                  Member directory
+                </p>
+                <h2 className="text-xl font-semibold text-white">
+                  VIP Members List
+                </h2>
+              </div>
+              <span className="text-xs text-white/60">
+                {membersLoading ? "Refreshing…" : `${members.length} records`}
+              </span>
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-slate-950/40 p-4">
+              <div className="flex items-center justify-between text-xs uppercase tracking-[0.3em] text-amber-200/80 mb-3">
+                <span>Filters</span>
+                <button
+                  className="rounded-full border border-white/10 px-3 py-1 text-[0.6rem] text-white/70 hover:text-white"
+                  onClick={() =>
+                    setFilters({
+                      areaId: "all",
+                      subAreaId: "all",
+                      branchId: "all",
+                    })
+                  }
+                >
+                  Reset
+                </button>
+              </div>
+              <div className="grid gap-3 md:grid-cols-3 text-xs text-slate-300">
+                <div className="flex flex-col">
+                  <label className="text-[0.6rem] uppercase tracking-[0.25em] text-slate-400">
+                    Area
+                  </label>
+                  <select
+                    className="mt-1 rounded-xl border border-white/10 bg-slate-900/60 px-3 py-2 text-sm text-white focus:border-amber-400/60 focus:outline-none"
+                    value={filters.areaId}
+                    onChange={(event) =>
+                      handleFilterAreaChange(event.target.value)
+                    }
+                  >
+                    <option value="all">All areas</option>
+                    {areas.map((area) => (
+                      <option key={area.id} value={area.id}>
+                        {area.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {(
+                  <div className="flex flex-col">
+                    <label className="text-[0.6rem] uppercase tracking-[0.25em] text-slate-400">
+                      Sub area
+                    </label>
+                    <select
+                      className="mt-1 rounded-xl border border-white/10 bg-slate-900/60 px-3 py-2 text-sm text-white focus:border-amber-400/60 focus:outline-none"
+                      value={filters.subAreaId}
+                      onChange={(event) =>
+                        handleFilterSubAreaChange(event.target.value)
+                      }
+                    >
+                      <option value="all">All sub areas</option>
+                      {filterSubAreas.map((subArea) => (
+                        <option key={subArea.id} value={subArea.id}>
+                          {subArea.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {(
+                  <div className="flex flex-col">
+                    <label className="text-[0.6rem] uppercase tracking-[0.25em] text-slate-400">
+                      Branch
+                    </label>
+                    <select
+                      className="mt-1 rounded-xl border border-white/10 bg-slate-900/60 px-3 py-2 text-sm text-white focus:border-amber-400/60 focus:outline-none"
+                      value={filters.branchId}
+                      onChange={(event) =>
+                        handleFilterBranchChange(event.target.value)
+                      }
+                    >
+                      <option value="all">All branches</option>
+                      {filterBranches.map((branch) => (
+                        <option key={branch.id} value={branch.id}>
+                          {branch.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="overflow-auto rounded-2xl border border-white/10 bg-slate-900/40">
+              <table className="min-w-full divide-y divide-white/5 text-sm text-slate-100">
+                <thead className="bg-white/5 text-xs uppercase tracking-[0.25em] text-slate-400">
+                  <tr>
+                    <th className="px-4 py-3 text-left font-medium">
+                      Member
+                    </th>
+                    <th className="px-4 py-3 text-left font-medium">
+                      Location
+                    </th>
+                    <th className="px-4 py-3 text-left font-medium">
+                      Timeline
+                    </th>
+                    <th className="px-4 py-3 text-left font-medium">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {members.length === 0 ? (
                     <tr>
-                      <th className="px-4 py-3 text-left font-medium">
-                        Member
-                      </th>
-                      <th className="px-4 py-3 text-left font-medium">
-                        Location
-                      </th>
-                      <th className="px-4 py-3 text-left font-medium">
-                        Timeline
-                      </th>
-                      <th className="px-4 py-3 text-left font-medium">
-                        Actions
-                      </th>
+                      <td
+                        className="px-4 py-6 text-center text-slate-400"
+                        colSpan={4}
+                      >
+                        {membersLoading
+                          ? "Loading members…"
+                          : "No members match the current filters."}
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {members.length === 0 ? (
-                      <tr>
-                        <td
-                          className="px-4 py-6 text-center text-slate-400"
-                          colSpan={4}
-                        >
-                          {membersLoading
-                            ? "Loading members…"
-                            : "No members match the current filters."}
+                  ) : (
+                    members.map((member) => (
+                      <tr
+                        key={member.id}
+                        className="border-b border-white/5 last:border-transparent"
+                      >
+                        <td className="px-4 py-4">
+                          <p className="font-semibold text-white">
+                            {member.name}
+                          </p>
+                          <p className="text-xs text-slate-300">
+                            {member.phone}
+                          </p>
+                          {member.createRemark && (
+                            <p className="mt-1 text-xs text-amber-200/80">
+                              {member.createRemark}
+                            </p>
+                          )}
                         </td>
-                      </tr>
-                    ) : (
-                      members.map((member) => (
-                        <tr
-                          key={member.id}
-                          className="border-b border-white/5 last:border-transparent"
-                        >
-                          <td className="px-4 py-4">
-                            <p className="font-semibold text-white">
-                              {member.name}
+                        <td className="px-4 py-4 text-sm text-slate-200">
+                          <p>{member.areaName ?? "—"} </p>
+                          <p className="text-xs text-slate-400">
+                            {member.subAreaName
+                              ? `${member.subAreaName} · `
+                              : ""}
+                            {member.branchName ?? "—"}
+                          </p>
+                        </td>
+                        <td className="px-4 py-4 text-xs text-slate-300">
+                          <p>
+                            Joined{" "}
+                            <span className="text-white">
+                              {member.memberCreatedAt}
+                            </span>
+                          </p>
+                          {member.memberDeletedAt ? (
+                            <p className="text-rose-300">
+                              Removed {member.memberDeletedAt}
                             </p>
-                            <p className="text-xs text-slate-300">
-                              {member.phone}
-                            </p>
-                            {member.createRemark && (
-                              <p className="mt-1 text-xs text-amber-200/80">
-                                {member.createRemark}
-                              </p>
-                            )}
-                          </td>
-                          <td className="px-4 py-4 text-sm text-slate-200">
-                            <p>{member.areaName ?? "—"} </p>
-                            <p className="text-xs text-slate-400">
-                              {member.subAreaName
-                                ? `${member.subAreaName} · `
-                                : ""}
-                              {member.branchName ?? "—"}
-                            </p>
-                          </td>
-                          <td className="px-4 py-4 text-xs text-slate-300">
-                            <p>
-                              Joined{" "}
-                              <span className="text-white">
-                                {member.memberCreatedAt}
-                              </span>
-                            </p>
-                            {member.memberDeletedAt ? (
-                              <p className="text-rose-300">
-                                Removed {member.memberDeletedAt}
-                              </p>
-                            ) : (
-                              <p className="text-emerald-300">Active</p>
-                            )}
-                          </td>
-                          <td className="px-4 py-4 text-right">
-                            <div className="flex flex-col gap-2 text-xs">
-                              <PermissionGuard
-                                permission="member.edit"
-                                serviceContext="marketing-service"
-                                fallback={
-                                  <button
-                                    type="button"
-                                    disabled
-                                    className="rounded-full border border-white/20 px-3 py-1 text-slate-500 cursor-not-allowed"
-                                  >
-                                    Edit
-                                  </button>
-                                }
-                              >
+                          ) : (
+                            <p className="text-emerald-300">Active</p>
+                          )}
+                        </td>
+                        <td className="px-4 py-4 text-right">
+                          <div className="flex flex-col gap-2 text-xs">
+                            <PermissionGuard
+                              permission="member.edit"
+                              serviceContext="marketing-service"
+                              fallback={
                                 <button
                                   type="button"
-                                  onClick={() => handleEdit(member)}
-                                  className="rounded-full border border-white/10 px-3 py-1 text-slate-200 hover:bg-white/10"
+                                  disabled
+                                  className="rounded-full border border-white/20 px-3 py-1 text-slate-500 cursor-not-allowed"
                                 >
                                   Edit
                                 </button>
-                              </PermissionGuard>
-                              <PermissionGuard
-                                permission="member.delete"
-                                serviceContext="marketing-service"
-                                fallback={
-                                  <button
-                                    type="button"
-                                    disabled
-                                    className="rounded-full border border-white/20 px-3 py-1 text-slate-500 cursor-not-allowed"
-                                  >
-                                    Delete
-                                  </button>
-                                }
+                              }
+                            >
+                              <button
+                                type="button"
+                                onClick={() => handleEdit(member)}
+                                className="rounded-full border border-white/10 px-3 py-1 text-slate-200 hover:bg-white/10"
                               >
+                                Edit
+                              </button>
+                            </PermissionGuard>
+                            <PermissionGuard
+                              permission="member.delete"
+                              serviceContext="marketing-service"
+                              fallback={
                                 <button
                                   type="button"
-                                  onClick={() => handleDelete(member)}
-                                  className="rounded-full border border-rose-400/40 px-3 py-1 text-rose-200 hover:bg-rose-500/20"
+                                  disabled
+                                  className="rounded-full border border-white/20 px-3 py-1 text-slate-500 cursor-not-allowed"
                                 >
                                   Delete
                                 </button>
-                              </PermissionGuard>
-                            </div>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
+                              }
+                            >
+                              <button
+                                type="button"
+                                onClick={() => handleDelete(member)}
+                                className="rounded-full border border-rose-400/40 px-3 py-1 text-rose-200 hover:bg-rose-500/20"
+                              >
+                                Delete
+                              </button>
+                            </PermissionGuard>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
             </div>
           </div>
         </section>
 
-        {toast && (
-          <div
-            className={`fixed bottom-6 right-6 z-50 rounded-2xl px-4 py-3 text-sm shadow-lg ${toast.tone === "success"
-              ? "bg-emerald-500/90 text-white"
-              : "bg-rose-500/90 text-white"
-              }`}
-          >
-            {toast.message}
-          </div>
-        )}
         {lookupLoading && (
           <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-950/60 text-sm uppercase tracking-[0.4em] text-white">
             Loading marketing hierarchy…

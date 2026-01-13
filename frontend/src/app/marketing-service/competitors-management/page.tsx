@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import React from "react";
 import { ModalPortal } from "@/components/ModalPortal";
 import { MarketingServiceGuard } from "@/components/marketing-service/MarketingServiceGuard";
+import { useToast } from "@/components/ui/Toast";
 import { PermissionGuard } from "@/components/layout/PermissionGuard";
 import {
   marketingHierarchyService,
@@ -577,7 +578,7 @@ export default function CompetitorsPage() {
   const [loading, setLoading] = useState(false);
   const [assignmentLoading, setAssignmentLoading] = useState(false);
   const [competitorLoading, setCompetitorLoading] = useState(false);
-  const [toast, setToast] = useState<{ message: string; tone: "success" | "error" } | null>(null);
+  const { showToast } = useToast();
 
   // Modal states
   const [showProfileModal, setShowProfileModal] = useState(false);
@@ -588,10 +589,6 @@ export default function CompetitorsPage() {
   const [editStrengthInputs, setEditStrengthInputs] = useState<Record<number, string>>({});
   const [editWeaknessInputs, setEditWeaknessInputs] = useState<Record<number, string>>({});
 
-  const showToast = (message: string, tone: "success" | "error" = "success") => {
-    setToast({ message, tone });
-    setTimeout(() => setToast(null), 3000);
-  };
 
   // Load data functions
   const loadAreas = async () => {
@@ -1045,18 +1042,6 @@ export default function CompetitorsPage() {
               Manage competitor assignments to areas and sub-areas with detailed profiles.
             </p>
           </header>
-
-          {/* Toast */}
-          {toast && (
-            <div
-              className={`rounded-2xl border px-4 py-3 text-sm ${toast.tone === "success"
-                ? "border-green-500/30 bg-green-500/10 text-green-300"
-                : "border-red-500/30 bg-red-500/10 text-red-300"
-                }`}
-            >
-              {toast.message}
-            </div>
-          )}
 
           {/* Filters */}
           <section className="rounded-3xl border border-white/10 bg-white/5 p-6">

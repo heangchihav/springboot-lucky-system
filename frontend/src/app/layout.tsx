@@ -5,6 +5,7 @@ import "./globals.css";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { PreferencesProvider } from "@/contexts/PreferencesContext";
 import { AppShellWrapper } from "@/components/layout/AppShellWrapper";
+import { ToastProvider } from "@/components/ui/Toast";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -51,7 +52,9 @@ export default function RootLayout({
       >
         <PreferencesProvider>
           <AuthProvider>
-            <AppShellWrapper>{children}</AppShellWrapper>
+            <ToastProvider>
+              <AppShellWrapper>{children}</AppShellWrapper>
+            </ToastProvider>
           </AuthProvider>
         </PreferencesProvider>
       </body>

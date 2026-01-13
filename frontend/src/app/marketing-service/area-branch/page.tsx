@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { MarketingServiceGuard } from "@/components/marketing-service/MarketingServiceGuard";
 import { PermissionGuard } from "@/components/layout/PermissionGuard";
+import { useToast } from "@/components/ui/Toast";
 import {
   marketingHierarchyService,
   MarketingArea,
@@ -62,10 +63,7 @@ export default function MarketingAreaBranchPage() {
   );
 
   const [loading, setLoading] = useState(false);
-  const [toast, setToast] = useState<{
-    message: string;
-    tone: "success" | "error";
-  } | null>(null);
+  const { showToast } = useToast();
 
   // Filter areas based on user assignment
   const accessibleAreas = useMemo(() => {
@@ -114,13 +112,6 @@ export default function MarketingAreaBranchPage() {
     return currentUserAssignment.assignmentType === "AREA" || currentUserAssignment.assignmentType === "SUB_AREA";
   }, [currentUserAssignment]);
 
-  const showToast = (
-    message: string,
-    tone: "success" | "error" = "success",
-  ) => {
-    setToast({ message, tone });
-    setTimeout(() => setToast(null), 3000);
-  };
 
   const loadAll = async () => {
     setLoading(true);
@@ -333,17 +324,6 @@ export default function MarketingAreaBranchPage() {
             area for more granular routing.
           </p>
         </header>
-
-        {toast && (
-          <div
-            className={`rounded-2xl border px-4 py-3 text-sm ${toast.tone === "success"
-              ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-200"
-              : "border-red-500/30 bg-red-500/10 text-red-200"
-              }`}
-          >
-            {toast.message}
-          </div>
-        )}
 
         <div className="grid gap-6 lg:grid-cols-3">
           <section className="rounded-3xl border border-white/10 bg-white/5 p-5">

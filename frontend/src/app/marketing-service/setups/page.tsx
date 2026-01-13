@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { MarketingServiceGuard } from "@/components/marketing-service/MarketingServiceGuard";
 import { PermissionGuard } from "@/components/layout/PermissionGuard";
+import { useToast } from "@/components/ui/Toast";
 import {
   problemService,
   type MarketingProblem,
@@ -33,18 +34,7 @@ export default function SetupsPage() {
 
   const [problemLoading, setProblemLoading] = useState(false);
   const [competitorLoading, setCompetitorLoading] = useState(false);
-  const [toast, setToast] = useState<{
-    message: string;
-    tone: "success" | "error";
-  } | null>(null);
-
-  const showToast = (
-    message: string,
-    tone: "success" | "error" = "success",
-  ) => {
-    setToast({ message, tone });
-    setTimeout(() => setToast(null), 3000);
-  };
+  const { showToast } = useToast();
 
   const loadProblems = async () => {
     setProblemLoading(true);
@@ -261,17 +251,6 @@ export default function SetupsPage() {
             workspace.
           </p>
         </header>
-
-        {toast && (
-          <div
-            className={`rounded-2xl border px-4 py-3 text-sm ${toast.tone === "success"
-                ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-100"
-                : "border-red-500/30 bg-red-500/10 text-red-100"
-              }`}
-          >
-            {toast.message}
-          </div>
-        )}
 
         <section className="grid gap-8 lg:grid-cols-2">
           <div className="rounded-3xl border border-white/10 bg-white/5 p-6 shadow-xl shadow-black/20">

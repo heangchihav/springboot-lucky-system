@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { MarketingServiceGuard } from "@/components/marketing-service/MarketingServiceGuard";
+import { useToast } from "@/components/ui/Toast";
 import { PermissionGuard } from "@/components/layout/PermissionGuard";
 import { useAuth } from "@/contexts/AuthContext";
 import {
@@ -86,10 +87,7 @@ export default function GoodsInputPage() {
   const [loadingHierarchy, setLoadingHierarchy] = useState(false);
   const [addingEntry, setAddingEntry] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [toast, setToast] = useState<{
-    message: string;
-    tone: "success" | "error";
-  } | null>(null);
+  const { showToast } = useToast();
   const [loadingRecent, setLoadingRecent] = useState(false);
   const [savingEdit, setSavingEdit] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
@@ -105,13 +103,6 @@ export default function GoodsInputPage() {
   const [isDragging, setIsDragging] = useState(false);
   const [fileInputRef, setFileInputRef] = useState<HTMLInputElement | null>(null);
 
-  const showToast = (
-    message: string,
-    tone: "success" | "error" = "success",
-  ) => {
-    setToast({ message, tone });
-    setTimeout(() => setToast(null), 3500);
-  };
 
   useEffect(() => {
     if (!canAccessMarketing || isLoading) {
@@ -776,17 +767,6 @@ export default function GoodsInputPage() {
             analytics up to date.
           </p>
         </header>
-
-        {toast && (
-          <div
-            className={`rounded-2xl border px-4 py-3 text-sm ${toast.tone === "success"
-              ? "border-emerald-400/40 bg-emerald-500/10 text-emerald-100"
-              : "border-rose-400/40 bg-rose-500/10 text-rose-100"
-              }`}
-          >
-            {toast.message}
-          </div>
-        )}
 
         <section className="rounded-3xl border border-white/10 bg-white/5 p-6">
           <div className="flex flex-col gap-2 pb-4 lg:flex-row lg:items-center lg:justify-between">

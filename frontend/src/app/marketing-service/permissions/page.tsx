@@ -12,6 +12,7 @@ import {
 import { User } from "@/services/userService";
 import { marketingUserService } from "@/services/marketing-service/marketingUserService";
 import { PermissionGuard } from "@/components/layout/PermissionGuard";
+import { useToast } from "@/components/ui/Toast";
 import {
   Plus,
   Trash2,
@@ -68,6 +69,7 @@ const fetchAndCacheUserId = async (): Promise<number | null> => {
 };
 
 export default function PermissionsPage() {
+  const { showToast } = useToast();
   const [roles, setRoles] = useState<Role[]>([]);
   const [permissions, setPermissions] = useState<Permission[]>([]);
   const [permissionGroups, setPermissionGroups] = useState<PermissionGroup[]>(

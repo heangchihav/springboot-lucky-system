@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { userService, User, CreateUserRequest } from "@/services/userService";
 import { PermissionGuard } from "@/components/layout/PermissionGuard";
+import { useToast } from "@/components/ui/Toast";
 import { serviceService } from "@/services/serviceService";
 import { marketingUserService } from "@/services/marketing-service/marketingUserService";
 import { marketingUserAssignmentService, MarketingUserAssignment, AssignUserRequest } from "@/services/marketingUserAssignmentService";
@@ -50,6 +51,7 @@ const fetchAndCacheUserId = async (): Promise<number | null> => {
 };
 
 export default function ManageUserPage() {
+  const { showToast } = useToast();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

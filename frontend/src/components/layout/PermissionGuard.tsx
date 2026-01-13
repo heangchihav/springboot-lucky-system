@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 
 const MENU_PERMISSION_MAP: Record<string, string> = {
@@ -38,13 +38,16 @@ export function PermissionGuard({
 
     const check = async () => {
       if (!user) {
-        setAllowed(false);
+        if (!cancelled) setAllowed(false);
         return;
       }
 
-      const result = await hasPermission(permission, serviceContext);
-      if (!cancelled) {
-        setAllowed(result);
+      try {
+        const result = await hasPermission(permission, serviceContext);
+        if (!cancelled) setAllowed(result);
+      } catch (error) {
+        console.error('Permission check failed:', error);
+        if (!cancelled) setAllowed(false);
       }
     };
 
@@ -53,7 +56,7 @@ export function PermissionGuard({
     return () => {
       cancelled = true;
     };
-  }, [user, permission, serviceContext, hasPermission]);
+  }, [user?.id, permission, serviceContext]);
 
   if (allowed === null) {
     return <div className="animate-pulse bg-gray-200 h-4 w-20 rounded"></div>;
@@ -81,14 +84,17 @@ export function MenuGuard({
 
     const check = async () => {
       if (!user) {
-        setAllowed(false);
+        if (!cancelled) setAllowed(false);
         return;
       }
 
-      const permissionCode = resolvePermissionCode(menuKey);
-      const result = await hasPermission(permissionCode);
-      if (!cancelled) {
-        setAllowed(result);
+      try {
+        const permissionCode = resolvePermissionCode(menuKey);
+        const result = await hasPermission(permissionCode);
+        if (!cancelled) setAllowed(result);
+      } catch (error) {
+        console.error('Menu permission check failed:', error);
+        if (!cancelled) setAllowed(false);
       }
     };
 
@@ -97,7 +103,7 @@ export function MenuGuard({
     return () => {
       cancelled = true;
     };
-  }, [user, menuKey, hasPermission]);
+  }, [user?.id, menuKey]);
 
   if (allowed === null) {
     return <div className="animate-pulse bg-gray-200 h-4 w-20 rounded"></div>;
@@ -115,13 +121,16 @@ export function usePermission(permission: string) {
 
     const check = async () => {
       if (!user) {
-        setAllowed(false);
+        if (!cancelled) setAllowed(false);
         return;
       }
 
-      const result = await hasPermission(permission);
-      if (!cancelled) {
-        setAllowed(result);
+      try {
+        const result = await hasPermission(permission);
+        if (!cancelled) setAllowed(result);
+      } catch (error) {
+        console.error('Permission check failed:', error);
+        if (!cancelled) setAllowed(false);
       }
     };
 
@@ -130,7 +139,7 @@ export function usePermission(permission: string) {
     return () => {
       cancelled = true;
     };
-  }, [user, permission, hasPermission]);
+  }, [user?.id, permission]);
 
   return {
     hasPermission: allowed,
@@ -152,23 +161,33 @@ export function useMenuPermissions(keys: string[] = DEFAULT_MENU_KEYS) {
 
     const checkPermissions = async () => {
       if (!user) {
-        setMenuPermissions({});
-        setLoading(false);
+        if (!cancelled) {
+          setMenuPermissions({});
+          setLoading(false);
+        }
         return;
       }
 
       setLoading(true);
-      const results = await Promise.all(
-        keys.map(async (key) => {
-          const code = resolvePermissionCode(key);
-          const allowed = await hasPermission(code);
-          return [key, allowed] as const;
-        }),
-      );
+      try {
+        const results = await Promise.all(
+          keys.map(async (key) => {
+            const code = resolvePermissionCode(key);
+            const allowed = await hasPermission(code);
+            return [key, allowed] as const;
+          }),
+        );
 
-      if (!cancelled) {
-        setMenuPermissions(Object.fromEntries(results));
-        setLoading(false);
+        if (!cancelled) {
+          setMenuPermissions(Object.fromEntries(results));
+          setLoading(false);
+        }
+      } catch (error) {
+        console.error('Menu permissions check failed:', error);
+        if (!cancelled) {
+          setMenuPermissions({});
+          setLoading(false);
+        }
       }
     };
 
@@ -177,7 +196,7 @@ export function useMenuPermissions(keys: string[] = DEFAULT_MENU_KEYS) {
     return () => {
       cancelled = true;
     };
-  }, [keys, user, hasPermission]);
+  }, [keys.join(','), user?.id]);
 
   const hasMenuAccess = (menuKey: string): boolean => {
     return menuPermissions[menuKey] || false;
