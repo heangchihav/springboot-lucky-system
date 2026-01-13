@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { MarketingServiceGuard } from "@/components/marketing-service/MarketingServiceGuard";
 import { PermissionGuard } from "@/components/layout/PermissionGuard";
 import { useToast } from "@/components/ui/Toast";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   marketingHierarchyService,
   MarketingArea,
@@ -47,6 +48,7 @@ const defaultForm: MemberFormState = {
 
 export default function MarketingVipManageUserPage() {
   const { showToast } = useToast();
+  const { user } = useAuth();
   const [areas, setAreas] = useState<MarketingArea[]>([]);
   const [subAreas, setSubAreas] = useState<MarketingSubArea[]>([]);
   const [branches, setBranches] = useState<MarketingBranch[]>([]);
@@ -61,6 +63,18 @@ export default function MarketingVipManageUserPage() {
     subAreaId: "all",
     branchId: "all",
   });
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+
+  const pageSizeOptions = [
+    { value: 5, label: "5" },
+    { value: 10, label: "10" },
+    { value: 50, label: "50" },
+    { value: 100, label: "100" },
+    { value: 1000, label: "1000" },
+  ];
 
   const [form, setForm] = useState<MemberFormState>(defaultForm);
   const [editingMember, setEditingMember] = useState<VipMember | null>(null);
@@ -200,6 +214,7 @@ export default function MarketingVipManageUserPage() {
         const data = await vipMemberService.listMembers(params);
         if (active) {
           setMembers(data);
+          setCurrentPage(1); // Reset to first page when filters change
         }
       } catch (error) {
         if (active) {
@@ -267,6 +282,26 @@ export default function MarketingVipManageUserPage() {
       return branch.subAreaId === filters.subAreaId;
     });
   }, [branches, filters.areaId, filters.subAreaId]);
+
+  // Pagination calculations
+  const totalPages = Math.ceil(members.length / pageSize);
+  const startIndex = (currentPage - 1) * pageSize;
+  const endIndex = startIndex + pageSize;
+  const paginatedMembers = members.slice(startIndex, endIndex);
+
+  // Handle page size change
+  const handlePageSizeChange = (newSize: number) => {
+    setPageSize(newSize);
+    setCurrentPage(1); // Reset to first page when changing page size
+  };
+
+  // Check if current user can edit/delete a member
+  const canEditMember = (member: VipMember) => {
+    // Root user can edit all
+    if (user?.username === "root") return true;
+    // User can edit if they created the member
+    return member.createdBy === user?.id;
+  };
 
   useEffect(() => {
     // Only clear branch selection if area is selected and branch is not in filtered list
@@ -1002,6 +1037,9 @@ export default function MarketingVipManageUserPage() {
                       Timeline
                     </th>
                     <th className="px-4 py-3 text-left font-medium">
+                      Created By
+                    </th>
+                    <th className="px-4 py-3 text-left font-medium">
                       Actions
                     </th>
                   </tr>
@@ -1011,7 +1049,7 @@ export default function MarketingVipManageUserPage() {
                     <tr>
                       <td
                         className="px-4 py-6 text-center text-slate-400"
-                        colSpan={4}
+                        colSpan={5}
                       >
                         {membersLoading
                           ? "Loading members…"
@@ -1019,7 +1057,7 @@ export default function MarketingVipManageUserPage() {
                       </td>
                     </tr>
                   ) : (
-                    members.map((member) => (
+                    paginatedMembers.map((member) => (
                       <tr
                         key={member.id}
                         className="border-b border-white/5 last:border-transparent"
@@ -1061,6 +1099,16 @@ export default function MarketingVipManageUserPage() {
                             <p className="text-emerald-300">Active</p>
                           )}
                         </td>
+                        <td className="px-4 py-4 text-sm text-slate-200">
+                          <div className="flex flex-col">
+                            <span className="font-medium text-white">
+                              {member.createdBy ? `User ID: ${member.createdBy}` : "System"}
+                            </span>
+                            <span className="text-xs text-slate-400">
+                              {member.createdBy ? "Created by user" : "Auto-generated"}
+                            </span>
+                          </div>
+                        </td>
                         <td className="px-4 py-4 text-right">
                           <div className="flex flex-col gap-2 text-xs">
                             <PermissionGuard
@@ -1079,7 +1127,11 @@ export default function MarketingVipManageUserPage() {
                               <button
                                 type="button"
                                 onClick={() => handleEdit(member)}
-                                className="rounded-full border border-white/10 px-3 py-1 text-slate-200 hover:bg-white/10"
+                                disabled={!canEditMember(member)}
+                                className={`rounded-full border px-3 py-1 transition-colors ${canEditMember(member)
+                                  ? "border-white/10 text-slate-200 hover:bg-white/10"
+                                  : "border-white/20 text-slate-500 cursor-not-allowed"
+                                  }`}
                               >
                                 Edit
                               </button>
@@ -1100,7 +1152,11 @@ export default function MarketingVipManageUserPage() {
                               <button
                                 type="button"
                                 onClick={() => handleDelete(member)}
-                                className="rounded-full border border-rose-400/40 px-3 py-1 text-rose-200 hover:bg-rose-500/20"
+                                disabled={!canEditMember(member)}
+                                className={`rounded-full border px-3 py-1 transition-colors ${canEditMember(member)
+                                  ? "border-rose-400/40 text-rose-200 hover:bg-rose-500/20"
+                                  : "border-white/20 text-slate-500 cursor-not-allowed"
+                                  }`}
                               >
                                 Delete
                               </button>
@@ -1112,6 +1168,144 @@ export default function MarketingVipManageUserPage() {
                   )}
                 </tbody>
               </table>
+
+              {/* Enhanced Pagination Controls */}
+              <div className="mt-6 rounded-2xl border border-white/10 bg-linear-to-br from-slate-900/50 to-slate-800/30 p-4 backdrop-blur-sm">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                  {/* Records Info & Page Size Selector */}
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
+                    <div className="text-sm">
+                      <span className="text-slate-400">Showing</span>
+                      <span className="mx-2 font-semibold text-white">
+                        {startIndex + 1}-{Math.min(endIndex, members.length)}
+                      </span>
+                      <span className="text-slate-400">of</span>
+                      <span className="mx-1 font-semibold text-white">{members.length}</span>
+                      <span className="text-slate-400">members</span>
+                    </div>
+
+                    {/* Page Size Selector */}
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-slate-400">Show:</span>
+                      <select
+                        value={pageSize}
+                        onChange={(e) => handlePageSizeChange(Number(e.target.value))}
+                        className="rounded-lg border border-white/20 bg-slate-900/60 px-3 py-1.5 text-sm text-white focus:border-amber-400/60 focus:outline-none focus:ring-2 focus:ring-amber-400/20"
+                      >
+                        {pageSizeOptions.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                      <span className="text-xs text-slate-400">per page</span>
+                    </div>
+                  </div>
+
+                  {/* Page Navigation */}
+                  {totalPages > 1 && (
+                    <div className="flex items-center gap-2">
+                      {/* Previous Button */}
+                      <button
+                        type="button"
+                        onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                        disabled={currentPage === 1}
+                        className="group relative rounded-xl border border-white/20 bg-slate-900/40 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:border-amber-400/40 hover:bg-amber-500/10 disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        <span className="flex items-center gap-2">
+                          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                          </svg>
+                          Previous
+                        </span>
+                      </button>
+
+                      {/* Page Numbers */}
+                      <div className="flex items-center">
+                        {currentPage > 3 && totalPages > 5 && (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => setCurrentPage(1)}
+                              className="mx-1 rounded-lg border border-white/20 bg-slate-900/40 px-3 py-2 text-sm text-white transition-all duration-200 hover:border-amber-400/40 hover:bg-amber-500/10"
+                            >
+                              1
+                            </button>
+                            {currentPage > 4 && (
+                              <span className="mx-1 text-slate-500">...</span>
+                            )}
+                          </>
+                        )}
+
+                        {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                          let pageNum;
+                          if (totalPages <= 5) {
+                            pageNum = i + 1;
+                          } else if (currentPage <= 3) {
+                            pageNum = i + 1;
+                          } else if (currentPage >= totalPages - 2) {
+                            pageNum = totalPages - 4 + i;
+                          } else {
+                            pageNum = currentPage - 2 + i;
+                          }
+
+                          return (
+                            <button
+                              key={pageNum}
+                              type="button"
+                              onClick={() => setCurrentPage(pageNum)}
+                              className={`mx-1 rounded-xl px-3 py-2 text-sm font-medium transition-all duration-200 ${currentPage === pageNum
+                                ? "border border-amber-400/60 bg-linear-to-r from-amber-500/20 to-amber-400/20 text-amber-200 shadow-lg shadow-amber-500/20"
+                                : "border border-white/20 bg-slate-900/40 text-white transition-all duration-200 hover:border-amber-400/40 hover:bg-amber-500/10"
+                                }`}
+                            >
+                              {pageNum}
+                            </button>
+                          );
+                        })}
+
+                        {currentPage < totalPages - 2 && totalPages > 5 && (
+                          <>
+                            {currentPage < totalPages - 3 && (
+                              <span className="mx-1 text-slate-500">...</span>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => setCurrentPage(totalPages)}
+                              className="mx-1 rounded-lg border border-white/20 bg-slate-900/40 px-3 py-2 text-sm text-white transition-all duration-200 hover:border-amber-400/40 hover:bg-amber-500/10"
+                            >
+                              {totalPages}
+                            </button>
+                          </>
+                        )}
+                      </div>
+
+                      {/* Next Button */}
+                      <button
+                        type="button"
+                        onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                        disabled={currentPage === totalPages}
+                        className="group relative rounded-xl border border-white/20 bg-slate-900/40 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:border-amber-400/40 hover:bg-amber-500/10 disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        <span className="flex items-center gap-2">
+                          Next
+                          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                          </svg>
+                        </span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Additional Info */}
+                <div className="mt-4 pt-3 border-t border-white/5">
+                  <div className="flex items-center justify-between text-xs text-slate-400">
+                    <span>Page {currentPage} of {totalPages}</span>
+                    <span>{members.length} total records</span>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </section>
