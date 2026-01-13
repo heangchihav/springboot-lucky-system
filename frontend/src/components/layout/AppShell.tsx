@@ -17,6 +17,7 @@ import {
 } from "./menuConfig";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCurrentLocale, withLocaleQuery } from "@/i18n/useLocale";
+import { Footer } from "./Footer";
 
 type AppShellProps = {
   children: ReactNode;
@@ -212,7 +213,7 @@ export function AppShell({ children }: AppShellProps) {
 
   if (isLoading) {
     return (
-      <main className="min-h-screen bg-gradient-to-br from-blue-50 via-orange-50 to-blue-100 text-slate-800 flex items-center justify-center relative overflow-hidden">
+      <main className="min-h-screen bg-linear-to-br from-blue-50 via-orange-50 to-blue-100 text-slate-800 flex items-center justify-center relative overflow-hidden">
         {/* Animated Background Orbs */}
         <div className="absolute inset-0 overflow-hidden">
           <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-orange-400/30 rounded-full blur-3xl animate-pulse"></div>
@@ -254,7 +255,7 @@ export function AppShell({ children }: AppShellProps) {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-gradient-to-br from-slate-800 via-slate-400 to-slate-700 text-slate-100 relative">
+    <div className="flex h-screen overflow-hidden bg-linear-to-br from-slate-800 via-slate-400 to-slate-700 text-slate-100 relative">
       {/* Mobile Sidebar Overlay */}
       {mobileSidebarOpen && (
         <div
@@ -339,7 +340,7 @@ export function AppShell({ children }: AppShellProps) {
 
       {/* Main Content */}
       <main
-        className={`flex-1 overflow-y-auto scrollbar-hide transition-all duration-300 ease-in-out relative z-10 ${sidebarCollapsed ? 'lg:pl-12' : 'lg:pl-[336px]'
+        className={`flex-1 overflow-y-auto scrollbar-hide transition-all duration-300 ease-in-out relative z-10 ${sidebarCollapsed ? 'lg:pl-12' : 'lg:pl-84'
           }`}
       >
         <div className="w-full min-h-full lg:px-10 lg:pr-18">
@@ -363,8 +364,8 @@ export function AppShell({ children }: AppShellProps) {
             {tabs.length > 0 && (
               <div className="sticky top-0 z-40 bg-slate-900/90 backdrop-blur-md border-b border-slate-700/50">
                 <div className="relative">
-                  <div className="absolute inset-y-0 left-0 w-8 bg-gradient-to-r from-slate-900 to-transparent z-10 pointer-events-none"></div>
-                  <div className="absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-slate-900 to-transparent z-10 pointer-events-none"></div>
+                  <div className="absolute inset-y-0 left-0 w-8 bg-linear-to-r from-slate-900 to-transparent z-10 pointer-events-none"></div>
+                  <div className="absolute inset-y-0 right-0 w-8 bg-linear-to-l from-slate-900 to-transparent z-10 pointer-events-none"></div>
                   <nav className="flex items-center gap-2 px-4 py-3 overflow-x-auto scrollbar-hide whitespace-nowrap">
                     {tabs.map((tab) => {
                       const isActive = activeTabPath.startsWith(tab.path);
@@ -372,7 +373,7 @@ export function AppShell({ children }: AppShellProps) {
                         <div
                           key={tab.path}
                           className={`flex items-center gap-2 rounded-xl px-3 py-2 transition-all duration-200 cursor-pointer ${isActive
-                            ? "bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-lg shadow-orange-500/50"
+                            ? "bg-linear-to-r from-orange-500 to-orange-600 text-white shadow-lg shadow-orange-500/50"
                             : "bg-slate-700/50 text-slate-300 hover:bg-slate-700 border border-slate-600/50"
                             }`}
                         >
@@ -437,10 +438,13 @@ export function AppShell({ children }: AppShellProps) {
                 <div className="relative z-10">
                   {children}
                 </div>
-                <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-orange-500/10 via-blue-500/10 to-purple-500/10 opacity-50 -z-10"></div>
+                <div className="absolute inset-0 rounded-2xl bg-linear-to-br from-orange-500/10 via-blue-500/10 to-purple-500/10 opacity-50 -z-10"></div>
               </section>
             </motion.div>
           </AnimatePresence>
+
+          {/* Footer */}
+          <Footer />
         </div>
       </main>
     </div>
@@ -479,12 +483,33 @@ function Sidebar({
   return (
     <aside className="w-80 h-full bg-slate-900/90 backdrop-blur-xl border-r border-slate-700/50 shadow-2xl flex flex-col">
       {/* Header */}
-      <div className="flex items-center justify-between p-6 border-b border-slate-700/50">
-        <h2 className="text-xl font-bold text-white">Navigation</h2>
+      <div className="flex items-center justify-center p-2 border-b border-slate-700/50">
+        <div className="flex items-center gap-3">
+          <img
+            src="/Logo.png"
+            alt="VET Report Logo"
+            className="w-15 h-15 object-contain"
+          />
+          <motion.div
+            className="text-xl font-bold text-white"
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.6, ease: "easeOut" }}
+          >
+            <div>
+              <h1 className="animate-text-gradient bg-gradient-to-r from-slate-400 via-orange-400 to-slate-400 bg-clip-text text-transparent bg-[length:200%_100%]">
+                VET Report
+              </h1>
+              <span className="text-xs text-slate-400 block mt-1">
+                Reporting & Analytics
+              </span>
+            </div>
+          </motion.div>
+        </div>
         {isMobile && onClose && (
           <button
             onClick={onClose}
-            className="p-2 rounded-lg hover:bg-slate-800/50 transition-all duration-200 active:scale-95"
+            className="absolute right-4 p-2 rounded-lg hover:bg-slate-800/50 transition-all duration-200 active:scale-95"
             aria-label="Close menu"
           >
             <svg className="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -508,7 +533,7 @@ function Sidebar({
                 type="button"
                 onClick={() => onSelectSection(section.id)}
                 className={`w-full px-4 py-3 text-left transition-all duration-200 cursor-pointer ${section.id === activeSectionId
-                  ? "bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-lg shadow-orange-500/50 scale-[1.02]"
+                  ? "bg-linear-to-r from-orange-500 to-orange-600 text-white shadow-lg shadow-orange-500/50 scale-[1.02]"
                   : "bg-slate-800/50 backdrop-blur-sm text-slate-300 hover:bg-slate-800 hover:scale-[1.01]"
                   } ${index === 0 ? 'rounded-t-xl' : ''} ${index === sections.length - 1 ? 'rounded-b-xl' : 'border-b border-slate-700/50'}`}
               >
@@ -592,7 +617,7 @@ function SidebarItem({ item, active, onOpen, isFirst = false, isLast = false }: 
       type="button"
       onClick={onOpen}
       className={`group flex w-full items-center gap-3 px-4 py-3 text-left transition-all duration-200 cursor-pointer ${active
-        ? "bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-lg shadow-blue-500/50 scale-[1.02]"
+        ? "bg-linear-to-r from-blue-600 to-blue-700 text-white shadow-lg shadow-blue-500/50 scale-[1.02]"
         : "bg-slate-800/50 backdrop-blur-sm text-slate-300 hover:bg-slate-800/70"
         } ${isFirst ? 'rounded-t-xl' : ''} ${isLast ? 'rounded-b-xl' : ''}`}
     >
@@ -647,7 +672,7 @@ function AccountQuickAccess({
         href="/auth/login"
         className="flex items-center gap-3 rounded-xl bg-slate-800/60 backdrop-blur-md border border-slate-700/50 px-4 py-2 text-sm text-slate-300 transition-all duration-200 hover:bg-blue-600 hover:text-white hover:border-blue-700 hover:scale-105 active:scale-95 shadow-lg"
       >
-        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-blue-700 shadow-lg">
+        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-linear-to-br from-blue-500 to-blue-700 shadow-lg">
           <svg className="h-5 w-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
           </svg>
@@ -664,14 +689,14 @@ function AccountQuickAccess({
 
   return (
     <div className="flex items-center gap-3 rounded-xl bg-slate-800/60 backdrop-blur-md border border-slate-700/50 px-3 py-2 text-sm text-slate-300 shadow-xl">
-      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-orange-500 to-orange-700 text-base font-bold text-white shadow-lg">
+      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-linear-to-br from-orange-500 to-orange-700 text-base font-bold text-white shadow-lg">
         {name.slice(0, 2).toUpperCase()}
       </div>
       <div className="flex flex-col text-left">
         <span className="text-xs uppercase tracking-wider text-orange-400 font-bold">
           Account
         </span>
-        <span className="font-bold truncate max-w-[120px] text-white">{name}</span>
+        <span className="font-bold truncate max-w-30 text-white">{name}</span>
       </div>
       <div className="ml-auto">
         <Link
