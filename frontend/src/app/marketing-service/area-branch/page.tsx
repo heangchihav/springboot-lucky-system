@@ -65,6 +65,18 @@ export default function MarketingAreaBranchPage() {
   const [loading, setLoading] = useState(false);
   const { showToast } = useToast();
 
+  // Filter states - completely independent for each section
+  const [areaFilter, setAreaFilter] = useState("");
+
+  // Sub-Areas filters (independent)
+  const [subAreaFilter, setSubAreaFilter] = useState("");
+  const [subAreaAreaFilter, setSubAreaAreaFilter] = useState("");
+
+  // Branches filters (independent)
+  const [branchFilter, setBranchFilter] = useState("");
+  const [branchAreaFilter, setBranchAreaFilter] = useState("");
+  const [branchSubAreaFilter, setBranchSubAreaFilter] = useState("");
+
   // Filter areas based on user assignment
   const accessibleAreas = useMemo(() => {
     if (!currentUserAssignment) return areas;
@@ -93,6 +105,35 @@ export default function MarketingAreaBranchPage() {
     if (!branchForm.areaId) return [];
     return accessibleSubAreas.filter((subArea) => subArea.areaId === branchForm.areaId);
   }, [branchForm.areaId, accessibleSubAreas]);
+
+  // Filtered data for display
+  const filteredAreasDisplay = useMemo(() => {
+    return accessibleAreas.filter(area =>
+      area.name.toLowerCase().includes(areaFilter.toLowerCase()) ||
+      (area.code && area.code.toLowerCase().includes(areaFilter.toLowerCase()))
+    );
+  }, [accessibleAreas, areaFilter]);
+
+  const filteredSubAreasDisplay = useMemo(() => {
+    return accessibleSubAreas.filter(subArea => {
+      const matchesSearch = !subAreaFilter ||
+        subArea.name.toLowerCase().includes(subAreaFilter.toLowerCase()) ||
+        (subArea.code && subArea.code.toLowerCase().includes(subAreaFilter.toLowerCase()));
+      const matchesArea = !subAreaAreaFilter || subArea.areaId === Number(subAreaAreaFilter);
+      return matchesSearch && matchesArea;
+    });
+  }, [accessibleSubAreas, subAreaFilter, subAreaAreaFilter]);
+
+  const filteredBranchesDisplay = useMemo(() => {
+    return branches.filter(branch => {
+      const matchesSearch = !branchFilter ||
+        branch.name.toLowerCase().includes(branchFilter.toLowerCase()) ||
+        (branch.code && branch.code.toLowerCase().includes(branchFilter.toLowerCase()));
+      const matchesArea = !branchAreaFilter || branch.areaId === Number(branchAreaFilter);
+      const matchesSubArea = !branchSubAreaFilter || branch.subAreaId === Number(branchSubAreaFilter);
+      return matchesSearch && matchesArea && matchesSubArea;
+    });
+  }, [branches, branchFilter, branchAreaFilter, branchSubAreaFilter]);
 
   // Permission checks based on assignment type
   const canCreateArea = useMemo(() => {
@@ -336,17 +377,17 @@ export default function MarketingAreaBranchPage() {
                   {editingArea ? "Edit area" : "Create area"}
                 </h2>
               </div>
-              {editingArea && (
-                <button
-                  className="text-xs text-slate-400 hover:text-white"
-                  onClick={() => {
-                    setAreaForm(defaultAreaForm);
-                    setEditingArea(null);
-                  }}
-                >
-                  Clear
-                </button>
-              )}
+              <button
+                className="rounded-full border border-white/20 bg-slate-900/60 p-2 text-slate-400 hover:border-white/40 hover:bg-slate-800/60 hover:text-white disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+                onClick={() => {
+                  setAreaForm(defaultAreaForm);
+                  setEditingArea(null);
+                }}
+                disabled={loading}
+                title="Clear form"
+              >
+                ×
+              </button>
             </div>
             {!canCreateArea && (
               <div className="mt-4 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
@@ -436,17 +477,17 @@ export default function MarketingAreaBranchPage() {
                   {editingSubArea ? "Edit sub area/Province" : "Create sub area/Province"}
                 </h2>
               </div>
-              {editingSubArea && (
-                <button
-                  className="text-xs text-slate-400 hover:text-white"
-                  onClick={() => {
-                    setSubAreaForm(defaultSubAreaForm);
-                    setEditingSubArea(null);
-                  }}
-                >
-                  Clear
-                </button>
-              )}
+              <button
+                className="rounded-full border border-white/20 bg-slate-900/60 p-2 text-slate-400 hover:border-white/40 hover:bg-slate-800/60 hover:text-white disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+                onClick={() => {
+                  setSubAreaForm(defaultSubAreaForm);
+                  setEditingSubArea(null);
+                }}
+                disabled={loading}
+                title="Clear form"
+              >
+                ×
+              </button>
             </div>
             {!canCreateSubArea && (
               <div className="mt-4 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
@@ -557,17 +598,17 @@ export default function MarketingAreaBranchPage() {
                   {editingBranch ? "Edit branch" : "Create branch"}
                 </h2>
               </div>
-              {editingBranch && (
-                <button
-                  className="text-xs text-slate-400 hover:text-white"
-                  onClick={() => {
-                    setBranchForm(defaultBranchForm);
-                    setEditingBranch(null);
-                  }}
-                >
-                  Clear
-                </button>
-              )}
+              <button
+                className="rounded-full border border-white/20 bg-slate-900/60 p-2 text-slate-400 hover:border-white/40 hover:bg-slate-800/60 hover:text-white disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+                onClick={() => {
+                  setBranchForm(defaultBranchForm);
+                  setEditingBranch(null);
+                }}
+                disabled={loading}
+                title="Clear form"
+              >
+                ×
+              </button>
             </div>
             {!canCreateBranch && (
               <div className="mt-4 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
@@ -694,19 +735,12 @@ export default function MarketingAreaBranchPage() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs uppercase tracking-[0.3em] text-slate-400">
-                Directory
+                Marketing Service
               </p>
               <h2 className="text-xl font-semibold text-white">
-                Current structure
+                Directory
               </h2>
             </div>
-            <button
-              className="rounded-2xl border border-white/10 px-4 py-2 text-sm text-slate-200 hover:border-white/40"
-              onClick={loadAll}
-              disabled={loading}
-            >
-              Refresh
-            </button>
           </div>
 
           <div className="mt-6 grid gap-6 lg:grid-cols-3">
@@ -717,12 +751,24 @@ export default function MarketingAreaBranchPage() {
                     Areas
                   </p>
                   <p className="text-2xl font-semibold text-white">
-                    {areas.length}
+                    {filteredAreasDisplay.length}
                   </p>
                 </div>
               </header>
+
+              {/* Areas Filter */}
+              <div className="px-4 py-3 border-b border-white/5">
+                <input
+                  type="text"
+                  placeholder="Filter areas..."
+                  value={areaFilter}
+                  onChange={(e) => setAreaFilter(e.target.value)}
+                  className="w-full rounded-lg border border-white/20 bg-slate-900/60 px-3 py-2 text-sm text-white placeholder:text-slate-400 focus:border-amber-400/60 focus:outline-none"
+                />
+              </div>
+
               <div className="max-h-105 space-y-2 overflow-auto p-4 text-sm text-slate-200">
-                {areas.map((area) => (
+                {filteredAreasDisplay.map((area) => (
                   <article
                     key={area.id}
                     className="rounded-2xl border border-white/5 p-3"
@@ -816,12 +862,34 @@ export default function MarketingAreaBranchPage() {
                     Sub area/Province
                   </p>
                   <p className="text-2xl font-semibold text-white">
-                    {subAreas.length}
+                    {filteredSubAreasDisplay.length}
                   </p>
                 </div>
               </header>
+
+              {/* Sub-Areas Filter */}
+              <div className="px-4 py-3 border-b border-white/5 space-y-2">
+                <input
+                  type="text"
+                  placeholder="Filter sub-areas..."
+                  value={subAreaFilter}
+                  onChange={(e) => setSubAreaFilter(e.target.value)}
+                  className="w-full rounded-lg border border-white/20 bg-slate-900/60 px-3 py-2 text-sm text-white placeholder:text-slate-400 focus:border-amber-400/60 focus:outline-none"
+                />
+                <select
+                  value={subAreaAreaFilter}
+                  onChange={(e) => setSubAreaAreaFilter(e.target.value)}
+                  className="w-full rounded-lg border border-white/20 bg-slate-900/60 px-3 py-2 text-sm text-white focus:border-amber-400/60 focus:outline-none"
+                >
+                  <option value="">All Areas</option>
+                  {areas.map(area => (
+                    <option key={area.id} value={area.id}>{area.name}</option>
+                  ))}
+                </select>
+              </div>
+
               <div className="max-h-105 space-y-2 overflow-auto p-4 text-sm text-slate-200">
-                {subAreas.map((subArea) => {
+                {filteredSubAreasDisplay.map((subArea) => {
                   const parent = areas.find(
                     (area) => area.id === subArea.areaId,
                   );
@@ -925,12 +993,46 @@ export default function MarketingAreaBranchPage() {
                     Branches
                   </p>
                   <p className="text-2xl font-semibold text-white">
-                    {branches.length}
+                    {filteredBranchesDisplay.length}
                   </p>
                 </div>
               </header>
+
+              {/* Branches Filter */}
+              <div className="px-4 py-3 border-b border-white/5 space-y-2">
+                <input
+                  type="text"
+                  placeholder="Filter branches..."
+                  value={branchFilter}
+                  onChange={(e) => setBranchFilter(e.target.value)}
+                  className="w-full rounded-lg border border-white/20 bg-slate-900/60 px-3 py-2 text-sm text-white placeholder:text-slate-400 focus:border-amber-400/60 focus:outline-none"
+                />
+                <div className="grid grid-cols-2 gap-2">
+                  <select
+                    value={branchAreaFilter}
+                    onChange={(e) => setBranchAreaFilter(e.target.value)}
+                    className="rounded-lg border border-white/20 bg-slate-900/60 px-3 py-2 text-sm text-white focus:border-amber-400/60 focus:outline-none"
+                  >
+                    <option value="">All Areas</option>
+                    {areas.map(area => (
+                      <option key={area.id} value={area.id}>{area.name}</option>
+                    ))}
+                  </select>
+                  <select
+                    value={branchSubAreaFilter}
+                    onChange={(e) => setBranchSubAreaFilter(e.target.value)}
+                    className="rounded-lg border border-white/20 bg-slate-900/60 px-3 py-2 text-sm text-white focus:border-amber-400/60 focus:outline-none"
+                  >
+                    <option value="">All Sub-Areas</option>
+                    {subAreas.filter(sa => !branchAreaFilter || sa.areaId === Number(branchAreaFilter)).map(subArea => (
+                      <option key={subArea.id} value={subArea.id}>{subArea.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
               <div className="max-h-105 space-y-2 overflow-auto p-4 text-sm text-slate-200">
-                {branches.map((branch) => {
+                {filteredBranchesDisplay.map((branch) => {
                   const parentArea = areas.find(
                     (area) => area.id === branch.areaId,
                   );
@@ -1031,7 +1133,7 @@ export default function MarketingAreaBranchPage() {
             </div>
           </div>
         </section>
-      </div>
-    </MarketingServiceGuard>
+      </div >
+    </MarketingServiceGuard >
   );
 }
