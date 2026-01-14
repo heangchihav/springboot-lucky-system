@@ -113,38 +113,38 @@ spec:
 
 ---
 
-## **Layer 3: Manual Backups**
+## **Layer 3: Manual Data Backups**
 
-### **Create Manual Backup**
+### **Create Manual Data Backup**
 
 ```bash
 cd infra/k8s
 
-# Backup all databases
-./scripts/backup.sh
+# Backup all databases with data
+./scripts/data-backup.sh
 
 # Backup to specific directory
-./scripts/backup.sh /path/to/backup/location
+./scripts/data-backup.sh /path/to/backup/location
 
 # Backup with custom namespace
-NAMESPACE=production ./scripts/backup.sh
+NAMESPACE=production ./scripts/data-backup.sh
 ```
 
 This creates:
-- Individual database backups: `user_service_db_20260109_140000.sql.gz`
-- Full backup: `all_databases_20260109_140000.sql.gz`
+- Individual database data backups: `user_service_db_data_20260109_140000.sql.gz`
+- Full data backup: `all_databases_data_20260109_140000.sql.gz`
 
-### **Restore from Backup**
+### **Restore from Data Backup**
 
 ```bash
-# Restore single database
-./scripts/restore.sh backups/user_service_db_20260109_140000.sql.gz user_service_db
+# Restore single database with data
+./scripts/data-restore.sh backups/user_service_db_data_20260109_140000.sql.gz user_service_db
 
-# Restore all databases
-./scripts/restore.sh backups/all_databases_20260109_140000.sql.gz
+# Restore all databases with data
+./scripts/data-restore.sh backups/all_databases_data_20260109_140000.sql.gz
 
 # Restore with custom namespace
-NAMESPACE=production ./scripts/restore.sh backups/all_databases_20260109_140000.sql.gz
+NAMESPACE=production ./scripts/data-restore.sh backups/all_databases_data_20260109_140000.sql.gz
 ```
 
 ---
@@ -259,7 +259,7 @@ spec:
             - /bin/bash
             - -c
             - |
-              /scripts/backup.sh
+              /scripts/data-backup.sh
               if [ $? -eq 0 ]; then
                 curl -X POST -H 'Content-type: application/json' \
                   --data '{"text":"✅ Backup successful"}' \
@@ -282,7 +282,7 @@ kubectl create namespace demo-test
 kubectl apply -f infrastructure/database/postgres.yaml -n demo-test
 
 # 3. Restore latest backup
-NAMESPACE=demo-test ./scripts/restore.sh backups/all_databases_LATEST.sql.gz
+NAMESPACE=demo-test ./scripts/data-restore.sh backups/all_databases_data_LATEST.sql.gz
 
 # 4. Verify data integrity
 kubectl exec -n demo-test postgres-0 -- psql -U postgres -d user_service_db -c "SELECT COUNT(*) FROM users;"
@@ -305,7 +305,7 @@ kubectl scale deployment -n demo --replicas=0 --all
 kubectl exec -n demo postgres-0 -- ls -lt /backups/
 
 # 3. Restore affected database
-./scripts/restore.sh backups/user_service_db_20260109_140000.sql.gz user_service_db
+./scripts/data-restore.sh backups/user_service_db_data_20260109_140000.sql.gz user_service_db
 
 # 4. Scale applications back up
 kubectl scale deployment -n demo --replicas=1 --all
@@ -324,7 +324,7 @@ kubectl apply -f infrastructure/database/postgres.yaml
 kubectl wait --for=condition=ready pod/postgres-0 -n demo --timeout=300s
 
 # 4. Restore from backup
-./scripts/restore.sh backups/all_databases_20260109_140000.sql.gz
+./scripts/data-restore.sh backups/all_databases_data_20260109_140000.sql.gz
 
 # 5. Restart all services
 kubectl rollout restart deployment -n demo
@@ -346,7 +346,7 @@ aws s3 sync s3://your-bucket/k8s-backups/ ./backups/
 gsutil -m rsync -r gs://your-bucket/k8s-backups/ ./backups/
 
 # 4. Restore data
-./scripts/restore.sh backups/all_databases_LATEST.sql.gz
+./scripts/data-restore.sh backups/all_databases_data_LATEST.sql.gz
 
 # 5. Deploy applications
 kubectl apply -k infra/k8s/
@@ -438,7 +438,7 @@ spec:
 
 ```bash
 # Manual backup
-./scripts/backup.sh
+./scripts/data-backup.sh
 
 # Check CronJob status
 kubectl get cronjob -n demo
@@ -454,10 +454,10 @@ kubectl exec -n demo postgres-0 -- ls -lh /backups/
 
 ```bash
 # Restore single database
-./scripts/restore.sh backups/DB_NAME_TIMESTAMP.sql.gz DB_NAME
+./scripts/data-restore.sh backups/DB_NAME_data_TIMESTAMP.sql.gz DB_NAME
 
 # Restore everything
-./scripts/restore.sh backups/all_databases_TIMESTAMP.sql.gz
+./scripts/data-restore.sh backups/all_databases_data_TIMESTAMP.sql.gz
 ```
 
 ### **Maintenance**
@@ -480,8 +480,8 @@ kubectl create job --from=cronjob/postgres-backup manual-backup-$(date +%s) -n d
 ```
 infra/k8s/
 ├── scripts/
-│   ├── backup.sh                                    # Manual backup script
-│   └── restore.sh                                   # Restore script
+│   ├── data-backup.sh                              # Manual data backup script
+│   └── data-restore.sh                             # Data restore script
 ├── infrastructure/backup/
 │   └── postgres-backup-cronjob.yaml                 # Automated backup CronJob
 ├── kustomization.yaml                               # Updated with backup resources
@@ -493,7 +493,7 @@ infra/k8s/
 ## **Next Steps**
 
 1. ✅ Deploy backup CronJob: `kubectl apply -k .`
-2. ✅ Test manual backup: `./scripts/backup.sh`
+2. ✅ Test manual backup: `./scripts/data-backup.sh`
 3. ✅ Test restore procedure
 4. ⚠️ Set up cloud storage sync (S3/GCS)
 5. ⚠️ Configure backup monitoring/alerts

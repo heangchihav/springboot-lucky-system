@@ -20,36 +20,37 @@ data:
         "marketing_service_db"
     )
     
-    echo "[${TIMESTAMP}] Starting automated backup..."
+    echo "[${TIMESTAMP}] Starting automated data backup..."
     
-    # Backup each database
+    # Backup each database with complete data
     for db in "${DATABASES[@]}"; do
-        BACKUP_FILE="${BACKUP_DIR}/${db}_${TIMESTAMP}.sql.gz"
-        echo "[${TIMESTAMP}] Backing up ${db}..."
+        BACKUP_FILE="${BACKUP_DIR}/${db}_data_${TIMESTAMP}.sql.gz"
+        echo "[${TIMESTAMP}] Backing up ${db} with data..."
         
-        if PGPASSWORD="${POSTGRES_PASSWORD}" pg_dump -h "${POSTGRES_HOST}" -U "${POSTGRES_USER}" "${db}" | gzip > "${BACKUP_FILE}"; then
-            echo "[${TIMESTAMP}] ✓ ${db} backup successful"
+        # Use pg_dump with explicit data inclusion
+        if PGPASSWORD="${POSTGRES_PASSWORD}" pg_dump -h "${POSTGRES_HOST}" -U "${POSTGRES_USER}" --verbose --column-inserts "${db}" 2>/dev/null | gzip > "${BACKUP_FILE}"; then
+            echo "[${TIMESTAMP}] ✓ ${db} data backup successful"
         else
-            echo "[${TIMESTAMP}] ✗ ${db} backup failed"
+            echo "[${TIMESTAMP}] ✗ ${db} data backup failed"
         fi
     done
     
-    # Full backup
-    ALL_BACKUP_FILE="${BACKUP_DIR}/all_databases_${TIMESTAMP}.sql.gz"
-    echo "[${TIMESTAMP}] Creating full backup..."
+    # Complete data backup
+    ALL_DATA_BACKUP_FILE="${BACKUP_DIR}/all_databases_data_${TIMESTAMP}.sql.gz"
+    echo "[${TIMESTAMP}] Creating complete data backup..."
     
-    if PGPASSWORD="${POSTGRES_PASSWORD}" pg_dumpall -h "${POSTGRES_HOST}" -U "${POSTGRES_USER}" | gzip > "${ALL_BACKUP_FILE}"; then
-        echo "[${TIMESTAMP}] ✓ Full backup successful"
+    if PGPASSWORD="${POSTGRES_PASSWORD}" pg_dumpall -h "${POSTGRES_HOST}" -U "${POSTGRES_USER}" --verbose 2>/dev/null | gzip > "${ALL_DATA_BACKUP_FILE}"; then
+        echo "[${TIMESTAMP}] ✓ Complete data backup successful"
     else
-        echo "[${TIMESTAMP}] ✗ Full backup failed"
+        echo "[${TIMESTAMP}] ✗ Complete data backup failed"
     fi
     
-    # Cleanup old backups
-    echo "[${TIMESTAMP}] Cleaning up backups older than ${RETENTION_DAYS} days..."
-    find "${BACKUP_DIR}" -name "*.sql.gz" -type f -mtime +${RETENTION_DAYS} -delete
+    # Cleanup old data backups
+    echo "[${TIMESTAMP}] Cleaning up data backups older than ${RETENTION_DAYS} days..."
+    find "${BACKUP_DIR}" -name "*_data_*.sql.gz" -type f -mtime +${RETENTION_DAYS} -delete
     
-    REMAINING=$(find "${BACKUP_DIR}" -name "*.sql.gz" -type f | wc -l)
-    echo "[${TIMESTAMP}] Backup completed. Total backups: ${REMAINING}"
+    REMAINING=$(find "${BACKUP_DIR}" -name "*_data_*.sql.gz" -type f | wc -l)
+    echo "[${TIMESTAMP}] Data backup completed. Total data backups: ${REMAINING}"
 
 ---
 apiVersion: v1
