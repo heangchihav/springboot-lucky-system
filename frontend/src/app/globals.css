@@ -1,5 +1,17 @@
 @import "tailwindcss";
 
+@font-face {
+  font-family: "Khmer OS Muol";
+  src: url("/Khmer%20OS%20Muol%20Light%20Regular.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+.font-khmer-os-muol {
+  font-family: "Khmer OS Muol", "Noto Sans Khmer", sans-serif;
+}
+
 html,
 body {
   height: 100%;

@@ -79,7 +79,15 @@ public class PermissionDataInitializer implements CommandLineRunner {
 
                 new Permission("menu.5.view", "View Permissions", "Can view permission settings"),
                 new Permission("menu.5.manage", "Manage Permissions", "Can manage roles and permissions"),
-                new Permission("menu.5.assign", "Assign Permissions", "Can assign permissions to roles"));
+                new Permission("menu.5.assign", "Assign Permissions", "Can assign permissions to roles"),
+
+                new Permission("menu.marketing.reports.view", "View Daily Reports", "Can view daily marketing reports"),
+                new Permission("menu.marketing.reports.create", "Create Daily Reports",
+                        "Can create new daily marketing reports"),
+                new Permission("menu.marketing.reports.edit", "Edit Daily Reports",
+                        "Can edit existing daily marketing reports"),
+                new Permission("menu.marketing.reports.delete", "Delete Daily Reports",
+                        "Can delete daily marketing reports"));
 
         long existingCount = permissionRepository.count();
         logger.info("Found {} existing permissions in database", existingCount);
@@ -162,6 +170,12 @@ public class PermissionDataInitializer implements CommandLineRunner {
         if (code.startsWith("user.")) {
             permission.setMenuGroup("User Management");
             permission.setMenuNumber("9");
+            return;
+        }
+
+        if (code.startsWith("menu.marketing.reports")) {
+            permission.setMenuGroup("Daily Reports");
+            permission.setMenuNumber("10");
             return;
         }
 

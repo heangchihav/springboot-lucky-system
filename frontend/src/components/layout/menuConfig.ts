@@ -112,7 +112,7 @@ export const MENU_SECTIONS: MenuSection[] = [
         menuNumber: "1",
         requiredPermission: "competitor.view",
       },
-  
+
       {
         id: "marketing-vip",
         label: "VIP Members Dashboard",
@@ -162,18 +162,19 @@ export const MENU_SECTIONS: MenuSection[] = [
         requiredPermission: "member.create",
       },
       {
+        id: "marketing-daily-report",
+        label: "Daily Reports",
+        description: "Create and manage daily marketing reports",
+        path: "/marketing-service/daily-report",
+        menuNumber: "8",
+        requiredPermission: "menu.marketing.reports.view",
+      },
+
+      {
         id: "marketing-manage-users",
         label: "Manage Users",
         description: "Manage marketing service users",
         path: "/marketing-service/manage-users",
-        menuNumber: "8",
-        requiredPermission: "menu.5.view",
-      },
-      {
-        id: "marketing-permissions",
-        label: "Permissions",
-        description: "Manage marketing service permissions",
-        path: "/marketing-service/permissions",
         menuNumber: "9",
         requiredPermission: "menu.5.view",
       },
@@ -185,6 +186,15 @@ export const MENU_SECTIONS: MenuSection[] = [
         menuNumber: "10",
         requiredPermission: "problem.view",
       },
+      {
+        id: "marketing-permissions",
+        label: "Permissions",
+        description: "Manage marketing service permissions",
+        path: "/marketing-service/permissions",
+        menuNumber: "11",
+        requiredPermission: "menu.5.view",
+      },
+
 
     ],
   },

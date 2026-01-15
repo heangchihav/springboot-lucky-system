@@ -34,13 +34,12 @@ public class UserController {
     public ResponseEntity<User> createUser(@RequestBody CreateUserRequest request, HttpServletRequest httpRequest) {
         Long creatorId = extractUserIdFromHeader(httpRequest);
         User newUser = userService.createUser(
-            request.getUsername(),
-            request.getPassword(),
-            request.getFullName(),
-            request.getPhone(),
-            request.getServiceIds(),
-            creatorId
-        );
+                request.getUsername(),
+                request.getPassword(),
+                request.getFullName(),
+                request.getPhone(),
+                request.getServiceIds(),
+                creatorId);
         return ResponseEntity.ok(newUser);
     }
 
@@ -48,11 +47,10 @@ public class UserController {
     @Transactional
     public ResponseEntity<User> updateUser(@PathVariable Long id, @RequestBody UpdateUserRequest request) {
         User updatedUser = userService.updateUser(
-            id,
-            request.getFullName(),
-            request.getPhone(),
-            request.getServiceIds()
-        );
+                id,
+                request.getFullName(),
+                request.getPhone(),
+                request.getServiceIds());
         return ResponseEntity.ok(updatedUser);
     }
 
@@ -75,7 +73,8 @@ public class UserController {
     }
 
     @PostMapping("/{userId}/services")
-    public ResponseEntity<Void> assignServices(@PathVariable Long userId, @RequestBody java.util.Map<String, Object> request) {
+    public ResponseEntity<Void> assignServices(@PathVariable Long userId,
+            @RequestBody java.util.Map<String, Object> request) {
         @SuppressWarnings("unchecked")
         List<Long> serviceIds = (List<Long>) request.get("serviceIds");
         userService.replaceServicesForUser(userId, serviceIds);
@@ -83,7 +82,8 @@ public class UserController {
     }
 
     @PutMapping("/{userId}/services")
-    public ResponseEntity<Void> replaceServices(@PathVariable Long userId, @RequestBody java.util.Map<String, Object> request) {
+    public ResponseEntity<Void> replaceServices(@PathVariable Long userId,
+            @RequestBody java.util.Map<String, Object> request) {
         @SuppressWarnings("unchecked")
         List<Long> serviceIds = (List<Long>) request.get("serviceIds");
         userService.replaceServicesForUser(userId, serviceIds);
@@ -91,7 +91,8 @@ public class UserController {
     }
 
     @PostMapping("/{userId}/services/replace")
-    public ResponseEntity<Void> replaceServicesPost(@PathVariable Long userId, @RequestBody java.util.Map<String, Object> request) {
+    public ResponseEntity<Void> replaceServicesPost(@PathVariable Long userId,
+            @RequestBody java.util.Map<String, Object> request) {
         @SuppressWarnings("unchecked")
         List<Long> serviceIds = (List<Long>) request.get("serviceIds");
         userService.replaceServicesForUser(userId, serviceIds);
@@ -117,6 +118,17 @@ public class UserController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
+    @GetMapping("/username/{username}/fullname")
+    public ResponseEntity<java.util.Map<String, String>> getUserFullNameByUsername(@PathVariable String username) {
+        Optional<User> user = userService.findUserByUsername(username);
+        if (user.isPresent()) {
+            java.util.Map<String, String> response = new java.util.HashMap<>();
+            response.put("fullName", user.get().getFullName());
+            return ResponseEntity.ok(response);
+        }
+        return ResponseEntity.notFound().build();
+    }
+
     @GetMapping("/{id}/username")
     public ResponseEntity<String> getUsername(@PathVariable Long id) {
         User user = userService.getUserById(id);
@@ -134,20 +146,45 @@ public class UserController {
         private List<Long> serviceIds;
 
         // Getters and setters
-        public String getUsername() { return username; }
-        public void setUsername(String username) { this.username = username; }
+        public String getUsername() {
+            return username;
+        }
 
-        public String getPassword() { return password; }
-        public void setPassword(String password) { this.password = password; }
+        public void setUsername(String username) {
+            this.username = username;
+        }
 
-        public String getFullName() { return fullName; }
-        public void setFullName(String fullName) { this.fullName = fullName; }
+        public String getPassword() {
+            return password;
+        }
 
-        public String getPhone() { return phone; }
-        public void setPhone(String phone) { this.phone = phone; }
+        public void setPassword(String password) {
+            this.password = password;
+        }
 
-        public List<Long> getServiceIds() { return serviceIds; }
-        public void setServiceIds(List<Long> serviceIds) { this.serviceIds = serviceIds; }
+        public String getFullName() {
+            return fullName;
+        }
+
+        public void setFullName(String fullName) {
+            this.fullName = fullName;
+        }
+
+        public String getPhone() {
+            return phone;
+        }
+
+        public void setPhone(String phone) {
+            this.phone = phone;
+        }
+
+        public List<Long> getServiceIds() {
+            return serviceIds;
+        }
+
+        public void setServiceIds(List<Long> serviceIds) {
+            this.serviceIds = serviceIds;
+        }
     }
 
     public static class UpdateUserRequest {
@@ -156,21 +193,41 @@ public class UserController {
         private List<Long> serviceIds;
 
         // Getters and setters
-        public String getFullName() { return fullName; }
-        public void setFullName(String fullName) { this.fullName = fullName; }
+        public String getFullName() {
+            return fullName;
+        }
 
-        public String getPhone() { return phone; }
-        public void setPhone(String phone) { this.phone = phone; }
+        public void setFullName(String fullName) {
+            this.fullName = fullName;
+        }
 
-        public List<Long> getServiceIds() { return serviceIds; }
-        public void setServiceIds(List<Long> serviceIds) { this.serviceIds = serviceIds; }
+        public String getPhone() {
+            return phone;
+        }
+
+        public void setPhone(String phone) {
+            this.phone = phone;
+        }
+
+        public List<Long> getServiceIds() {
+            return serviceIds;
+        }
+
+        public void setServiceIds(List<Long> serviceIds) {
+            this.serviceIds = serviceIds;
+        }
     }
 
     public static class AssignServicesRequest {
         private List<Long> serviceIds;
 
-        public List<Long> getServiceIds() { return serviceIds; }
-        public void setServiceIds(List<Long> serviceIds) { this.serviceIds = serviceIds; }
+        public List<Long> getServiceIds() {
+            return serviceIds;
+        }
+
+        public void setServiceIds(List<Long> serviceIds) {
+            this.serviceIds = serviceIds;
+        }
     }
 
     private Long extractUserIdFromHeader(HttpServletRequest request) {
