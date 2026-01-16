@@ -98,6 +98,7 @@ public class MarketingUserAssignmentController extends BaseController {
         }
 
         try {
+            logger.info("Starting assignment process for user {}", userId);
             MarketingUserAssignment assignment;
 
             if (request.getBranchId() != null) {
@@ -110,20 +111,22 @@ public class MarketingUserAssignmentController extends BaseController {
                 logger.info("Assigning user {} to area {}", userId, request.getAreaId());
                 assignment = assignmentService.assignUserToArea(userId, request.getAreaId());
             } else {
-                logger.error("No valid assignment target provided");
-                return ResponseEntity.badRequest().build();
+                logger.error("No valid assignment provided for user {}", userId);
+                return ResponseEntity.badRequest().body(null);
             }
 
-            logger.info("Successfully assigned user: {}", assignment);
-            MarketingUserAssignmentResponse response = MarketingUserAssignmentResponse.fromEntity(assignment);
-            return ResponseEntity.status(HttpStatus.CREATED).body(response);
+            logger.info("Assignment created successfully: ID={}, Area={}, SubArea={}, Branch={}",
+                    assignment.getId(),
+                    assignment.getArea() != null ? assignment.getArea().getId() : null,
+                    assignment.getSubArea() != null ? assignment.getSubArea().getId() : null,
+                    assignment.getBranch() != null ? assignment.getBranch().getId() : null);
 
-        } catch (IllegalArgumentException e) {
-            logger.error("Assignment failed: {}", e.getMessage());
-            return ResponseEntity.badRequest().build();
+            MarketingUserAssignmentResponse response = MarketingUserAssignmentResponse.fromEntity(assignment);
+            return ResponseEntity.ok(response);
+
         } catch (Exception e) {
-            logger.error("Unexpected error during assignment: {}", e.getMessage(), e);
-            throw e;
+            logger.error("Error assigning user {}: {}", userId, e.getMessage(), e);
+            return ResponseEntity.status(500).body(null);
         }
     }
 
