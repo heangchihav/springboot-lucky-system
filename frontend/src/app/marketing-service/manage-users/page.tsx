@@ -65,9 +65,9 @@ export default function ManageUserPage() {
   const [areas, setAreas] = useState<MarketingArea[]>([]);
   const [subAreas, setSubAreas] = useState<MarketingSubArea[]>([]);
   const [branches, setBranches] = useState<MarketingBranch[]>([]);
-  const [selectedAreaId, setSelectedAreaId] = useState<number | null>(null);
-  const [selectedSubAreaId, setSelectedSubAreaId] = useState<number | null>(null);
-  const [selectedBranchId, setSelectedBranchId] = useState<number | null>(null);
+  const [selectedAreaIds, setSelectedAreaIds] = useState<number[]>([]);
+  const [selectedSubAreaIds, setSelectedSubAreaIds] = useState<number[]>([]);
+  const [selectedBranchIds, setSelectedBranchIds] = useState<number[]>([]);
   const [assignmentType, setAssignmentType] = useState<"area" | "subarea" | "branch">("branch");
   const [searchTerm, setSearchTerm] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -82,9 +82,9 @@ export default function ManageUserPage() {
     username: "",
     phone: "",
   });
-  const [editAreaId, setEditAreaId] = useState<number | null>(null);
-  const [editSubAreaId, setEditSubAreaId] = useState<number | null>(null);
-  const [editBranchId, setEditBranchId] = useState<number | null>(null);
+  const [editAreaIds, setEditAreaIds] = useState<number[]>([]);
+  const [editSubAreaIds, setEditSubAreaIds] = useState<number[]>([]);
+  const [editBranchIds, setEditBranchIds] = useState<number[]>([]);
   const [editAssignmentType, setEditAssignmentType] = useState<"area" | "subarea" | "branch">("branch");
   const [editingUserCurrentAssignment, setEditingUserCurrentAssignment] = useState<MarketingUserAssignment | null>(null);
 
@@ -104,42 +104,60 @@ export default function ManageUserPage() {
     loadHierarchy();
   }, []);
 
-  // Load sub-areas when area is selected
+  // Load sub-areas when areas are selected
   useEffect(() => {
-    if (selectedAreaId) {
-      loadSubAreas(selectedAreaId);
+    if (selectedAreaIds.length > 0) {
+      const allSubAreas: MarketingSubArea[] = [];
+      selectedAreaIds.forEach(areaId => {
+        loadSubAreasForArea(areaId, allSubAreas);
+      });
     } else {
       setSubAreas([]);
-      setSelectedSubAreaId(null);
+      setSelectedSubAreaIds([]);
     }
-  }, [selectedAreaId]);
+  }, [selectedAreaIds]);
 
-  // Load branches when sub-area is selected
+  // Load branches when sub-areas are selected
   useEffect(() => {
-    if (selectedSubAreaId) {
-      loadBranches(selectedSubAreaId);
-    } else if (selectedAreaId && assignmentType === "branch") {
-      loadBranches(null, selectedAreaId);
+    if (selectedSubAreaIds.length > 0) {
+      const allBranches: MarketingBranch[] = [];
+      selectedSubAreaIds.forEach(subAreaId => {
+        loadBranchesForSubArea(subAreaId, allBranches);
+      });
+    } else if (selectedAreaIds.length > 0 && assignmentType === "branch") {
+      const allBranches: MarketingBranch[] = [];
+      selectedAreaIds.forEach(areaId => {
+        loadBranchesForArea(areaId, allBranches);
+      });
     } else {
       setBranches([]);
-      setSelectedBranchId(null);
+      setSelectedBranchIds([]);
     }
-  }, [selectedSubAreaId, selectedAreaId, assignmentType]);
+  }, [selectedSubAreaIds, selectedAreaIds, assignmentType]);
 
   // Similar for edit mode
   useEffect(() => {
-    if (editAreaId) {
-      loadSubAreas(editAreaId);
+    if (editAreaIds.length > 0) {
+      const allSubAreas: MarketingSubArea[] = [];
+      editAreaIds.forEach(areaId => {
+        loadSubAreasForArea(areaId, allSubAreas);
+      });
     }
-  }, [editAreaId]);
+  }, [editAreaIds]);
 
   useEffect(() => {
-    if (editSubAreaId) {
-      loadBranches(editSubAreaId);
-    } else if (editAreaId && editAssignmentType === "branch") {
-      loadBranches(null, editAreaId);
+    if (editSubAreaIds.length > 0) {
+      const allBranches: MarketingBranch[] = [];
+      editSubAreaIds.forEach(subAreaId => {
+        loadBranchesForSubArea(subAreaId, allBranches);
+      });
+    } else if (editAreaIds.length > 0 && editAssignmentType === "branch") {
+      const allBranches: MarketingBranch[] = [];
+      editAreaIds.forEach(areaId => {
+        loadBranchesForArea(areaId, allBranches);
+      });
     }
-  }, [editSubAreaId, editAreaId, editAssignmentType]);
+  }, [editSubAreaIds, editAreaIds, editAssignmentType]);
 
   const fetchMarketingServiceId = async () => {
     try {
@@ -147,6 +165,114 @@ export default function ManageUserPage() {
       setMarketingServiceId(marketingService.id);
     } catch (error) {
       console.error("Error fetching marketing service:", error);
+    }
+  };
+
+  const toggleSelection = (ids: number[], id: number) => {
+    if (ids.includes(id)) {
+      return ids.filter((existingId) => existingId !== id);
+    }
+    return [...ids, id];
+  };
+
+  const groupedBranches = useMemo(() => {
+    const groups: { id: string; label: string; branches: MarketingBranch[] }[] = [];
+
+    if (selectedSubAreaIds.length > 0) {
+      selectedSubAreaIds.forEach((subAreaId) => {
+        const label =
+          subAreas.find((sub) => sub.id === subAreaId)?.name || `Sub-Area ${subAreaId}`;
+        const relatedBranches = branches.filter((branch) => branch.subAreaId === subAreaId);
+        if (relatedBranches.length > 0) {
+          groups.push({ id: `sub-${subAreaId}`, label, branches: relatedBranches });
+        }
+      });
+    } else if (selectedAreaIds.length > 0) {
+      selectedAreaIds.forEach((areaId) => {
+        const label = areas.find((area) => area.id === areaId)?.name || `Area ${areaId}`;
+        const relatedBranches = branches.filter((branch) => branch.areaId === areaId);
+        if (relatedBranches.length > 0) {
+          groups.push({ id: `area-${areaId}`, label, branches: relatedBranches });
+        }
+      });
+    }
+
+    return groups;
+  }, [selectedAreaIds, selectedSubAreaIds, branches, areas, subAreas]);
+
+  const groupedEditBranches = useMemo(() => {
+    const groups: { id: string; label: string; branches: MarketingBranch[] }[] = [];
+
+    if (editSubAreaIds.length > 0) {
+      editSubAreaIds.forEach((subAreaId) => {
+        const label =
+          subAreas.find((sub) => sub.id === subAreaId)?.name || `Sub-Area ${subAreaId}`;
+        const relatedBranches = branches.filter((branch) => branch.subAreaId === subAreaId);
+        if (relatedBranches.length > 0) {
+          groups.push({ id: `edit-sub-${subAreaId}`, label, branches: relatedBranches });
+        }
+      });
+    } else if (editAreaIds.length > 0) {
+      editAreaIds.forEach((areaId) => {
+        const label = areas.find((area) => area.id === areaId)?.name || `Area ${areaId}`;
+        const relatedBranches = branches.filter((branch) => branch.areaId === areaId);
+        if (relatedBranches.length > 0) {
+          groups.push({ id: `edit-area-${areaId}`, label, branches: relatedBranches });
+        }
+      });
+    }
+
+    return groups;
+  }, [editAreaIds, editSubAreaIds, branches, areas, subAreas]);
+
+  const loadSubAreasForArea = async (areaId: number, accumulator: MarketingSubArea[] = []) => {
+    try {
+      const subAreas = await marketingHierarchyService.listSubAreas(areaId);
+      accumulator.push(...subAreas);
+      setSubAreas(prev => {
+        const combined = [...prev, ...subAreas];
+        // Remove duplicates
+        const unique = combined.filter((item, index, self) =>
+          index === self.findIndex((t) => t.id === item.id)
+        );
+        return unique;
+      });
+    } catch (error) {
+      console.error(`Error loading sub-areas for area ${areaId}:`, error);
+    }
+  };
+
+  const loadBranchesForSubArea = async (subAreaId: number, accumulator: MarketingBranch[] = []) => {
+    try {
+      const branches = await marketingHierarchyService.listBranches({ subAreaId });
+      accumulator.push(...branches);
+      setBranches(prev => {
+        const combined = [...prev, ...branches];
+        // Remove duplicates
+        const unique = combined.filter((item, index, self) =>
+          index === self.findIndex((t) => t.id === item.id)
+        );
+        return unique;
+      });
+    } catch (error) {
+      console.error(`Error loading branches for sub-area ${subAreaId}:`, error);
+    }
+  };
+
+  const loadBranchesForArea = async (areaId: number, accumulator: MarketingBranch[] = []) => {
+    try {
+      const branches = await marketingHierarchyService.listBranches({ areaId });
+      accumulator.push(...branches);
+      setBranches(prev => {
+        const combined = [...prev, ...branches];
+        // Remove duplicates
+        const unique = combined.filter((item, index, self) =>
+          index === self.findIndex((t) => t.id === item.id)
+        );
+        return unique;
+      });
+    } catch (error) {
+      console.error(`Error loading branches for area ${areaId}:`, error);
     }
   };
 
@@ -199,22 +325,33 @@ export default function ManageUserPage() {
         phone: "",
       });
       if (!hasAssignment) {
-        setSelectedAreaId(null);
-        setSelectedSubAreaId(null);
-        setSelectedBranchId(null);
+        setSelectedAreaIds([]);
+        setSelectedSubAreaIds([]);
+        setSelectedBranchIds([]);
       }
 
-      // Assign user based on assignment type
-      const assignRequest: AssignUserRequest = { userId: newUser.id };
-      if (assignmentType === "area" && selectedAreaId) {
-        assignRequest.areaId = selectedAreaId;
-        await marketingUserAssignmentService.assignUser(assignRequest);
-      } else if (assignmentType === "subarea" && selectedSubAreaId) {
-        assignRequest.subAreaId = selectedSubAreaId;
-        await marketingUserAssignmentService.assignUser(assignRequest);
-      } else if (assignmentType === "branch" && selectedBranchId) {
-        assignRequest.branchId = selectedBranchId;
-        await marketingUserAssignmentService.assignUser(assignRequest);
+      // Assign user to multiple locations based on assignment type
+      const assignmentPromises: Promise<any>[] = [];
+
+      if (assignmentType === "area" && selectedAreaIds.length > 0) {
+        selectedAreaIds.forEach(areaId => {
+          const assignRequest: AssignUserRequest = { userId: newUser.id, areaId };
+          assignmentPromises.push(marketingUserAssignmentService.assignUser(assignRequest));
+        });
+      } else if (assignmentType === "subarea" && selectedSubAreaIds.length > 0) {
+        selectedSubAreaIds.forEach(subAreaId => {
+          const assignRequest: AssignUserRequest = { userId: newUser.id, subAreaId };
+          assignmentPromises.push(marketingUserAssignmentService.assignUser(assignRequest));
+        });
+      } else if (assignmentType === "branch" && selectedBranchIds.length > 0) {
+        selectedBranchIds.forEach(branchId => {
+          const assignRequest: AssignUserRequest = { userId: newUser.id, branchId };
+          assignmentPromises.push(marketingUserAssignmentService.assignUser(assignRequest));
+        });
+      }
+
+      if (assignmentPromises.length > 0) {
+        await Promise.all(assignmentPromises);
       }
 
       alert("User created successfully and assigned to Marketing Service!");
@@ -268,90 +405,90 @@ export default function ManageUserPage() {
 
             if (activeAssignment.assignmentType === "AREA" && activeAssignment.areaId) {
               setAssignmentType("area");
-              setSelectedAreaId(activeAssignment.areaId);
+              setSelectedAreaIds([activeAssignment.areaId]);
             } else if (activeAssignment.assignmentType === "SUB_AREA" && activeAssignment.subAreaId) {
               setAssignmentType("subarea");
-              setSelectedAreaId(activeAssignment.areaId || null);
-              setSelectedSubAreaId(activeAssignment.subAreaId);
+              setSelectedAreaIds(activeAssignment.areaId ? [activeAssignment.areaId] : []);
+              setSelectedSubAreaIds([activeAssignment.subAreaId]);
             } else if (activeAssignment.assignmentType === "BRANCH" && activeAssignment.branchId) {
               setAssignmentType("branch");
-              setSelectedAreaId(activeAssignment.areaId || null);
-              setSelectedSubAreaId(activeAssignment.subAreaId || null);
-              setSelectedBranchId(activeAssignment.branchId);
+              setSelectedAreaIds(activeAssignment.areaId ? [activeAssignment.areaId] : []);
+              setSelectedSubAreaIds(activeAssignment.subAreaId ? [activeAssignment.subAreaId] : []);
+              setSelectedBranchIds([activeAssignment.branchId]);
             }
           }
         } catch (assignmentError) {
           console.error("Error loading current user assignments:", assignmentError);
         }
       }
-    } catch (err) {
-      console.error("Error loading hierarchy:", err);
-    }
-  };
-
-  const loadSubAreas = async (areaId: number) => {
-    try {
-      const subAreasData = await marketingHierarchyService.listSubAreas(areaId);
-      setSubAreas(subAreasData.filter((sa: MarketingSubArea) => sa.active));
-    } catch (err) {
-      console.error("Error loading sub-areas:", err);
-      setSubAreas([]);
-    }
-  };
-
-  const loadBranches = async (subAreaId?: number | null, areaId?: number | null) => {
-    try {
-      let branchesData: MarketingBranch[];
-      if (subAreaId) {
-        branchesData = await marketingHierarchyService.listBranches({ subAreaId });
-      } else if (areaId) {
-        branchesData = await marketingHierarchyService.listBranches({ areaId });
-      } else {
-        branchesData = await marketingHierarchyService.listBranches();
-      }
-      setBranches(branchesData.filter((b: MarketingBranch) => b.active));
-    } catch (err) {
-      console.error("Error loading branches:", err);
-      setBranches([]);
+    } catch (error) {
+      console.error("Error loading hierarchy:", error);
     }
   };
 
   const loadUserAssignment = async (userId: number) => {
     try {
       const assignments = await marketingUserAssignmentService.getUserAssignments(userId);
-      const activeAssignment = assignments.find(a => a.active);
+      const activeAssignments = assignments.filter(a => a.active);
 
-      if (activeAssignment) {
-        setEditingUserCurrentAssignment(activeAssignment);
+      if (activeAssignments.length > 0) {
+        // Group assignments by type
+        const areaIds = activeAssignments
+          .filter(a => a.assignmentType === "AREA" && a.areaId)
+          .map(a => a.areaId!);
+        const subAreaIds = activeAssignments
+          .filter(a => a.assignmentType === "SUB_AREA" && a.subAreaId)
+          .map(a => a.subAreaId!);
+        const branchIds = activeAssignments
+          .filter(a => a.assignmentType === "BRANCH" && a.branchId)
+          .map(a => a.branchId!);
 
-        if (activeAssignment.assignmentType === "AREA") {
+        // Set the assignment type based on what assignments exist
+        if (areaIds.length > 0) {
           setEditAssignmentType("area");
-          setEditAreaId(activeAssignment.areaId || null);
-          setEditSubAreaId(null);
-          setEditBranchId(null);
-        } else if (activeAssignment.assignmentType === "SUB_AREA") {
+          setEditAreaIds(areaIds);
+          setEditSubAreaIds([]);
+          setEditBranchIds([]);
+        } else if (subAreaIds.length > 0) {
           setEditAssignmentType("subarea");
-          setEditAreaId(activeAssignment.areaId || null);
-          setEditSubAreaId(activeAssignment.subAreaId || null);
-          setEditBranchId(null);
-        } else if (activeAssignment.assignmentType === "BRANCH") {
+          // Get parent area IDs for sub-areas
+          const parentAreaIds = activeAssignments
+            .filter(a => a.assignmentType === "SUB_AREA" && a.areaId)
+            .map(a => a.areaId!)
+            .filter((id, index, arr) => arr.indexOf(id) === index); // unique
+          setEditAreaIds(parentAreaIds);
+          setEditSubAreaIds(subAreaIds);
+          setEditBranchIds([]);
+        } else if (branchIds.length > 0) {
           setEditAssignmentType("branch");
-          setEditAreaId(activeAssignment.areaId || null);
-          setEditSubAreaId(activeAssignment.subAreaId || null);
-          setEditBranchId(activeAssignment.branchId || null);
+          // Get parent area and sub-area IDs for branches
+          const parentAreaIds = activeAssignments
+            .filter(a => a.assignmentType === "BRANCH" && a.areaId)
+            .map(a => a.areaId!)
+            .filter((id, index, arr) => arr.indexOf(id) === index); // unique
+          const parentSubAreaIds = activeAssignments
+            .filter(a => a.assignmentType === "BRANCH" && a.subAreaId)
+            .map(a => a.subAreaId!)
+            .filter((id, index, arr) => arr.indexOf(id) === index); // unique
+          setEditAreaIds(parentAreaIds);
+          setEditSubAreaIds(parentSubAreaIds);
+          setEditBranchIds(branchIds);
         }
+
+        // Set the first assignment as the current one for compatibility
+        setEditingUserCurrentAssignment(activeAssignments[0]);
       } else {
         setEditingUserCurrentAssignment(null);
-        setEditAreaId(null);
-        setEditSubAreaId(null);
-        setEditBranchId(null);
+        setEditAreaIds([]);
+        setEditSubAreaIds([]);
+        setEditBranchIds([]);
       }
     } catch (error) {
       console.error("Error loading user assignment:", error);
       setEditingUserCurrentAssignment(null);
-      setEditAreaId(null);
-      setEditSubAreaId(null);
-      setEditBranchId(null);
+      setEditAreaIds([]);
+      setEditSubAreaIds([]);
+      setEditBranchIds([]);
     }
   };
 
@@ -414,9 +551,9 @@ export default function ManageUserPage() {
       username: "",
       phone: "",
     });
-    setEditAreaId(null);
-    setEditSubAreaId(null);
-    setEditBranchId(null);
+    setEditAreaIds([]);
+    setEditSubAreaIds([]);
+    setEditBranchIds([]);
     setEditingUserCurrentAssignment(null);
   };
 
@@ -432,32 +569,63 @@ export default function ManageUserPage() {
       });
 
       // Check if assignment changed
+      const currentAssignmentIds = {
+        area: editingUserCurrentAssignment?.areaId ? [editingUserCurrentAssignment.areaId] : [],
+        subArea: editingUserCurrentAssignment?.subAreaId ? [editingUserCurrentAssignment.subAreaId] : [],
+        branch: editingUserCurrentAssignment?.branchId ? [editingUserCurrentAssignment.branchId] : []
+      };
+
+      const newAssignmentIds = {
+        area: editAreaIds,
+        subArea: editSubAreaIds,
+        branch: editBranchIds
+      };
+
       const assignmentChanged =
         editAssignmentType !== editingUserCurrentAssignment?.assignmentType?.toLowerCase() ||
-        (editAssignmentType === "area" && editAreaId !== editingUserCurrentAssignment?.areaId) ||
-        (editAssignmentType === "subarea" && editSubAreaId !== editingUserCurrentAssignment?.subAreaId) ||
-        (editAssignmentType === "branch" && editBranchId !== editingUserCurrentAssignment?.branchId);
+        JSON.stringify(currentAssignmentIds[editAssignmentType as keyof typeof currentAssignmentIds]) !==
+        JSON.stringify(newAssignmentIds[editAssignmentType as keyof typeof newAssignmentIds]);
 
       if (assignmentChanged) {
-        // Remove old assignment if exists
+        // Remove all old assignments if exist
         if (editingUserCurrentAssignment) {
-          await marketingUserAssignmentService.removeAssignment(
-            editingUserCurrentAssignment.id,
-            editingUser.id
-          );
+          try {
+            const allAssignments = await marketingUserAssignmentService.getUserAssignments(editingUser.id);
+            const activeAssignments = allAssignments.filter(a => a.active);
+
+            for (const assignment of activeAssignments) {
+              await marketingUserAssignmentService.removeAssignment(
+                assignment.id,
+                editingUser.id
+              );
+            }
+          } catch (error) {
+            console.error("Error removing old assignments:", error);
+          }
         }
 
-        // Create new assignment
-        const assignRequest: AssignUserRequest = { userId: editingUser.id };
-        if (editAssignmentType === "area" && editAreaId) {
-          assignRequest.areaId = editAreaId;
-          await marketingUserAssignmentService.assignUser(assignRequest);
-        } else if (editAssignmentType === "subarea" && editSubAreaId) {
-          assignRequest.subAreaId = editSubAreaId;
-          await marketingUserAssignmentService.assignUser(assignRequest);
-        } else if (editAssignmentType === "branch" && editBranchId) {
-          assignRequest.branchId = editBranchId;
-          await marketingUserAssignmentService.assignUser(assignRequest);
+        // Create new assignments
+        const assignmentPromises: Promise<any>[] = [];
+
+        if (editAssignmentType === "area" && editAreaIds.length > 0) {
+          editAreaIds.forEach(areaId => {
+            const assignRequest: AssignUserRequest = { userId: editingUser.id, areaId };
+            assignmentPromises.push(marketingUserAssignmentService.assignUser(assignRequest));
+          });
+        } else if (editAssignmentType === "subarea" && editSubAreaIds.length > 0) {
+          editSubAreaIds.forEach(subAreaId => {
+            const assignRequest: AssignUserRequest = { userId: editingUser.id, subAreaId };
+            assignmentPromises.push(marketingUserAssignmentService.assignUser(assignRequest));
+          });
+        } else if (editAssignmentType === "branch" && editBranchIds.length > 0) {
+          editBranchIds.forEach(branchId => {
+            const assignRequest: AssignUserRequest = { userId: editingUser.id, branchId };
+            assignmentPromises.push(marketingUserAssignmentService.assignUser(assignRequest));
+          });
+        }
+
+        if (assignmentPromises.length > 0) {
+          await Promise.all(assignmentPromises);
         }
       }
 
@@ -567,63 +735,145 @@ export default function ManageUserPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-1">
-                Area
-              </label>
-              <select
-                value={selectedAreaId ?? ""}
-                onChange={(e) => setSelectedAreaId(e.target.value ? Number(e.target.value) : null)}
-                disabled={hasAssignment}
-                className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50"
-              >
-                <option value="">Select area</option>
-                {areas.map((area) => (
-                  <option key={area.id} value={area.id}>
-                    {area.name}
-                  </option>
-                ))}
-              </select>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-sm font-medium text-slate-300">
+                  Area(s)
+                </label>
+                <span className="text-xs text-slate-400">
+                  {selectedAreaIds.length} selected
+                </span>
+              </div>
+              <div className="max-h-48 overflow-y-auto rounded-md border border-slate-600 bg-slate-800/40 divide-y divide-slate-700">
+                {areas.length === 0 && (
+                  <p className="px-3 py-2 text-sm text-slate-400">
+                    No active areas available.
+                  </p>
+                )}
+                {areas.map((area) => {
+                  const checked = selectedAreaIds.includes(area.id);
+                  return (
+                    <label
+                      key={area.id}
+                      className={`flex items-center gap-3 px-3 py-2 cursor-pointer transition ${hasAssignment ? "opacity-60 cursor-not-allowed" : "hover:bg-slate-700/60"} ${checked ? "bg-slate-700/60" : ""}`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() =>
+                          setSelectedAreaIds((prev) => toggleSelection(prev, area.id))
+                        }
+                        disabled={hasAssignment}
+                        className="h-4 w-4 rounded border-slate-500 text-blue-500 focus:ring-blue-400"
+                      />
+                      <span className="text-sm text-white">{area.name}</span>
+                    </label>
+                  );
+                })}
+              </div>
+              <p className="text-xs text-slate-400 mt-1">
+                Use the checkboxes to select one or more areas.
+              </p>
             </div>
 
-            {assignmentType !== "area" && selectedAreaId && (
+            {assignmentType !== "area" && selectedAreaIds.length > 0 && (
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-1">
-                  Sub-Area {assignmentType === "subarea" ? "" : "(Optional)"}
-                </label>
-                <select
-                  value={selectedSubAreaId ?? ""}
-                  onChange={(e) => setSelectedSubAreaId(e.target.value ? Number(e.target.value) : null)}
-                  disabled={hasAssignment}
-                  className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50"
-                >
-                  <option value="">{assignmentType === "subarea" ? "Select sub-area" : "Select sub-area (optional)"}</option>
-                  {subAreas.map((subArea) => (
-                    <option key={subArea.id} value={subArea.id}>
-                      {subArea.name}
-                    </option>
-                  ))}
-                </select>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-sm font-medium text-slate-300">
+                    Sub-Area(s) {assignmentType === "subarea" ? "" : "(Optional)"}
+                  </label>
+                  <span className="text-xs text-slate-400">
+                    {selectedSubAreaIds.length} selected
+                  </span>
+                </div>
+                <div className="max-h-48 overflow-y-auto rounded-md border border-slate-600 bg-slate-800/40 divide-y divide-slate-700">
+                  {subAreas.length === 0 && (
+                    <p className="px-3 py-2 text-sm text-slate-400">
+                      Select an area to view available sub-areas.
+                    </p>
+                  )}
+                  {subAreas.map((subArea) => {
+                    const checked = selectedSubAreaIds.includes(subArea.id);
+                    return (
+                      <label
+                        key={subArea.id}
+                        className={`flex items-center gap-3 px-3 py-2 cursor-pointer transition ${hasAssignment ? "opacity-60 cursor-not-allowed" : "hover:bg-slate-700/60"} ${checked ? "bg-slate-700/60" : ""}`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() =>
+                            setSelectedSubAreaIds((prev) => toggleSelection(prev, subArea.id))
+                          }
+                          disabled={hasAssignment}
+                          className="h-4 w-4 rounded border-slate-500 text-blue-500 focus:ring-blue-400"
+                        />
+                        <span className="text-sm text-white">{subArea.name}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+                <p className="text-xs text-slate-400 mt-1">
+                  {assignmentType === "subarea"
+                    ? "Select one or more sub-areas."
+                    : "Optional: narrow branch assignment by selecting sub-areas."}
+                </p>
               </div>
             )}
 
-            {assignmentType === "branch" && selectedAreaId && (
+            {assignmentType === "branch" && selectedAreaIds.length > 0 && (
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-1">
-                  Branch
-                </label>
-                <select
-                  value={selectedBranchId ?? ""}
-                  onChange={(e) => setSelectedBranchId(e.target.value ? Number(e.target.value) : null)}
-                  disabled={hasAssignment}
-                  className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50"
-                >
-                  <option value="">Select branch</option>
-                  {branches.map((branch) => (
-                    <option key={branch.id} value={branch.id}>
-                      {branch.name}
-                    </option>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-sm font-medium text-slate-300">
+                    Branch(es)
+                  </label>
+                  <span className="text-xs text-slate-400">
+                    {selectedBranchIds.length} selected
+                  </span>
+                </div>
+                <div className="max-h-64 overflow-y-auto rounded-md border border-slate-600 bg-slate-800/40 divide-y divide-slate-700">
+                  {groupedBranches.length === 0 && (
+                    <p className="px-3 py-2 text-sm text-slate-400">
+                      Select at least one area or sub-area to view available branches.
+                    </p>
+                  )}
+                  {groupedBranches.map((group) => (
+                    <div key={group.id} className="px-3 py-2 space-y-2">
+                      <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">
+                        {group.label}
+                      </p>
+                      <div className="space-y-2">
+                        {group.branches.map((branch) => {
+                          const checked = selectedBranchIds.includes(branch.id);
+                          return (
+                            <label
+                              key={branch.id}
+                              className={`flex items-center gap-3 rounded-lg px-3 py-2 transition ${hasAssignment ? "opacity-60 cursor-not-allowed" : "hover:bg-slate-700/60"} ${checked ? "bg-slate-700/60 border border-blue-500/40" : "border border-transparent"}`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={() =>
+                                  setSelectedBranchIds((prev) => toggleSelection(prev, branch.id))
+                                }
+                                disabled={hasAssignment}
+                                className="h-4 w-4 rounded border-slate-500 text-blue-500 focus:ring-blue-400"
+                              />
+                              <div>
+                                <p className="text-sm text-white">{branch.name}</p>
+                                <p className="text-xs text-slate-400">
+                                  Code: {branch.code || "N/A"}
+                                </p>
+                              </div>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
                   ))}
-                </select>
+                </div>
+                <p className="text-xs text-slate-400 mt-1">
+                  Choose the branches that this user should manage.
+                </p>
               </div>
             )}
 
@@ -797,60 +1047,122 @@ export default function ManageUserPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-1">
-                  Area
-                </label>
-                <select
-                  value={editAreaId ?? ""}
-                  onChange={(e) => setEditAreaId(e.target.value ? Number(e.target.value) : null)}
-                  className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                >
-                  <option value="">Select area</option>
-                  {areas.map((area) => (
-                    <option key={area.id} value={area.id}>
-                      {area.name}
-                    </option>
-                  ))}
-                </select>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-sm font-medium text-slate-300">
+                    Area(s)
+                  </label>
+                  <span className="text-xs text-slate-400">{editAreaIds.length} selected</span>
+                </div>
+                <div className="max-h-48 overflow-y-auto rounded-md border border-slate-600 bg-slate-800/40 divide-y divide-slate-700">
+                  {areas.length === 0 && (
+                    <p className="px-3 py-2 text-sm text-slate-400">No active areas available.</p>
+                  )}
+                  {areas.map((area) => {
+                    const checked = editAreaIds.includes(area.id);
+                    return (
+                      <label
+                        key={area.id}
+                        className={`flex items-center gap-3 px-3 py-2 cursor-pointer transition ${checked ? "bg-slate-700/60" : "hover:bg-slate-700/60"}`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => setEditAreaIds((prev) => toggleSelection(prev, area.id))}
+                          className="h-4 w-4 rounded border-slate-500 text-blue-500 focus:ring-blue-400"
+                        />
+                        <span className="text-sm text-white">{area.name}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+                <p className="text-xs text-slate-400 mt-1">
+                  Use the checkboxes to adjust the user's area coverage.
+                </p>
               </div>
 
-              {editAssignmentType !== "area" && editAreaId && (
+              {editAssignmentType !== "area" && editAreaIds.length > 0 && (
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-1">
-                    Sub-Area {editAssignmentType === "subarea" ? "" : "(Optional)"}
-                  </label>
-                  <select
-                    value={editSubAreaId ?? ""}
-                    onChange={(e) => setEditSubAreaId(e.target.value ? Number(e.target.value) : null)}
-                    className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  >
-                    <option value="">{editAssignmentType === "subarea" ? "Select sub-area" : "Select sub-area (optional)"}</option>
-                    {subAreas.map((subArea) => (
-                      <option key={subArea.id} value={subArea.id}>
-                        {subArea.name}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-sm font-medium text-slate-300">
+                      Sub-Area(s) {editAssignmentType === "subarea" ? "" : "(Optional)"}
+                    </label>
+                    <span className="text-xs text-slate-400">{editSubAreaIds.length} selected</span>
+                  </div>
+                  <div className="max-h-48 overflow-y-auto rounded-md border border-slate-600 bg-slate-800/40 divide-y divide-slate-700">
+                    {subAreas.length === 0 && (
+                      <p className="px-3 py-2 text-sm text-slate-400">Select an area to view sub-areas.</p>
+                    )}
+                    {subAreas.map((subArea) => {
+                      const checked = editSubAreaIds.includes(subArea.id);
+                      return (
+                        <label
+                          key={subArea.id}
+                          className={`flex items-center gap-3 px-3 py-2 cursor-pointer transition ${checked ? "bg-slate-700/60" : "hover:bg-slate-700/60"}`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => setEditSubAreaIds((prev) => toggleSelection(prev, subArea.id))}
+                            className="h-4 w-4 rounded border-slate-500 text-blue-500 focus:ring-blue-400"
+                          />
+                          <span className="text-sm text-white">{subArea.name}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                  <p className="text-xs text-slate-400 mt-1">
+                    {editAssignmentType === "subarea"
+                      ? "Select the sub-areas this user should manage."
+                      : "Optional: narrow branch assignment by selecting specific sub-areas."}
+                  </p>
                 </div>
               )}
 
-              {editAssignmentType === "branch" && editAreaId && (
+              {editAssignmentType === "branch" && editAreaIds.length > 0 && (
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-1">
-                    Branch
-                  </label>
-                  <select
-                    value={editBranchId ?? ""}
-                    onChange={(e) => setEditBranchId(e.target.value ? Number(e.target.value) : null)}
-                    className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  >
-                    <option value="">Select branch</option>
-                    {branches.map((branch) => (
-                      <option key={branch.id} value={branch.id}>
-                        {branch.name}
-                      </option>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-sm font-medium text-slate-300">
+                      Branch(es)
+                    </label>
+                    <span className="text-xs text-slate-400">{editBranchIds.length} selected</span>
+                  </div>
+                  <div className="max-h-64 overflow-y-auto rounded-md border border-slate-600 bg-slate-800/40 divide-y divide-slate-700">
+                    {groupedEditBranches.length === 0 && (
+                      <p className="px-3 py-2 text-sm text-slate-400">Select an area or sub-area first.</p>
+                    )}
+                    {groupedEditBranches.map((group) => (
+                      <div key={group.id} className="px-3 py-2 space-y-2">
+                        <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">
+                          {group.label}
+                        </p>
+                        <div className="space-y-2">
+                          {group.branches.map((branch) => {
+                            const checked = editBranchIds.includes(branch.id);
+                            return (
+                              <label
+                                key={branch.id}
+                                className={`flex items-center gap-3 rounded-lg px-3 py-2 transition ${checked ? "bg-slate-700/60 border border-blue-500/40" : "hover:bg-slate-700/60 border border-transparent"}`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={() => setEditBranchIds((prev) => toggleSelection(prev, branch.id))}
+                                  className="h-4 w-4 rounded border-slate-500 text-blue-500 focus:ring-blue-400"
+                                />
+                                <div>
+                                  <p className="text-sm text-white">{branch.name}</p>
+                                  <p className="text-xs text-slate-400">Code: {branch.code || "N/A"}</p>
+                                </div>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </div>
                     ))}
-                  </select>
+                  </div>
+                  <p className="text-xs text-slate-400 mt-1">
+                    Choose the branches that this user should cover.
+                  </p>
                 </div>
               )}
             </div>
@@ -1082,4 +1394,4 @@ export default function ManageUserPage() {
       </div>
     </div>
   );
-}
+};

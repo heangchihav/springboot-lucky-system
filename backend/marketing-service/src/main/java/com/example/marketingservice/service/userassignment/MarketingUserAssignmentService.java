@@ -12,6 +12,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -80,8 +81,7 @@ public class MarketingUserAssignmentService {
             }
         }
 
-        deactivateAllUserAssignments(userId);
-
+        // Allow multiple assignments - don't deactivate existing ones
         MarketingUserAssignment assignment = new MarketingUserAssignment(userId, area);
         return assignmentRepository.save(assignment);
     }
@@ -107,8 +107,7 @@ public class MarketingUserAssignmentService {
             }
         }
 
-        deactivateAllUserAssignments(userId);
-
+        // Allow multiple assignments - don't deactivate existing ones
         MarketingUserAssignment assignment = new MarketingUserAssignment(userId, subArea);
         return assignmentRepository.save(assignment);
     }
@@ -134,8 +133,7 @@ public class MarketingUserAssignmentService {
             }
         }
 
-        deactivateAllUserAssignments(userId);
-
+        // Allow multiple assignments - don't deactivate existing ones
         MarketingUserAssignment assignment = new MarketingUserAssignment(userId, branch);
         return assignmentRepository.save(assignment);
     }
@@ -175,11 +173,46 @@ public class MarketingUserAssignmentService {
         return assignmentRepository.countActiveByBranchId(branchId);
     }
 
-    private void deactivateAllUserAssignments(Long userId) {
+    // Bulk assignment methods for multiple assignments
+    public List<MarketingUserAssignment> assignUserToMultipleAreas(Long userId, List<Long> areaIds) {
+        if (areaIds == null || areaIds.isEmpty()) {
+            throw new IllegalArgumentException("Area IDs list cannot be null or empty");
+        }
+
+        return areaIds.stream()
+                .map(areaId -> assignUserToArea(userId, areaId))
+                .toList();
+    }
+
+    public List<MarketingUserAssignment> assignUserToMultipleSubAreas(Long userId, List<Long> subAreaIds) {
+        if (subAreaIds == null || subAreaIds.isEmpty()) {
+            throw new IllegalArgumentException("Sub-area IDs list cannot be null or empty");
+        }
+
+        return subAreaIds.stream()
+                .map(subAreaId -> assignUserToSubArea(userId, subAreaId))
+                .toList();
+    }
+
+    public List<MarketingUserAssignment> assignUserToMultipleBranches(Long userId, List<Long> branchIds) {
+        if (branchIds == null || branchIds.isEmpty()) {
+            throw new IllegalArgumentException("Branch IDs list cannot be null or empty");
+        }
+
+        return branchIds.stream()
+                .map(branchId -> assignUserToBranch(userId, branchId))
+                .toList();
+    }
+
+    public List<MarketingUserAssignment> removeAllUserAssignments(Long userId) {
         List<MarketingUserAssignment> activeAssignments = assignmentRepository.findActiveByUserId(userId);
+        List<MarketingUserAssignment> deactivatedAssignments = new ArrayList<>();
+
         for (MarketingUserAssignment assignment : activeAssignments) {
             assignment.setActive(false);
-            assignmentRepository.save(assignment);
+            deactivatedAssignments.add(assignmentRepository.save(assignment));
         }
+
+        return deactivatedAssignments;
     }
 }

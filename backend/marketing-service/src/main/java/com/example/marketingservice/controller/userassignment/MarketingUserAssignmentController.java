@@ -1,6 +1,9 @@
 package com.example.marketingservice.controller.userassignment;
 
 import com.example.marketingservice.controller.base.BaseController;
+import com.example.marketingservice.dto.userassignment.BulkAreaAssignmentRequest;
+import com.example.marketingservice.dto.userassignment.BulkBranchAssignmentRequest;
+import com.example.marketingservice.dto.userassignment.BulkSubAreaAssignmentRequest;
 import com.example.marketingservice.dto.userassignment.MarketingUserAssignmentRequest;
 import com.example.marketingservice.dto.userassignment.MarketingUserAssignmentResponse;
 import com.example.marketingservice.entity.userassignment.MarketingUserAssignment;
@@ -120,6 +123,113 @@ public class MarketingUserAssignmentController extends BaseController {
             return ResponseEntity.badRequest().build();
         } catch (Exception e) {
             logger.error("Unexpected error during assignment: {}", e.getMessage(), e);
+            throw e;
+        }
+    }
+
+    @PostMapping("/assign-multiple-areas")
+    public ResponseEntity<List<MarketingUserAssignmentResponse>> assignUserToMultipleAreas(
+            @RequestBody BulkAreaAssignmentRequest request) {
+
+        logger.info("=== BULK AREA ASSIGNMENT REQUEST ===");
+        logger.info("Request: userId={}, areaIds={}", request.getUserId(), request.getAreaIds());
+
+        try {
+            List<MarketingUserAssignment> assignments = assignmentService.assignUserToMultipleAreas(
+                    request.getUserId(), request.getAreaIds());
+
+            List<MarketingUserAssignmentResponse> responses = assignments.stream()
+                    .map(MarketingUserAssignmentResponse::fromEntity)
+                    .toList();
+
+            logger.info("Successfully assigned user to {} areas", assignments.size());
+            return ResponseEntity.status(HttpStatus.CREATED).body(responses);
+
+        } catch (IllegalArgumentException e) {
+            logger.error("Bulk area assignment failed: {}", e.getMessage());
+            return ResponseEntity.badRequest().build();
+        } catch (Exception e) {
+            logger.error("Unexpected error during bulk area assignment: {}", e.getMessage(), e);
+            throw e;
+        }
+    }
+
+    @PostMapping("/assign-multiple-subareas")
+    public ResponseEntity<List<MarketingUserAssignmentResponse>> assignUserToMultipleSubAreas(
+            @RequestBody BulkSubAreaAssignmentRequest request) {
+
+        logger.info("=== BULK SUB-AREA ASSIGNMENT REQUEST ===");
+        logger.info("Request: userId={}, subAreaIds={}", request.getUserId(), request.getSubAreaIds());
+
+        try {
+            List<MarketingUserAssignment> assignments = assignmentService.assignUserToMultipleSubAreas(
+                    request.getUserId(), request.getSubAreaIds());
+
+            List<MarketingUserAssignmentResponse> responses = assignments.stream()
+                    .map(MarketingUserAssignmentResponse::fromEntity)
+                    .toList();
+
+            logger.info("Successfully assigned user to {} sub-areas", assignments.size());
+            return ResponseEntity.status(HttpStatus.CREATED).body(responses);
+
+        } catch (IllegalArgumentException e) {
+            logger.error("Bulk sub-area assignment failed: {}", e.getMessage());
+            return ResponseEntity.badRequest().build();
+        } catch (Exception e) {
+            logger.error("Unexpected error during bulk sub-area assignment: {}", e.getMessage(), e);
+            throw e;
+        }
+    }
+
+    @PostMapping("/assign-multiple-branches")
+    public ResponseEntity<List<MarketingUserAssignmentResponse>> assignUserToMultipleBranches(
+            @RequestBody BulkBranchAssignmentRequest request) {
+
+        logger.info("=== BULK BRANCH ASSIGNMENT REQUEST ===");
+        logger.info("Request: userId={}, branchIds={}", request.getUserId(), request.getBranchIds());
+
+        try {
+            List<MarketingUserAssignment> assignments = assignmentService.assignUserToMultipleBranches(
+                    request.getUserId(), request.getBranchIds());
+
+            List<MarketingUserAssignmentResponse> responses = assignments.stream()
+                    .map(MarketingUserAssignmentResponse::fromEntity)
+                    .toList();
+
+            logger.info("Successfully assigned user to {} branches", assignments.size());
+            return ResponseEntity.status(HttpStatus.CREATED).body(responses);
+
+        } catch (IllegalArgumentException e) {
+            logger.error("Bulk branch assignment failed: {}", e.getMessage());
+            return ResponseEntity.badRequest().build();
+        } catch (Exception e) {
+            logger.error("Unexpected error during bulk branch assignment: {}", e.getMessage(), e);
+            throw e;
+        }
+    }
+
+    @PostMapping("/remove-all/{userId}")
+    public ResponseEntity<List<MarketingUserAssignmentResponse>> removeAllUserAssignments(
+            @PathVariable Long userId) {
+
+        logger.info("=== REMOVE ALL ASSIGNMENTS REQUEST ===");
+        logger.info("Removing all assignments for userId: {}", userId);
+
+        try {
+            List<MarketingUserAssignment> deactivatedAssignments = assignmentService.removeAllUserAssignments(userId);
+
+            List<MarketingUserAssignmentResponse> responses = deactivatedAssignments.stream()
+                    .map(MarketingUserAssignmentResponse::fromEntity)
+                    .toList();
+
+            logger.info("Successfully removed {} assignments for user {}", deactivatedAssignments.size(), userId);
+            return ResponseEntity.ok(responses);
+
+        } catch (IllegalArgumentException e) {
+            logger.error("Remove all assignments failed: {}", e.getMessage());
+            return ResponseEntity.badRequest().build();
+        } catch (Exception e) {
+            logger.error("Unexpected error during remove all assignments: {}", e.getMessage(), e);
             throw e;
         }
     }

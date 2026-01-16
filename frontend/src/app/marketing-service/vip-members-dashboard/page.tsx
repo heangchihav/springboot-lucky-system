@@ -419,8 +419,8 @@ function VIPMembersDashboardPage() {
       normalizedBranchId === null
         ? null
         : (availableBranches.find(
-            (branch) => branch.id === normalizedBranchId,
-          ) ?? null),
+          (branch) => branch.id === normalizedBranchId,
+        ) ?? null),
     [availableBranches, normalizedBranchId],
   );
 
@@ -916,11 +916,10 @@ function VIPMembersDashboardPage() {
               {TREND_VIEW_OPTIONS.map((view) => (
                 <button
                   key={view.key}
-                  className={`rounded-full px-4 py-1 ${
-                    trendView === view.key
+                  className={`rounded-full px-4 py-1 ${trendView === view.key
                       ? "bg-amber-400/20 text-white"
                       : "text-slate-400 hover:text-white"
-                  }`}
+                    }`}
                   onClick={() => setTrendView(view.key)}
                 >
                   {view.label}
