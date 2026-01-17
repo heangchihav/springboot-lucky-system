@@ -39,11 +39,12 @@ type PendingEntry = {
   totalGoods: number;
 };
 
+const yesterday = new Date(Date.now() - 86400000).toISOString().split("T")[0];
 const today = new Date().toISOString().split("T")[0];
 const EDIT_MODAL_TITLE_ID = "goods-shipment-edit-title";
 
 const defaultEntryForm: EntryFormState = {
-  goodsDate: today,
+  goodsDate: yesterday,
   totalGoods: "",
 };
 

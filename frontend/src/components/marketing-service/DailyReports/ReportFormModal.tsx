@@ -14,16 +14,29 @@ export const ReportFormModal = ({ editingReport, onSave, onClose, loading }: Rep
     const portalRoot = usePortal();
     const [reportDate, setReportDate] = useState(new Date().toISOString().split('T')[0]);
     const [reportItems, setReportItems] = useState<ReportItem[]>([
-        { name: "", values: [""] }
+        { name: "ផែនការប្រចាំថ្ងៃ", values: [""] },
+        { name: "លិទ្ធផលការងារសម្រេចបានប្រចាំថ្ងៃ", values: [""] },
+        { name: "លិទ្ធផលការងារមិនទាន់បានសម្រេច", values: [""] },
+        { name: "ព័តមានអំពីដៃគូប្រកួតប្រជែង", values: [""] }
     ]);
 
     useEffect(() => {
         if (editingReport) {
             setReportDate(editingReport.reportDate);
-            setReportItems(editingReport.items.length > 0 ? editingReport.items : [{ name: "", values: [""] }]);
+            setReportItems(editingReport.items.length > 0 ? editingReport.items : [
+                { name: "ផែនការប្រចាំថ្ងៃ", values: [""] },
+                { name: "លិទ្ធផលការងារសម្រេចបានប្រចាំថ្ងៃ", values: [""] },
+                { name: "លិទ្ធផលការងារមិនទាន់បានសម្រេច", values: [""] },
+                { name: "ព័តមានអំពីដៃគូប្រកួតប្រជែង", values: [""] }
+            ]);
         } else {
             setReportDate(new Date().toISOString().split('T')[0]);
-            setReportItems([{ name: "", values: [""] }]);
+            setReportItems([
+                { name: "ផែនការប្រចាំថ្ងៃ", values: [""] },
+                { name: "លិទ្ធផលការងារសម្រេចបានប្រចាំថ្ងៃ", values: [""] },
+                { name: "លិទ្ធផលការងារមិនទាន់បានសម្រេច", values: [""] },
+                { name: "ព័តមានអំពីដៃគូប្រកួតប្រជែង", values: [""] }
+            ]);
         }
     }, [editingReport]);
 
