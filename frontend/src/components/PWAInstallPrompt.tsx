@@ -15,6 +15,11 @@ export default function PWAInstallPrompt() {
     const [isInstalled, setIsInstalled] = useState(false);
 
     useEffect(() => {
+        // Skip PWA install prompt on localhost
+        if (window.location.hostname.includes("localhost")) {
+            return;
+        }
+
         const checkIfInstalled = () => {
             if (window.matchMedia("(display-mode: standalone)").matches) {
                 setIsInstalled(true);

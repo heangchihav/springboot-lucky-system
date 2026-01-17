@@ -4,7 +4,10 @@ import { useEffect } from "react";
 
 export default function ServiceWorkerRegistration() {
     useEffect(() => {
-        if (typeof window !== "undefined" && "serviceWorker" in navigator) {
+        // Skip PWA on localhost to avoid caching issues during development
+        if (typeof window !== "undefined" &&
+            "serviceWorker" in navigator &&
+            !window.location.hostname.includes("localhost")) {
             navigator.serviceWorker
                 .register("/sw.js")
                 .then((registration) => {

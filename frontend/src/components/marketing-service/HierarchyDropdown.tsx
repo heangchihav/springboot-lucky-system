@@ -64,16 +64,25 @@ export const toggleSelection = (prev: number[], value: number): number[] => {
         : [...prev, value];
 };
 
-// Utility to filter by user assignments
+// Utility to filter by user assignments - shows all data for users without assignments
 export const filterByAssignments = {
-    area: (areas: MarketingArea[], assignments: MarketingUserAssignment[]) =>
-        areas.filter(area => assignments.some(a => a.areaId === area.id)),
+    area: (areas: MarketingArea[], assignments: MarketingUserAssignment[]) => {
+        // If no assignments, show all areas (admin user)
+        if (assignments.length === 0) return areas;
+        return areas.filter(area => assignments.some(a => a.areaId === area.id));
+    },
 
-    subArea: (subAreas: MarketingSubArea[], assignments: MarketingUserAssignment[]) =>
-        subAreas.filter(subArea => assignments.some(a => a.subAreaId === subArea.id)),
+    subArea: (subAreas: MarketingSubArea[], assignments: MarketingUserAssignment[]) => {
+        // If no assignments, show all sub-areas (admin user)
+        if (assignments.length === 0) return subAreas;
+        return subAreas.filter(subArea => assignments.some(a => a.subAreaId === subArea.id));
+    },
 
-    branch: (branches: MarketingBranch[], assignments: MarketingUserAssignment[]) =>
-        branches.filter(branch => assignments.some(a => a.branchId === branch.id)),
+    branch: (branches: MarketingBranch[], assignments: MarketingUserAssignment[]) => {
+        // If no assignments, show all branches (admin user)
+        if (assignments.length === 0) return branches;
+        return branches.filter(branch => assignments.some(a => a.branchId === branch.id));
+    },
 };
 
 // Multi-select checkbox component
