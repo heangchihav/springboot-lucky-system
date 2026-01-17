@@ -83,9 +83,33 @@ export const ReportFormModal = ({ editingReport, onSave, onClose, loading }: Rep
 
     if (!portalRoot) return null;
 
+    // Add custom scrollbar styles
+    const scrollbarStyles = `
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 8px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: rgba(15, 23, 42, 0.5);
+            border-radius: 0;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: rgba(51, 65, 85, 0.8);
+            border-radius: 0;
+            border: none;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: rgba(71, 85, 105, 0.9);
+        }
+        .custom-scrollbar {
+            scrollbar-width: thin;
+            scrollbar-color: rgba(51, 65, 85, 0.8) rgba(15, 23, 42, 0.5);
+        }
+    `;
+
     return createPortal(
         <div className="fixed inset-0 z-50 flex items-start justify-center pt-8 bg-black/60 backdrop-blur-sm">
-            <div className="mx-4 max-h-[85vh] w-full max-w-4xl overflow-y-auto rounded-3xl border border-white/10 bg-slate-900/95 p-6 shadow-2xl">
+            <style>{scrollbarStyles}</style>
+            <div className="mx-4 max-h-[85vh] w-full max-w-4xl overflow-y-auto rounded-3xl border border-white/10 bg-slate-900/95 p-6 shadow-2xl custom-scrollbar">
                 <div className="flex items-center justify-between mb-6">
                     <h2 className="text-xl font-semibold text-white">
                         {editingReport ? "Edit Report" : "Create New Report"}
