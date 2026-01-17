@@ -291,8 +291,8 @@ export const ReportViewModal = ({ report, onClose }: ReportViewModalProps) => {
                                     <h3 className="font-semibold text-gray-900 font-khmer-os-muol">► {item.name}</h3>
                                     <ul className="mt-2 space-y-1 pl-6">
                                         {item.values.map((value, valueIndex) => (
-                                            <li key={valueIndex} className="text-gray-700 flex items-start">
-                                                <span className="text-orange-500 mr-2">•</span>
+                                            <li key={valueIndex} className="text-gray-700 flex items-center">
+                                                <span className="text-black mr-2 text-2xl">•</span>
                                                 <span className="whitespace-pre-wrap">{value}</span>
                                             </li>
                                         ))}
