@@ -127,7 +127,75 @@ export default function ManageUserPage() {
       setEditSubAreaIds(assignedSubAreaIds);
       setEditBranchIds(assignedBranchIds);
     }
+    // If user has no assignments, show all areas, sub-areas, and branches
+    // Don't pre-select anything, let the user choose
   }, [currentUserAssignments]);
+
+  // Create assignments for dropdown - if user has assignments, use them; otherwise create dummy assignments to show all
+  const dropdownAssignments = useMemo(() => {
+    if (currentUserAssignments.length > 0) {
+      return currentUserAssignments;
+    }
+
+    // Create dummy assignments that include all areas, sub-areas, and branches
+    const dummyAssignments: MarketingUserAssignment[] = [];
+
+    // Add all areas
+    areas.forEach(area => {
+      dummyAssignments.push({
+        id: 0,
+        userId: 0,
+        areaId: area.id,
+        subAreaId: undefined,
+        branchId: undefined,
+        active: true,
+        areaName: area.name,
+        subAreaName: undefined,
+        branchName: undefined,
+        assignedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        assignmentType: "AREA" as const
+      });
+    });
+
+    // Add all sub-areas
+    subAreas.forEach(subArea => {
+      dummyAssignments.push({
+        id: 0,
+        userId: 0,
+        areaId: subArea.areaId,
+        subAreaId: subArea.id,
+        branchId: undefined,
+        active: true,
+        areaName: areas.find(a => a.id === subArea.areaId)?.name,
+        subAreaName: subArea.name,
+        branchName: undefined,
+        assignedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        assignmentType: "SUB_AREA" as const
+      });
+    });
+
+    // Add all branches
+    branches.forEach(branch => {
+      dummyAssignments.push({
+        id: 0,
+        userId: 0,
+        areaId: branch.areaId,
+        subAreaId: branch.subAreaId || undefined,
+        branchId: branch.id,
+        active: true,
+        areaName: areas.find(a => a.id === branch.areaId)?.name,
+        subAreaName: branch.subAreaId ? subAreas.find(s => s.id === branch.subAreaId)?.name : undefined,
+        branchName: branch.name,
+        assignedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        assignmentType: "BRANCH" as const
+      });
+    });
+
+    return dummyAssignments;
+  }, [currentUserAssignments, areas, subAreas, branches]);
 
   const fetchMarketingServiceId = async () => {
     try {
@@ -778,7 +846,7 @@ export default function ManageUserPage() {
                 areas={areas}
                 subAreas={subAreas}
                 branches={branches}
-                currentUserAssignments={currentUserAssignments}
+                currentUserAssignments={dropdownAssignments}
                 selectedAreaIds={selectedAreaIds}
                 selectedSubAreaIds={selectedSubAreaIds}
                 selectedBranchIds={selectedBranchIds}
@@ -885,7 +953,7 @@ export default function ManageUserPage() {
                 areas={areas}
                 subAreas={subAreas}
                 branches={branches}
-                currentUserAssignments={currentUserAssignments}
+                currentUserAssignments={dropdownAssignments}
                 selectedAreaIds={editAreaIds}
                 selectedSubAreaIds={editSubAreaIds}
                 selectedBranchIds={editBranchIds}
