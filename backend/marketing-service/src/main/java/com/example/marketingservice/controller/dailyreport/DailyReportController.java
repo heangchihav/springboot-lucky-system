@@ -69,6 +69,7 @@ public class DailyReportController extends BaseController {
         try {
             DailyReportDto createdReport = dailyReportService.createReport(
                     createdBy,
+                    userId.intValue(),
                     request.getReportDate(),
                     request.getItems());
             return ResponseEntity.status(HttpStatus.CREATED).body(createdReport);

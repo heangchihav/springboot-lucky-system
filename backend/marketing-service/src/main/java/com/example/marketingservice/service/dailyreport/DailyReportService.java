@@ -37,31 +37,79 @@ public class DailyReportService {
     public List<DailyReportDto> getAllReports() {
         List<DailyReport> reports = dailyReportRepository.findAllByOrderByCreatedAtDesc();
         return reports.stream()
-                .map(this::convertToDto)
+                .map(report -> {
+                    // Try to get user ID from username for existing reports
+                    Integer userId = null;
+                    try {
+                        String url = userServiceUrl + "/api/users/username/" + report.getCreatedBy() + "/id";
+                        userId = restTemplate.getForObject(url, Integer.class);
+                    } catch (Exception e) {
+                        // Log error but continue with null userId
+                        System.err
+                                .println("Error fetching user ID for " + report.getCreatedBy() + ": " + e.getMessage());
+                    }
+                    return convertToDto(report, userId);
+                })
                 .collect(Collectors.toList());
     }
 
     public DailyReportDto getReportById(String reportId) {
         DailyReport report = dailyReportRepository.findByReportId(reportId)
                 .orElseThrow(() -> new RuntimeException("Report not found: " + reportId));
-        return convertToDto(report);
+
+        // Try to get user ID from username for existing reports
+        Integer userId = null;
+        try {
+            String url = userServiceUrl + "/api/users/username/" + report.getCreatedBy() + "/id";
+            userId = restTemplate.getForObject(url, Integer.class);
+        } catch (Exception e) {
+            // Log error but continue with null userId
+            System.err.println("Error fetching user ID for " + report.getCreatedBy() + ": " + e.getMessage());
+        }
+
+        return convertToDto(report, userId);
     }
 
     public List<DailyReportDto> getReportsByDate(String reportDate) {
         List<DailyReport> reports = dailyReportRepository.findByReportDateOrderByReportDateDesc(reportDate);
         return reports.stream()
-                .map(this::convertToDto)
+                .map(report -> {
+                    // Try to get user ID from username for existing reports
+                    Integer userId = null;
+                    try {
+                        String url = userServiceUrl + "/api/users/username/" + report.getCreatedBy() + "/id";
+                        userId = restTemplate.getForObject(url, Integer.class);
+                    } catch (Exception e) {
+                        // Log error but continue with null userId
+                        System.err
+                                .println("Error fetching user ID for " + report.getCreatedBy() + ": " + e.getMessage());
+                    }
+                    return convertToDto(report, userId);
+                })
                 .collect(Collectors.toList());
     }
 
     public List<DailyReportDto> getReportsByCreatedBy(String createdBy) {
         List<DailyReport> reports = dailyReportRepository.findByCreatedByOrderByCreatedAtDesc(createdBy);
         return reports.stream()
-                .map(this::convertToDto)
+                .map(report -> {
+                    // Try to get user ID from username for existing reports
+                    Integer userId = null;
+                    try {
+                        String url = userServiceUrl + "/api/users/username/" + report.getCreatedBy() + "/id";
+                        userId = restTemplate.getForObject(url, Integer.class);
+                    } catch (Exception e) {
+                        // Log error but continue with null userId
+                        System.err
+                                .println("Error fetching user ID for " + report.getCreatedBy() + ": " + e.getMessage());
+                    }
+                    return convertToDto(report, userId);
+                })
                 .collect(Collectors.toList());
     }
 
-    public DailyReportDto createReport(String createdBy, String reportDate, List<DailyReportItemDto> itemDtos) {
+    public DailyReportDto createReport(String createdBy, Integer userId, String reportDate,
+            List<DailyReportItemDto> itemDtos) {
         // Generate unique report ID
         String reportId = generateReportId();
 
@@ -85,7 +133,7 @@ public class DailyReportService {
         DailyReport report = new DailyReport(reportId, createdBy, reportDate, items);
         DailyReport savedReport = dailyReportRepository.save(report);
 
-        return convertToDto(savedReport);
+        return convertToDto(savedReport, userId);
     }
 
     public DailyReportDto updateReport(String reportId, String reportDate, List<DailyReportItemDto> itemDtos) {
@@ -129,6 +177,19 @@ public class DailyReportService {
         return "report_" + timestamp + "_" + UUID.randomUUID().toString().substring(0, 8);
     }
 
+    private String getUsernameById(Integer userId) {
+        if (userId == null)
+            return null;
+
+        try {
+            String url = userServiceUrl + "/api/users/" + userId + "/username";
+            return restTemplate.getForObject(url, String.class);
+        } catch (Exception e) {
+            System.err.println("Error fetching username for userId " + userId + ": " + e.getMessage());
+            return null;
+        }
+    }
+
     private String getUserFullName(String username) {
         if (username == null)
             return null;
@@ -151,11 +212,31 @@ public class DailyReportService {
     }
 
     private DailyReportDto convertToDto(DailyReport report) {
+        return convertToDto(report, null);
+    }
+
+    private DailyReportDto convertToDto(DailyReport report, Integer userId) {
         List<DailyReportItemDto> itemDtos = report.getItems().stream()
                 .map(item -> new DailyReportItemDto(item.getItemName(), item.getValues()))
                 .collect(Collectors.toList());
 
-        String createdByFullName = getUserFullName(report.getCreatedBy());
+        String createdByFullName = null;
+        if (userId != null) {
+            // Try to get user full name by first getting the username from userId
+            try {
+                String username = getUsernameById(userId);
+                if (username != null) {
+                    createdByFullName = getUserFullName(username);
+                }
+            } catch (Exception e) {
+                // Log error but don't fail the report generation
+                System.err.println("Error fetching user full name for userId " + userId + ": " + e.getMessage());
+            }
+        }
+
+        if (createdByFullName == null) {
+            createdByFullName = getUserFullName(report.getCreatedBy());
+        }
 
         return new DailyReportDto(
                 report.getReportId(),

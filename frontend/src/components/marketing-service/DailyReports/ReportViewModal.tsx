@@ -317,7 +317,7 @@ export const ReportViewModal = ({ report, onClose }: ReportViewModalProps) => {
                             </p>
                             <br /><br />
                             <div className="border-gray-300 pb-1 mb-2">
-                                <p className="text-gray-700 font-medium">
+                                <p className="text-sm font-semibold text-black inline-block font-khmer-os-muol">
                                     {report.createdByFullName || report.createdBy}
                                 </p>
                             </div>
@@ -328,7 +328,7 @@ export const ReportViewModal = ({ report, onClose }: ReportViewModalProps) => {
                             </p>
                             <br /><br />
                             <div className="border-gray-300 pb-1 mb-2">
-                                <p className="text-gray-700 font-medium">
+                                <p className="text-sm font-semibold text-black inline-block font-khmer-os-muol">
                                     លោក សោម តារា
                                 </p>
                             </div>
