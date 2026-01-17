@@ -78,6 +78,18 @@ class MarketingUserAssignmentService {
         return this.handleResponse<MarketingUserAssignment[]>(response);
     }
 
+    async getUserAssignmentsByUsername(username: string): Promise<MarketingUserAssignment[]> {
+        const response = await apiFetch(
+            `/api/marketing/user-assignments/username/${username}`,
+            {
+                method: "GET",
+                headers: getAuthHeaders(),
+            },
+        );
+
+        return this.handleResponse<MarketingUserAssignment[]>(response);
+    }
+
     async getAssignmentsByArea(areaId: number): Promise<MarketingUserAssignment[]> {
         const response = await apiFetch(
             `/api/marketing/user-assignments/area/${areaId}`,

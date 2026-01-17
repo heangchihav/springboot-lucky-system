@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import React from "react";
 import { ModalPortal } from "@/components/ModalPortal";
 import { MarketingServiceGuard } from "@/components/marketing-service/MarketingServiceGuard";
+import { AreaSubAreaFilter } from "@/components/marketing-service/AreaSubAreaFilter";
+import { useMarketingData } from "@/hooks/useMarketingData";
 import { useToast } from "@/components/ui/Toast";
 import { PermissionGuard } from "@/components/layout/PermissionGuard";
 import {
@@ -21,6 +23,8 @@ import {
   type CompetitorAssignmentPayload,
   type CompetitorPriceRange,
 } from "@/services/marketing-service/competitorAssignmentService";
+import { marketingUserAssignmentService, MarketingUserAssignment } from "@/services/marketingUserAssignmentService";
+import { API_BASE_URL } from "@/config/env";
 
 // ============================================================================
 // REUSABLE COMPONENTS
@@ -545,25 +549,49 @@ const CompetitorEditModal: React.FC<{
     );
   };
 
-export default function CompetitorsPage() {
-  // Data states
-  const [areas, setAreas] = useState<MarketingArea[]>([]);
-  const [subAreas, setSubAreas] = useState<MarketingSubArea[]>([]);
-  const [competitors, setCompetitors] = useState<MarketingCompetitor[]>([]);
-  const [assignments, setAssignments] = useState<MarketingCompetitorAssignment[]>([]);
 
-  const subAreaLookup = useMemo(() => {
-    const lookup: Record<number, string> = {};
-    subAreas.forEach((subArea) => {
-      lookup[subArea.id] = subArea.name;
-    });
-    return lookup;
-  }, [subAreas]);
+export default function CompetitorsPage() {
+  // Use the marketing data hook for data management
+  const {
+    areas,
+    subAreas,
+    competitors,
+    assignments,
+    currentUserAssignments,
+    loading: dataLoading,
+    loadAreas,
+    loadSubAreas,
+    loadCompetitors,
+    loadAssignments,
+    loadAllData,
+  } = useMarketingData({
+    loadAreasOnMount: true,
+    loadCompetitorsOnMount: true,
+    loadAssignmentsOnMount: true,
+  });
 
   // Selection states
   const [selectedAreaId, setSelectedAreaId] = useState<number | null>(null);
   const [selectedSubAreaId, setSelectedSubAreaId] = useState<number | null>(null);
   const [selectedCompetitorIds, setSelectedCompetitorIds] = useState<number[]>([]);
+
+  const filteredSubAreasForForm = useMemo(() => {
+    // If no area selected, show all sub areas
+    if (!selectedAreaId) return subAreas;
+    return subAreas.filter((subArea) => subArea.areaId === selectedAreaId);
+  }, [selectedAreaId, subAreas]);
+
+  const filteredAreasForForm = useMemo(() => {
+    return areas;
+  }, [areas]);
+
+  const subAreaLookup = useMemo(() => {
+    const lookup: Record<number, string> = {};
+    subAreas.forEach(subArea => {
+      lookup[subArea.id] = subArea.name;
+    });
+    return lookup;
+  }, [subAreas]);
 
   // Table filter states
   const [tableFilterAreaId, setTableFilterAreaId] = useState<number | null>(null);
@@ -574,11 +602,10 @@ export default function CompetitorsPage() {
   const [strengthInputs, setStrengthInputs] = useState<Record<number, string>>({});
   const [weaknessInputs, setWeaknessInputs] = useState<Record<number, string>>({});
 
-  // UI states
-  const [loading, setLoading] = useState(false);
-  const [assignmentLoading, setAssignmentLoading] = useState(false);
-  const [competitorLoading, setCompetitorLoading] = useState(false);
   const { showToast } = useToast();
+
+  // Local loading states for form operations
+  const [isSaving, setIsSaving] = useState(false);
 
   // Modal states
   const [showProfileModal, setShowProfileModal] = useState(false);
@@ -589,49 +616,6 @@ export default function CompetitorsPage() {
   const [editStrengthInputs, setEditStrengthInputs] = useState<Record<number, string>>({});
   const [editWeaknessInputs, setEditWeaknessInputs] = useState<Record<number, string>>({});
 
-
-  // Load data functions
-  const loadAreas = async () => {
-    try {
-      const data = await marketingHierarchyService.listAreas();
-      setAreas(data);
-    } catch (error) {
-      showToast(error instanceof Error ? error.message : "Failed to load areas", "error");
-    }
-  };
-
-  const loadSubAreas = async (areaId?: number) => {
-    try {
-      const data = await marketingHierarchyService.listSubAreas(areaId);
-      setSubAreas(data);
-    } catch (error) {
-      showToast(error instanceof Error ? error.message : "Failed to load sub-areas", "error");
-    }
-  };
-
-  const loadCompetitors = async () => {
-    setCompetitorLoading(true);
-    try {
-      const data = await competitorService.listCompetitors();
-      setCompetitors(data);
-    } catch (error) {
-      showToast(error instanceof Error ? error.message : "Failed to load competitors", "error");
-    } finally {
-      setCompetitorLoading(false);
-    }
-  };
-
-  const loadAssignments = async () => {
-    setAssignmentLoading(true);
-    try {
-      const data = await competitorAssignmentService.listAssignments();
-      setAssignments(data);
-    } catch (error) {
-      showToast(error instanceof Error ? error.message : "Failed to load assignments", "error");
-    } finally {
-      setAssignmentLoading(false);
-    }
-  };
 
   // Edit modal handlers
   const handleOpenEditModal = (assignment: MarketingCompetitorAssignment) => {
@@ -710,10 +694,9 @@ export default function CompetitorsPage() {
         competitorProfiles: editCompetitorProfiles
       };
       await competitorAssignmentService.updateAssignment(editingAssignment.id, payload);
-      const updatedAssignments = await competitorAssignmentService.listAssignments();
-      setAssignments(updatedAssignments);
+      await loadAssignments();
       if (showProfileModal) {
-        const updated = updatedAssignments.find(a => a.id === editingAssignment.id);
+        const updated = assignments.find(a => a.id === editingAssignment.id);
         if (updated) setSelectedAssignment(updated);
       }
       handleCloseEditModal();
@@ -889,7 +872,7 @@ export default function CompetitorsPage() {
       return;
     }
 
-    setLoading(true);
+    setIsSaving(true);
     try {
       const payload: CompetitorAssignmentPayload = {
         areaId: selectedAreaId,
@@ -921,7 +904,7 @@ export default function CompetitorsPage() {
         "error",
       );
     } finally {
-      setLoading(false);
+      setIsSaving(false);
     }
   };
 
@@ -934,18 +917,15 @@ export default function CompetitorsPage() {
       return;
     }
 
-    setLoading(true);
     try {
       await competitorAssignmentService.deleteAssignment(id);
-      setAssignments((prev) => prev.filter((assignment) => assignment.id !== id));
+      await loadAssignments();
       showToast("Assignment deleted");
     } catch (error) {
       showToast(
         error instanceof Error ? error.message : "Failed to delete assignment",
         "error",
       );
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -988,15 +968,13 @@ export default function CompetitorsPage() {
 
   useEffect(() => {
     if (selectedAreaId) {
-      void loadSubAreas(selectedAreaId);
-    } else {
-      void loadSubAreas();
+      void loadSubAreas(); // Load all sub-areas, but form will filter them
     }
   }, [selectedAreaId]);
 
   useEffect(() => {
     if (tableFilterAreaId) {
-      void loadSubAreas(tableFilterAreaId);
+      void loadSubAreas(); // Load all sub-areas, but filter will handle it
     } else if (!selectedAreaId) {
       void loadSubAreas();
     }
@@ -1005,6 +983,11 @@ export default function CompetitorsPage() {
   useEffect(() => {
     void loadAssignments();
   }, []);
+
+  // Load all sub-areas for dropdowns when component loads and user assignments change
+  useEffect(() => {
+    void loadSubAreas(); // Load all sub-areas for dropdown filtering
+  }, [currentUserAssignments]);
 
   return (
     <React.Fragment>
@@ -1058,11 +1041,13 @@ export default function CompetitorsPage() {
                   }}
                 >
                   <option value="">Select area</option>
-                  {areas.map((area) => (
-                    <option key={area.id} value={area.id}>
-                      {area.name}
-                    </option>
-                  ))}
+                  {filteredAreasForForm
+                    .filter(area => currentUserAssignments.some(a => a.areaId === area.id))
+                    .map((area) => (
+                      <option key={area.id} value={area.id}>
+                        {area.name}
+                      </option>
+                    ))}
                 </select>
               </div>
               <div className="flex flex-col">
@@ -1077,11 +1062,13 @@ export default function CompetitorsPage() {
                   disabled={!selectedAreaId}
                 >
                   <option value="">None (Area level)</option>
-                  {subAreas.map((subArea) => (
-                    <option key={subArea.id} value={subArea.id}>
-                      {subArea.name}
-                    </option>
-                  ))}
+                  {filteredSubAreasForForm
+                    .filter(subArea => currentUserAssignments.some(a => a.subAreaId === subArea.id))
+                    .map((subArea) => (
+                      <option key={subArea.id} value={subArea.id}>
+                        {subArea.name}
+                      </option>
+                    ))}
                 </select>
               </div>
               <div className="flex items-end">
@@ -1099,7 +1086,7 @@ export default function CompetitorsPage() {
           {selectedAreaId && (
             <section className="rounded-3xl border border-white/10 bg-white/5 p-6">
               <h2 className="mb-4 text-xl font-semibold text-white">Select Competitors</h2>
-              {competitorLoading ? (
+              {dataLoading.competitors ? (
                 <div className="flex items-center justify-center py-8 text-slate-400">
                   Loading competitors...
                 </div>
@@ -1374,10 +1361,10 @@ export default function CompetitorsPage() {
               <div className="mt-6 flex gap-3">
                 <button
                   onClick={handleSaveAllAssignments}
-                  disabled={loading}
+                  disabled={isSaving}
                   className="rounded-2xl bg-amber-400/20 px-6 py-2 text-sm font-medium text-amber-300 hover:bg-amber-400/30 disabled:opacity-50"
                 >
-                  {loading ? "Saving..." : `Save ${selectedCompetitorIds.length} Assignments`}
+                  {isSaving ? "Saving..." : `Save ${selectedCompetitorIds.length} Assignments`}
                 </button>
                 <button
                   onClick={() => {
@@ -1400,59 +1387,23 @@ export default function CompetitorsPage() {
               <h2 className="text-xl font-semibold text-white">
                 All Records ({filteredAssignments.length} of {assignments.length})
               </h2>
-              <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-3">
-                <div className="flex flex-col">
-                  <label className="mb-2 text-sm text-slate-300">Filter by Area</label>
-                  <select
-                    className="rounded-2xl border border-white/20 bg-slate-900/60 px-4 py-2 text-sm text-white focus:border-amber-400/60 focus:outline-none"
-                    value={tableFilterAreaId ?? ""}
-                    onChange={(e) => {
-                      const value = e.target.value ? Number(e.target.value) : null;
-                      setTableFilterAreaId(value);
-                      setTableFilterSubAreaId(null);
-                    }}
-                  >
-                    <option value="">All areas</option>
-                    {areas.map((area) => (
-                      <option key={area.id} value={area.id}>
-                        {area.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="flex flex-col">
-                  <label className="mb-2 text-sm text-slate-300">Filter by Sub-area</label>
-                  <select
-                    className="rounded-2xl border border-white/20 bg-slate-900/60 px-4 py-2 text-sm text-white focus:border-amber-400/60 focus:outline-none"
-                    value={tableFilterSubAreaId ?? ""}
-                    onChange={(e) => {
-                      const value = e.target.value ? Number(e.target.value) : null;
-                      setTableFilterSubAreaId(value);
-                    }}
-                    disabled={!tableFilterAreaId}
-                  >
-                    <option value="">All sub-areas</option>
-                    {subAreas.map((subArea) => (
-                      <option key={subArea.id} value={subArea.id}>
-                        {subArea.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="flex items-end">
-                  <button
-                    onClick={() => {
-                      setTableFilterAreaId(null);
-                      setTableFilterSubAreaId(null);
-                    }}
-                    className="w-full rounded-2xl border border-white/20 bg-slate-900/60 px-4 py-2 text-sm text-white hover:bg-slate-800/80"
-                  >
-                    Clear Filters
-                  </button>
-                </div>
+              <div className="mt-4">
+                <AreaSubAreaFilter
+                  areas={filteredAreasForForm}
+                  subAreas={filteredSubAreasForForm}
+                  currentUserAssignments={currentUserAssignments}
+                  selectedAreaId={tableFilterAreaId}
+                  selectedSubAreaId={tableFilterSubAreaId}
+                  onAreaChange={setTableFilterAreaId}
+                  onSubAreaChange={setTableFilterSubAreaId}
+                  onClearFilters={() => {
+                    setTableFilterAreaId(null);
+                    setTableFilterSubAreaId(null);
+                  }}
+                />
               </div>
             </div>
-            {assignmentLoading ? (
+            {dataLoading.assignments ? (
               <div className="flex items-center justify-center py-8 text-slate-400">
                 Loading assignments...
               </div>

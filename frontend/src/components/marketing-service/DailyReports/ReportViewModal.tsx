@@ -1,8 +1,12 @@
-import { useRef } from "react";
+import { useRef, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { DailyReport } from "@/types/types";
 import { usePortal } from "@/hooks/marketing-service/DailyReports/usePortal";
 import { useCopyReportImage } from "@/hooks/marketing-service/DailyReports/useCopyReportImage";
+import { useAuth } from "@/contexts/AuthContext";
+import { marketingUserAssignmentService, MarketingUserAssignment } from "@/services/marketingUserAssignmentService";
+import { apiService } from "@/services/api";
+import { API_BASE_URL } from "@/config/env";
 
 interface ReportViewModalProps {
     report: DailyReport;
@@ -50,7 +54,60 @@ export const ReportViewModal = ({ report, onClose }: ReportViewModalProps) => {
     const portalRoot = usePortal();
     const reportRef = useRef<HTMLDivElement>(null);
     const { copyingImage, copyReportAsImage } = useCopyReportImage(reportRef, report);
+    const { user } = useAuth();
     const { day: footerDay, month: footerMonth, year: footerYear } = getKhmerDateParts(report.reportDate);
+    const [userAssignments, setUserAssignments] = useState<MarketingUserAssignment[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchUserAssignments = async () => {
+            // Use report creator's username, not current user's ID
+            if (!report.createdBy) return;
+
+            try {
+                // First get the user ID from username using the user service
+                const userIdResponse = await fetch(`${API_BASE_URL}/api/users/username/${report.createdBy}/id`, {
+                    credentials: "include",
+                });
+
+                if (!userIdResponse.ok) {
+                    console.warn("User not found for username:", report.createdBy);
+                    setUserAssignments([]);
+                    return;
+                }
+
+                const userId = await userIdResponse.json();
+
+                // Now get the assignments using the user ID
+                const assignments = await marketingUserAssignmentService.getUserAssignments(userId);
+                setUserAssignments(assignments);
+            } catch (error) {
+                console.error("Failed to fetch report creator assignments:", error);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchUserAssignments();
+    }, [report.createdBy]);
+
+    const getUserSubAreas = () => {
+        const subAreas = userAssignments
+            .filter(assignment => assignment.active && assignment.subAreaName)
+            .map(assignment => assignment.subAreaName);
+        return [...new Set(subAreas)]; // Remove duplicates
+    };
+
+    const getUserAreas = () => {
+        const areas = userAssignments
+            .filter(assignment => assignment.active && assignment.areaName)
+            .map(assignment => assignment.areaName);
+        return [...new Set(areas)]; // Remove duplicates
+    };
+
+    const userSubAreas = getUserSubAreas();
+    const userAreas = getUserAreas();
+    const displayAreas = userAreas.length > 0 ? userAreas : userSubAreas;
 
     const handlePrint = (e: React.MouseEvent) => {
         e.stopPropagation();
@@ -161,11 +218,8 @@ export const ReportViewModal = ({ report, onClose }: ReportViewModalProps) => {
                             />
                             <div>
                                 <h1 className="text-xl font-bold text-gray-900 font-khmer-os-muol">
-                                    របាយការណ៍មន្ត្រីទីផ្សារប្រចាំថ្ងៃ តំបន់៥
+                                    របាយការណ៍មន្ត្រីទីផ្សារប្រចាំថ្ងៃ {userSubAreas.join(", ")}
                                 </h1>
-                                <p className="text-sm text-gray-600">
-                                    Daily Marketing Officer Report Zone 5
-                                </p>
                             </div>
                         </div>
                         <div className="flex items-center gap-2">

@@ -14,6 +14,7 @@ import {
   BranchPayload,
 } from "@/services/marketing-service/marketingHierarchyService";
 import { marketingUserAssignmentService, MarketingUserAssignment } from "@/services/marketingUserAssignmentService";
+import { SingleSelectHierarchyDropdown, FilterHierarchyDropdown } from "@/components/marketing-service/HierarchyDropdown";
 import { API_BASE_URL } from "@/config/env";
 
 type FormState<T> = Partial<T> & { active?: boolean };
@@ -47,6 +48,7 @@ export default function MarketingAreaBranchPage() {
   const [subAreas, setSubAreas] = useState<MarketingSubArea[]>([]);
   const [branches, setBranches] = useState<MarketingBranch[]>([]);
   const [currentUserAssignment, setCurrentUserAssignment] = useState<MarketingUserAssignment | null>(null);
+  const [currentUserAssignments, setCurrentUserAssignments] = useState<MarketingUserAssignment[]>([]);
   const [currentUserId, setCurrentUserId] = useState<number | null>(null);
 
   const [areaForm, setAreaForm] = useState(defaultAreaForm);
@@ -77,52 +79,10 @@ export default function MarketingAreaBranchPage() {
   const [branchAreaFilter, setBranchAreaFilter] = useState("");
   const [branchSubAreaFilter, setBranchSubAreaFilter] = useState("");
 
-  // Filter areas based on user assignment
-  const accessibleAreas = useMemo(() => {
-    if (!currentUserAssignment) return areas;
-    if (currentUserAssignment.assignmentType === "AREA" && currentUserAssignment.areaId) {
-      return areas.filter(area => area.id === currentUserAssignment.areaId);
-    }
-    if (currentUserAssignment.assignmentType === "SUB_AREA" && currentUserAssignment.areaId) {
-      return areas.filter(area => area.id === currentUserAssignment.areaId);
-    }
-    return areas;
-  }, [areas, currentUserAssignment]);
-
-  // Filter sub-areas based on user assignment
-  const accessibleSubAreas = useMemo(() => {
-    if (!currentUserAssignment) return subAreas;
-    if (currentUserAssignment.assignmentType === "SUB_AREA" && currentUserAssignment.subAreaId) {
-      return subAreas.filter(subArea => subArea.id === currentUserAssignment.subAreaId);
-    }
-    if (currentUserAssignment.assignmentType === "AREA" && currentUserAssignment.areaId) {
-      return subAreas.filter(subArea => subArea.areaId === currentUserAssignment.areaId);
-    }
-    return subAreas;
-  }, [subAreas, currentUserAssignment]);
-
   const filteredSubAreas = useMemo(() => {
     if (!branchForm.areaId) return [];
-    return accessibleSubAreas.filter((subArea) => subArea.areaId === branchForm.areaId);
-  }, [branchForm.areaId, accessibleSubAreas]);
-
-  // Filtered data for display
-  const filteredAreasDisplay = useMemo(() => {
-    return accessibleAreas.filter(area =>
-      area.name.toLowerCase().includes(areaFilter.toLowerCase()) ||
-      (area.code && area.code.toLowerCase().includes(areaFilter.toLowerCase()))
-    );
-  }, [accessibleAreas, areaFilter]);
-
-  const filteredSubAreasDisplay = useMemo(() => {
-    return accessibleSubAreas.filter(subArea => {
-      const matchesSearch = !subAreaFilter ||
-        subArea.name.toLowerCase().includes(subAreaFilter.toLowerCase()) ||
-        (subArea.code && subArea.code.toLowerCase().includes(subAreaFilter.toLowerCase()));
-      const matchesArea = !subAreaAreaFilter || subArea.areaId === Number(subAreaAreaFilter);
-      return matchesSearch && matchesArea;
-    });
-  }, [accessibleSubAreas, subAreaFilter, subAreaAreaFilter]);
+    return subAreas.filter((subArea) => subArea.areaId === branchForm.areaId);
+  }, [branchForm.areaId, subAreas]);
 
   const filteredBranchesDisplay = useMemo(() => {
     return branches.filter(branch => {
@@ -135,23 +95,43 @@ export default function MarketingAreaBranchPage() {
     });
   }, [branches, branchFilter, branchAreaFilter, branchSubAreaFilter]);
 
-  // Permission checks based on assignment type
+  // Filtered data for display
+  const filteredAreasDisplay = useMemo(() => {
+    return areas.filter(area =>
+      area.name.toLowerCase().includes(areaFilter.toLowerCase()) ||
+      (area.code && area.code.toLowerCase().includes(areaFilter.toLowerCase()))
+    );
+  }, [areas, areaFilter]);
+
+  const filteredSubAreasDisplay = useMemo(() => {
+    return subAreas.filter(subArea => {
+      const matchesSearch = !subAreaFilter ||
+        subArea.name.toLowerCase().includes(subAreaFilter.toLowerCase()) ||
+        (subArea.code && subArea.code.toLowerCase().includes(subAreaFilter.toLowerCase()));
+      const matchesArea = !subAreaAreaFilter || subArea.areaId === Number(subAreaAreaFilter);
+      return matchesSearch && matchesArea;
+    });
+  }, [subAreas, subAreaFilter, subAreaAreaFilter]);
+
+  // Permission checks based on assignments
   const canCreateArea = useMemo(() => {
-    // Only users without assignment can create areas (admin level)
-    return !currentUserAssignment;
-  }, [currentUserAssignment]);
+    // Only users without assignments can create areas (admin level)
+    return currentUserAssignments.length === 0;
+  }, [currentUserAssignments]);
 
   const canCreateSubArea = useMemo(() => {
-    // Users without assignment (admin) or area-assigned users can create sub-areas
-    if (!currentUserAssignment) return true;
-    return currentUserAssignment.assignmentType === "AREA";
-  }, [currentUserAssignment]);
+    // Users without assignments (admin) or users with area assignments can create sub-areas
+    if (currentUserAssignments.length === 0) return true;
+    return currentUserAssignments.some(assignment => assignment.assignmentType === "AREA");
+  }, [currentUserAssignments]);
 
   const canCreateBranch = useMemo(() => {
-    // Users without assignment (admin), area-assigned, or sub-area-assigned can create branches
-    if (!currentUserAssignment) return true;
-    return currentUserAssignment.assignmentType === "AREA" || currentUserAssignment.assignmentType === "SUB_AREA";
-  }, [currentUserAssignment]);
+    // Users without assignments (admin), area-assigned, or sub-area-assigned can create branches
+    if (currentUserAssignments.length === 0) return true;
+    return currentUserAssignments.some(assignment =>
+      assignment.assignmentType === "AREA" || assignment.assignmentType === "SUB_AREA"
+    );
+  }, [currentUserAssignments]);
 
 
   const loadAll = async () => {
@@ -195,6 +175,8 @@ export default function MarketingAreaBranchPage() {
         setCurrentUserId(user.id);
         const assignments = await marketingUserAssignmentService.getUserAssignments(user.id);
         if (assignments && assignments.length > 0) {
+          setCurrentUserAssignments(assignments);
+          // Keep the first assignment for backward compatibility
           setCurrentUserAssignment(assignments[0]);
         }
       }
@@ -495,27 +477,20 @@ export default function MarketingAreaBranchPage() {
               </div>
             )}
             <div className="mt-4 space-y-4">
-              <label className="text-sm text-slate-300">
-                Parent area
-                <select
-                  className="mt-1 w-full rounded-2xl border border-white/10 bg-slate-900/60 px-4 py-2 text-white focus:border-amber-400/60 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
-                  value={subAreaForm.areaId ?? ""}
-                  onChange={(event) =>
-                    setSubAreaForm((prev) => ({
-                      ...prev,
-                      areaId: Number(event.target.value) || undefined,
-                    }))
-                  }
-                  disabled={!canCreateSubArea}
-                >
-                  <option value="">Select area</option>
-                  {accessibleAreas.map((area) => (
-                    <option key={area.id} value={area.id}>
-                      {area.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <SingleSelectHierarchyDropdown
+                areas={areas}
+                subAreas={subAreas}
+                branches={branches}
+                currentUserAssignments={currentUserAssignments}
+                selectedAreaId={subAreaForm.areaId}
+                onAreaChange={(areaId) => setSubAreaForm(prev => ({ ...prev, areaId }))}
+                onSubAreaChange={() => { }}
+                onBranchChange={() => { }}
+                showAreas={true}
+                showSubAreas={false}
+                showBranches={false}
+                disabled={!canCreateSubArea}
+              />
               <label className="text-sm text-slate-300">
                 Name
                 <input
@@ -616,48 +591,21 @@ export default function MarketingAreaBranchPage() {
               </div>
             )}
             <div className="mt-4 space-y-4">
-              <label className="text-sm text-slate-300">
-                Area
-                <select
-                  className="mt-1 w-full rounded-2xl border border-white/10 bg-slate-900/60 px-4 py-2 text-white focus:border-amber-400/60 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
-                  value={branchForm.areaId ?? ""}
-                  onChange={(event) => {
-                    const nextAreaId = Number(event.target.value) || undefined;
-                    setBranchForm((prev) => ({
-                      ...prev,
-                      areaId: nextAreaId,
-                      subAreaId: undefined,
-                    }));
-                  }}
-                  disabled={!canCreateBranch}
-                >
-                  <option value="">Select area</option>
-                  {accessibleAreas.map((area) => (
-                    <option key={area.id} value={area.id}>
-                      {area.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="text-sm text-slate-300">
-                Sub area/Province (optional)
-                <select
-                  className="mt-1 w-full rounded-2xl border border-white/10 bg-slate-900/60 px-4 py-2 text-white focus:border-amber-400/60 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
-                  value={branchForm.subAreaId ?? ""}
-                  onChange={(event) => {
-                    const next = Number(event.target.value) || undefined;
-                    setBranchForm((prev) => ({ ...prev, subAreaId: next }));
-                  }}
-                  disabled={!canCreateBranch || !branchForm.areaId || filteredSubAreas.length === 0}
-                >
-                  <option value="">No sub area/Province</option>
-                  {filteredSubAreas.map((subArea) => (
-                    <option key={subArea.id} value={subArea.id}>
-                      {subArea.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <SingleSelectHierarchyDropdown
+                areas={areas}
+                subAreas={subAreas}
+                branches={branches}
+                currentUserAssignments={currentUserAssignments}
+                selectedAreaId={branchForm.areaId}
+                selectedSubAreaId={branchForm.subAreaId ?? undefined}
+                onAreaChange={(areaId) => setBranchForm(prev => ({ ...prev, areaId, subAreaId: undefined }))}
+                onSubAreaChange={(subAreaId) => setBranchForm(prev => ({ ...prev, subAreaId: subAreaId === "all" ? undefined : subAreaId }))}
+                onBranchChange={() => { }}
+                showAreas={true}
+                showSubAreas={true}
+                showBranches={false}
+                disabled={!canCreateBranch}
+              />
               <label className="text-sm text-slate-300">
                 Name
                 <input
@@ -876,16 +824,21 @@ export default function MarketingAreaBranchPage() {
                   onChange={(e) => setSubAreaFilter(e.target.value)}
                   className="w-full rounded-lg border border-white/20 bg-slate-900/60 px-3 py-2 text-sm text-white placeholder:text-slate-400 focus:border-amber-400/60 focus:outline-none"
                 />
-                <select
-                  value={subAreaAreaFilter}
-                  onChange={(e) => setSubAreaAreaFilter(e.target.value)}
-                  className="w-full rounded-lg border border-white/20 bg-slate-900/60 px-3 py-2 text-sm text-white focus:border-amber-400/60 focus:outline-none"
-                >
-                  <option value="">All Areas</option>
-                  {areas.map(area => (
-                    <option key={area.id} value={area.id}>{area.name}</option>
-                  ))}
-                </select>
+                <FilterHierarchyDropdown
+                  areas={areas}
+                  subAreas={subAreas}
+                  branches={branches}
+                  currentUserAssignments={currentUserAssignments}
+                  areaFilter={subAreaAreaFilter === "" ? "all" : Number(subAreaAreaFilter)}
+                  subAreaFilter="all"
+                  branchFilter="all"
+                  onAreaFilterChange={(value) => setSubAreaAreaFilter(value === "all" ? "" : String(value))}
+                  onSubAreaFilterChange={() => { }}
+                  onBranchFilterChange={() => { }}
+                  showAreas={true}
+                  showSubAreas={false}
+                  showBranches={false}
+                />
               </div>
 
               <div className="max-h-105 space-y-2 overflow-auto p-4 text-sm text-slate-200">
@@ -1007,28 +960,21 @@ export default function MarketingAreaBranchPage() {
                   onChange={(e) => setBranchFilter(e.target.value)}
                   className="w-full rounded-lg border border-white/20 bg-slate-900/60 px-3 py-2 text-sm text-white placeholder:text-slate-400 focus:border-amber-400/60 focus:outline-none"
                 />
-                <div className="grid grid-cols-2 gap-2">
-                  <select
-                    value={branchAreaFilter}
-                    onChange={(e) => setBranchAreaFilter(e.target.value)}
-                    className="rounded-lg border border-white/20 bg-slate-900/60 px-3 py-2 text-sm text-white focus:border-amber-400/60 focus:outline-none"
-                  >
-                    <option value="">All Areas</option>
-                    {areas.map(area => (
-                      <option key={area.id} value={area.id}>{area.name}</option>
-                    ))}
-                  </select>
-                  <select
-                    value={branchSubAreaFilter}
-                    onChange={(e) => setBranchSubAreaFilter(e.target.value)}
-                    className="rounded-lg border border-white/20 bg-slate-900/60 px-3 py-2 text-sm text-white focus:border-amber-400/60 focus:outline-none"
-                  >
-                    <option value="">All Sub-Areas</option>
-                    {subAreas.filter(sa => !branchAreaFilter || sa.areaId === Number(branchAreaFilter)).map(subArea => (
-                      <option key={subArea.id} value={subArea.id}>{subArea.name}</option>
-                    ))}
-                  </select>
-                </div>
+                <FilterHierarchyDropdown
+                  areas={areas}
+                  subAreas={subAreas}
+                  branches={branches}
+                  currentUserAssignments={currentUserAssignments}
+                  areaFilter={branchAreaFilter === "" ? "all" : Number(branchAreaFilter)}
+                  subAreaFilter={branchSubAreaFilter === "" ? "all" : Number(branchSubAreaFilter)}
+                  branchFilter="all"
+                  onAreaFilterChange={(value) => setBranchAreaFilter(value === "all" ? "" : String(value))}
+                  onSubAreaFilterChange={(value) => setBranchSubAreaFilter(value === "all" ? "" : String(value))}
+                  onBranchFilterChange={() => { }}
+                  showAreas={true}
+                  showSubAreas={true}
+                  showBranches={false}
+                />
               </div>
 
               <div className="max-h-105 space-y-2 overflow-auto p-4 text-sm text-slate-200">

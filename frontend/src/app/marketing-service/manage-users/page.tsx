@@ -8,6 +8,7 @@ import { serviceService } from "@/services/serviceService";
 import { marketingUserService } from "@/services/marketing-service/marketingUserService";
 import { marketingUserAssignmentService, MarketingUserAssignment, AssignUserRequest } from "@/services/marketingUserAssignmentService";
 import { marketingHierarchyService, MarketingArea, MarketingSubArea, MarketingBranch } from "@/services/marketing-service/marketingHierarchyService";
+import { MultiSelectHierarchyDropdown, toggleSelection } from "@/components/marketing-service/HierarchyDropdown";
 import { API_BASE_URL } from "@/config/env";
 
 const getStoredUserId = (): number | null => {
@@ -72,6 +73,7 @@ export default function ManageUserPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [currentUserAssignment, setCurrentUserAssignment] = useState<MarketingUserAssignment | null>(null);
+  const [currentUserAssignments, setCurrentUserAssignments] = useState<MarketingUserAssignment[]>([]);
 
   // Edit user state
   const [editingUser, setEditingUser] = useState<User | null>(null);
@@ -101,92 +103,31 @@ export default function ManageUserPage() {
     loadHierarchy();
   }, []);
 
-  // Load sub-areas when areas are selected
+  // Pre-select current user's assignments and disable other options
   useEffect(() => {
-    if (selectedAreaIds.length > 0) {
-      const loadAllSubAreas = async () => {
-        // Load sub-areas for each area in parallel
-        await Promise.all(
-          selectedAreaIds.map(areaId =>
-            marketingHierarchyService.listSubAreas(areaId)
-          )
-        ).then(results => {
-          // Combine all results
-          const combined = results.flat();
-          // Remove duplicates
-          const unique = combined.filter((item, index, self) =>
-            index === self.findIndex((t) => t.id === item.id)
-          );
-          setSubAreas(unique);
-        }).catch(error => {
-          console.error("Error loading sub-areas:", error);
-        });
-      };
+    if (currentUserAssignments.length > 0) {
+      // Extract all assigned IDs from current user's assignments
+      const assignedAreaIds = currentUserAssignments
+        .map(a => a.areaId)
+        .filter((id): id is number => id !== null && id !== undefined);
+      const assignedSubAreaIds = currentUserAssignments
+        .map(a => a.subAreaId)
+        .filter((id): id is number => id !== null && id !== undefined);
+      const assignedBranchIds = currentUserAssignments
+        .map(a => a.branchId)
+        .filter((id): id is number => id !== null && id !== undefined);
 
-      loadAllSubAreas();
-    } else {
-      setSubAreas([]);
-      setSelectedSubAreaIds([]);
+      // Pre-select the current user's assignments
+      setSelectedAreaIds(assignedAreaIds);
+      setSelectedSubAreaIds(assignedSubAreaIds);
+      setSelectedBranchIds(assignedBranchIds);
+
+      // Also set for edit mode
+      setEditAreaIds(assignedAreaIds);
+      setEditSubAreaIds(assignedSubAreaIds);
+      setEditBranchIds(assignedBranchIds);
     }
-  }, [selectedAreaIds]);
-
-  // Load branches when sub-areas are selected
-  useEffect(() => {
-    if (selectedSubAreaIds.length > 0) {
-      const allBranches: MarketingBranch[] = [];
-      selectedSubAreaIds.forEach(subAreaId => {
-        loadBranchesForSubArea(subAreaId, allBranches);
-      });
-    } else if (selectedAreaIds.length > 0) {
-      const allBranches: MarketingBranch[] = [];
-      selectedAreaIds.forEach(areaId => {
-        loadBranchesForArea(areaId, allBranches);
-      });
-    } else {
-      setBranches([]);
-      setSelectedBranchIds([]);
-    }
-  }, [selectedSubAreaIds, selectedAreaIds]);
-
-  // Similar for edit mode
-  useEffect(() => {
-    if (editAreaIds.length > 0) {
-      const loadAllSubAreas = async () => {
-        // Load sub-areas for each area in parallel
-        await Promise.all(
-          editAreaIds.map(areaId =>
-            marketingHierarchyService.listSubAreas(areaId)
-          )
-        ).then(results => {
-          // Combine all results
-          const combined = results.flat();
-          // Remove duplicates
-          const unique = combined.filter((item, index, self) =>
-            index === self.findIndex((t) => t.id === item.id)
-          );
-          setSubAreas(unique);
-        }).catch(error => {
-          console.error("Error loading sub-areas:", error);
-        });
-      };
-
-      loadAllSubAreas();
-    }
-  }, [editAreaIds]);
-
-  useEffect(() => {
-    if (editSubAreaIds.length > 0) {
-      const allBranches: MarketingBranch[] = [];
-      editSubAreaIds.forEach(subAreaId => {
-        loadBranchesForSubArea(subAreaId, allBranches);
-      });
-    } else if (editAreaIds.length > 0) {
-      const allBranches: MarketingBranch[] = [];
-      editAreaIds.forEach(areaId => {
-        loadBranchesForArea(areaId, allBranches);
-      });
-    }
-  }, [editSubAreaIds, editAreaIds]);
+  }, [currentUserAssignments]);
 
   const fetchMarketingServiceId = async () => {
     try {
@@ -197,12 +138,6 @@ export default function ManageUserPage() {
     }
   };
 
-  const toggleSelection = (ids: number[], id: number) => {
-    if (ids.includes(id)) {
-      return ids.filter((existingId) => existingId !== id);
-    }
-    return [...ids, id];
-  };
 
   const groupedBranches = useMemo(() => {
     const groups: { id: string; label: string; branches: MarketingBranch[] }[] = [];
@@ -254,49 +189,6 @@ export default function ManageUserPage() {
     return groups;
   }, [editAreaIds, editSubAreaIds, branches, areas, subAreas]);
 
-  const loadSubAreasForArea = async (areaId: number, accumulator: MarketingSubArea[] = []) => {
-    try {
-      const subAreas = await marketingHierarchyService.listSubAreas(areaId);
-      accumulator.push(...subAreas);
-      // Don't setSubAreas here - let the caller handle it to avoid race conditions
-    } catch (error) {
-      console.error(`Error loading sub-areas for area ${areaId}:`, error);
-    }
-  };
-
-  const loadBranchesForSubArea = async (subAreaId: number, accumulator: MarketingBranch[] = []) => {
-    try {
-      const branches = await marketingHierarchyService.listBranches({ subAreaId });
-      accumulator.push(...branches);
-      setBranches(prev => {
-        const combined = [...prev, ...branches];
-        // Remove duplicates
-        const unique = combined.filter((item, index, self) =>
-          index === self.findIndex((t) => t.id === item.id)
-        );
-        return unique;
-      });
-    } catch (error) {
-      console.error(`Error loading branches for sub-area ${subAreaId}:`, error);
-    }
-  };
-
-  const loadBranchesForArea = async (areaId: number, accumulator: MarketingBranch[] = []) => {
-    try {
-      const branches = await marketingHierarchyService.listBranches({ areaId });
-      accumulator.push(...branches);
-      setBranches(prev => {
-        const combined = [...prev, ...branches];
-        // Remove duplicates
-        const unique = combined.filter((item, index, self) =>
-          index === self.findIndex((t) => t.id === item.id)
-        );
-        return unique;
-      });
-    } catch (error) {
-      console.error(`Error loading branches for area ${areaId}:`, error);
-    }
-  };
 
   const fetchUsers = async () => {
     try {
@@ -444,27 +336,38 @@ export default function ManageUserPage() {
       const fetchedUserId = await fetchAndCacheUserId();
       const currentUserId = fetchedUserId ?? getStoredUserId();
 
-      const allAreas = await marketingHierarchyService.listAreas();
+      // Load all hierarchy data filtered by current user's assignments
+      const [allAreas, allSubAreas, allBranches] = await Promise.all([
+        marketingHierarchyService.listAreas(),
+        marketingHierarchyService.listSubAreas(),
+        marketingHierarchyService.listBranches(),
+      ]);
+
       setAreas(allAreas.filter((a: MarketingArea) => a.active));
+      setSubAreas(allSubAreas.filter((sa: MarketingSubArea) => sa.active));
+      setBranches(allBranches.filter((b: MarketingBranch) => b.active));
 
       if (currentUserId) {
         try {
           const assignments = await marketingUserAssignmentService.getUserAssignments(currentUserId);
-          const activeAssignment = assignments.find(a => a.active);
+          const activeAssignments = assignments.filter(a => a.active);
 
-          if (activeAssignment) {
-            setCurrentUserAssignment(activeAssignment);
+          if (activeAssignments.length > 0) {
+            setCurrentUserAssignments(activeAssignments);
+            // Keep the first assignment for backward compatibility
+            setCurrentUserAssignment(activeAssignments[0]);
 
-            // Set selections based on the current user's assignment
-            if (activeAssignment.assignmentType === "AREA" && activeAssignment.areaId) {
-              setSelectedAreaIds([activeAssignment.areaId]);
-            } else if (activeAssignment.assignmentType === "SUB_AREA" && activeAssignment.subAreaId) {
-              setSelectedAreaIds(activeAssignment.areaId ? [activeAssignment.areaId] : []);
-              setSelectedSubAreaIds([activeAssignment.subAreaId]);
-            } else if (activeAssignment.assignmentType === "BRANCH" && activeAssignment.branchId) {
-              setSelectedAreaIds(activeAssignment.areaId ? [activeAssignment.areaId] : []);
-              setSelectedSubAreaIds(activeAssignment.subAreaId ? [activeAssignment.subAreaId] : []);
-              setSelectedBranchIds([activeAssignment.branchId]);
+            // Set selections based on the current user's first assignment
+            const firstAssignment = activeAssignments[0];
+            if (firstAssignment.assignmentType === "AREA" && firstAssignment.areaId) {
+              setSelectedAreaIds([firstAssignment.areaId]);
+            } else if (firstAssignment.assignmentType === "SUB_AREA" && firstAssignment.subAreaId) {
+              setSelectedAreaIds(firstAssignment.areaId ? [firstAssignment.areaId] : []);
+              setSelectedSubAreaIds([firstAssignment.subAreaId]);
+            } else if (firstAssignment.assignmentType === "BRANCH" && firstAssignment.branchId) {
+              setSelectedAreaIds(firstAssignment.areaId ? [firstAssignment.areaId] : []);
+              setSelectedSubAreaIds(firstAssignment.subAreaId ? [firstAssignment.subAreaId] : []);
+              setSelectedBranchIds([firstAssignment.branchId]);
             }
           }
         } catch (assignmentError) {
@@ -748,261 +651,141 @@ export default function ManageUserPage() {
         <h3 className="text-lg font-medium text-white mb-4">Create New User</h3>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label
-                htmlFor="fullName"
-                className="block text-sm font-medium text-slate-300 mb-1"
-              >
-                Full Name
-              </label>
-              <input
-                type="text"
-                id="fullName"
-                name="fullName"
-                value={formData.fullName}
-                onChange={handleInputChange}
-                required
-                className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="Enter full name"
-              />
-            </div>
-
-            <div>
-              <label
-                htmlFor="username"
-                className="block text-sm font-medium text-slate-300 mb-1"
-              >
-                Username
-              </label>
-              <input
-                type="text"
-                id="username"
-                name="username"
-                value={formData.username}
-                onChange={handleInputChange}
-                required
-                className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="Enter username"
-              />
-            </div>
-
-            <div>
-              <label
-                htmlFor="phone"
-                className="block text-sm font-medium text-slate-300 mb-1"
-              >
-                Phone (Optional)
-              </label>
-              <input
-                type="tel"
-                id="phone"
-                name="phone"
-                value={formData.phone}
-                onChange={handleInputChange}
-                className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="Enter phone number"
-              />
-            </div>
-
-
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="block text-sm font-medium text-slate-300">
-                  Area(s)
+            {/* Left Column - All input fields in single column */}
+            <div className="space-y-4">
+              <div>
+                <label
+                  htmlFor="fullName"
+                  className="block text-sm font-medium text-slate-300 mb-1"
+                >
+                  Full Name
                 </label>
-                <span className="text-xs text-slate-400">
-                  {selectedAreaIds.length} selected
-                </span>
-              </div>
-              <div className="max-h-48 overflow-y-auto rounded-md border border-slate-600 bg-slate-800/40 divide-y divide-slate-700">
-                {areas.length === 0 && (
-                  <p className="px-3 py-2 text-sm text-slate-400">
-                    No active areas available.
-                  </p>
-                )}
-                {areas.map((area) => {
-                  const checked = selectedAreaIds.includes(area.id);
-                  return (
-                    <label
-                      key={area.id}
-                      className={`flex items-center gap-3 px-3 py-2 cursor-pointer transition hover:bg-slate-700/60 ${checked ? "bg-slate-700/60" : ""}`}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={() =>
-                          setSelectedAreaIds((prev) => toggleSelection(prev, area.id))
-                        }
-                        className="h-4 w-4 rounded border-slate-500 text-blue-500 focus:ring-blue-400"
-                      />
-                      <span className="text-sm text-white">{area.name}</span>
-                    </label>
-                  );
-                })}
-              </div>
-              <p className="text-xs text-slate-400 mt-1">
-                Selecting areas only will assign the user to ALL sub-areas and branches within those areas.
-              </p>
-            </div>
-
-            {selectedAreaIds.length > 0 && (
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="block text-sm font-medium text-slate-300">
-                    Sub-Area(s) (Optional)
-                  </label>
-                  <span className="text-xs text-slate-400">
-                    {selectedSubAreaIds.length} selected
-                  </span>
-                </div>
-                <div className="max-h-48 overflow-y-auto rounded-md border border-slate-600 bg-slate-800/40 divide-y divide-slate-700">
-                  {subAreas.length === 0 && (
-                    <p className="px-3 py-2 text-sm text-slate-400">
-                      Select an area to view available sub-areas.
-                    </p>
-                  )}
-                  {subAreas.map((subArea) => {
-                    const checked = selectedSubAreaIds.includes(subArea.id);
-                    return (
-                      <label
-                        key={subArea.id}
-                        className={`flex items-center gap-3 px-3 py-2 cursor-pointer transition hover:bg-slate-700/60 ${checked ? "bg-slate-700/60" : ""}`}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={() =>
-                            setSelectedSubAreaIds((prev) => toggleSelection(prev, subArea.id))
-                          }
-                          className="h-4 w-4 rounded border-slate-500 text-blue-500 focus:ring-blue-400"
-                        />
-                        <span className="text-sm text-white">{subArea.name}</span>
-                      </label>
-                    );
-                  })}
-                </div>
-                <p className="text-xs text-slate-400 mt-1">
-                  Selecting sub-areas only will assign the user to ALL branches within those sub-areas.
-                </p>
-              </div>
-            )}
-
-            {selectedAreaIds.length > 0 && (
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="block text-sm font-medium text-slate-300">
-                    Branch(es)
-                  </label>
-                  <span className="text-xs text-slate-400">
-                    {selectedBranchIds.length} selected
-                  </span>
-                </div>
-                <div className="max-h-64 overflow-y-auto rounded-md border border-slate-600 bg-slate-800/40 divide-y divide-slate-700">
-                  {groupedBranches.length === 0 && (
-                    <p className="px-3 py-2 text-sm text-slate-400">
-                      Select at least one area or sub-area to view available branches.
-                    </p>
-                  )}
-                  {groupedBranches.map((group) => (
-                    <div key={group.id} className="px-3 py-2 space-y-2">
-                      <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">
-                        {group.label}
-                      </p>
-                      <div className="space-y-2">
-                        {group.branches.map((branch) => {
-                          const checked = selectedBranchIds.includes(branch.id);
-                          return (
-                            <label
-                              key={branch.id}
-                              className={`flex items-center gap-3 rounded-lg px-3 py-2 transition hover:bg-slate-700/60 ${checked ? "bg-slate-700/60 border border-blue-500/40" : "border border-transparent"}`}
-                            >
-                              <input
-                                type="checkbox"
-                                checked={checked}
-                                onChange={() =>
-                                  setSelectedBranchIds((prev) => toggleSelection(prev, branch.id))
-                                }
-                                className="h-4 w-4 rounded border-slate-500 text-blue-500 focus:ring-blue-400"
-                              />
-                              <div>
-                                <p className="text-sm text-white">{branch.name}</p>
-                                <p className="text-xs text-slate-400">
-                                  Code: {branch.code || "N/A"}
-                                </p>
-                              </div>
-                            </label>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                <p className="text-xs text-slate-400 mt-1">
-                  Choose the branches that this user should manage.
-                </p>
-              </div>
-            )}
-
-            <div>
-              <label
-                htmlFor="password"
-                className="block text-sm font-medium text-slate-300 mb-1"
-              >
-                Password
-              </label>
-              <div className="relative">
                 <input
-                  type={showPassword ? "text" : "password"}
-                  id="password"
-                  name="password"
-                  value={formData.password}
+                  type="text"
+                  id="fullName"
+                  name="fullName"
+                  value={formData.fullName}
                   onChange={handleInputChange}
                   required
-                  className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent pr-10"
-                  placeholder="Enter password"
+                  className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="Enter full name"
                 />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 right-0 px-3 flex items-center text-slate-400 hover:text-white"
-                >
-                  {showPassword ? (
-                    <svg
-                      className="h-5 w-5"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"
-                      />
-                    </svg>
-                  ) : (
-                    <svg
-                      className="h-5 w-5"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-                      />
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
-                      />
-                    </svg>
-                  )}
-                </button>
               </div>
+
+              <div>
+                <label
+                  htmlFor="username"
+                  className="block text-sm font-medium text-slate-300 mb-1"
+                >
+                  Username
+                </label>
+                <input
+                  type="text"
+                  id="username"
+                  name="username"
+                  value={formData.username}
+                  onChange={handleInputChange}
+                  required
+                  className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="Enter username"
+                />
+              </div>
+
+              <div>
+                <label
+                  htmlFor="phone"
+                  className="block text-sm font-medium text-slate-300 mb-1"
+                >
+                  Phone (Optional)
+                </label>
+                <input
+                  type="tel"
+                  id="phone"
+                  name="phone"
+                  value={formData.phone}
+                  onChange={handleInputChange}
+                  className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="Enter phone number"
+                />
+              </div>
+
+              <div>
+                <label
+                  htmlFor="password"
+                  className="block text-sm font-medium text-slate-300 mb-1"
+                >
+                  Password
+                </label>
+                <div className="relative">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    id="password"
+                    name="password"
+                    value={formData.password}
+                    onChange={handleInputChange}
+                    required
+                    className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent pr-10"
+                    placeholder="Enter password"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute inset-y-0 right-0 px-3 flex items-center text-slate-400 hover:text-white"
+                  >
+                    {showPassword ? (
+                      <svg
+                        className="h-5 w-5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"
+                        />
+                      </svg>
+                    ) : (
+                      <svg
+                        className="h-5 w-5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                        />
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                        />
+                      </svg>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Right Column - Hierarchy Dropdown */}
+            <div>
+              <MultiSelectHierarchyDropdown
+                areas={areas}
+                subAreas={subAreas}
+                branches={branches}
+                currentUserAssignments={currentUserAssignments}
+                selectedAreaIds={selectedAreaIds}
+                selectedSubAreaIds={selectedSubAreaIds}
+                selectedBranchIds={selectedBranchIds}
+                onAreaChange={setSelectedAreaIds}
+                onSubAreaChange={setSelectedSubAreaIds}
+                onBranchChange={setSelectedBranchIds}
+              />
             </div>
           </div>
 
@@ -1098,123 +881,18 @@ export default function ManageUserPage() {
               </div>
 
 
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="block text-sm font-medium text-slate-300">
-                    Area(s)
-                  </label>
-                  <span className="text-xs text-slate-400">{editAreaIds.length} selected</span>
-                </div>
-                <div className="max-h-48 overflow-y-auto rounded-md border border-slate-600 bg-slate-800/40 divide-y divide-slate-700">
-                  {areas.length === 0 && (
-                    <p className="px-3 py-2 text-sm text-slate-400">No active areas available.</p>
-                  )}
-                  {areas.map((area) => {
-                    const checked = editAreaIds.includes(area.id);
-                    return (
-                      <label
-                        key={area.id}
-                        className={`flex items-center gap-3 px-3 py-2 cursor-pointer transition ${checked ? "bg-slate-700/60" : "hover:bg-slate-700/60"}`}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={() => setEditAreaIds((prev) => toggleSelection(prev, area.id))}
-                          className="h-4 w-4 rounded border-slate-500 text-blue-500 focus:ring-blue-400"
-                        />
-                        <span className="text-sm text-white">{area.name}</span>
-                      </label>
-                    );
-                  })}
-                </div>
-                <p className="text-xs text-slate-400 mt-1">
-                  Selecting areas only will assign the user to ALL sub-areas and branches within those areas.
-                </p>
-              </div>
-
-              {editAreaIds.length > 0 && (
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="block text-sm font-medium text-slate-300">
-                      Sub-Area(s) (Optional)
-                    </label>
-                    <span className="text-xs text-slate-400">{editSubAreaIds.length} selected</span>
-                  </div>
-                  <div className="max-h-48 overflow-y-auto rounded-md border border-slate-600 bg-slate-800/40 divide-y divide-slate-700">
-                    {subAreas.length === 0 && (
-                      <p className="px-3 py-2 text-sm text-slate-400">Select an area to view sub-areas.</p>
-                    )}
-                    {subAreas.map((subArea) => {
-                      const checked = editSubAreaIds.includes(subArea.id);
-                      return (
-                        <label
-                          key={subArea.id}
-                          className={`flex items-center gap-3 px-3 py-2 cursor-pointer transition ${checked ? "bg-slate-700/60" : "hover:bg-slate-700/60"}`}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={() => setEditSubAreaIds((prev) => toggleSelection(prev, subArea.id))}
-                            className="h-4 w-4 rounded border-slate-500 text-blue-500 focus:ring-blue-400"
-                          />
-                          <span className="text-sm text-white">{subArea.name}</span>
-                        </label>
-                      );
-                    })}
-                  </div>
-                  <p className="text-xs text-slate-400 mt-1">
-                    Selecting sub-areas only will assign the user to ALL branches within those sub-areas.
-                  </p>
-                </div>
-              )}
-
-              {editAreaIds.length > 0 && (
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="block text-sm font-medium text-slate-300">
-                      Branch(es)
-                    </label>
-                    <span className="text-xs text-slate-400">{editBranchIds.length} selected</span>
-                  </div>
-                  <div className="max-h-64 overflow-y-auto rounded-md border border-slate-600 bg-slate-800/40 divide-y divide-slate-700">
-                    {groupedEditBranches.length === 0 && (
-                      <p className="px-3 py-2 text-sm text-slate-400">Select an area or sub-area first.</p>
-                    )}
-                    {groupedEditBranches.map((group) => (
-                      <div key={group.id} className="px-3 py-2 space-y-2">
-                        <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">
-                          {group.label}
-                        </p>
-                        <div className="space-y-2">
-                          {group.branches.map((branch) => {
-                            const checked = editBranchIds.includes(branch.id);
-                            return (
-                              <label
-                                key={branch.id}
-                                className={`flex items-center gap-3 rounded-lg px-3 py-2 transition ${checked ? "bg-slate-700/60 border border-blue-500/40" : "hover:bg-slate-700/60 border border-transparent"}`}
-                              >
-                                <input
-                                  type="checkbox"
-                                  checked={checked}
-                                  onChange={() => setEditBranchIds((prev) => toggleSelection(prev, branch.id))}
-                                  className="h-4 w-4 rounded border-slate-500 text-blue-500 focus:ring-blue-400"
-                                />
-                                <div>
-                                  <p className="text-sm text-white">{branch.name}</p>
-                                  <p className="text-xs text-slate-400">Code: {branch.code || "N/A"}</p>
-                                </div>
-                              </label>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  <p className="text-xs text-slate-400 mt-1">
-                    Choose the branches that this user should cover.
-                  </p>
-                </div>
-              )}
+              <MultiSelectHierarchyDropdown
+                areas={areas}
+                subAreas={subAreas}
+                branches={branches}
+                currentUserAssignments={currentUserAssignments}
+                selectedAreaIds={editAreaIds}
+                selectedSubAreaIds={editSubAreaIds}
+                selectedBranchIds={editBranchIds}
+                onAreaChange={setEditAreaIds}
+                onSubAreaChange={setEditSubAreaIds}
+                onBranchChange={setEditBranchIds}
+              />
             </div>
 
             <div className="flex justify-end space-x-3">
@@ -1442,6 +1120,6 @@ export default function ManageUserPage() {
           </div>
         )}
       </div>
-    </div>
+    </div >
   );
 };
