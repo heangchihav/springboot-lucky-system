@@ -14,34 +14,34 @@ export const ReportFormModal = ({ editingReport, onSave, onClose, loading }: Rep
     const portalRoot = usePortal();
     const [reportDate, setReportDate] = useState(new Date().toISOString().split('T')[0]);
     const [reportItems, setReportItems] = useState<ReportItem[]>([
-        { name: "ផែនការប្រចាំថ្ងៃ", values: [""] },
-        { name: "លិទ្ធផលការងារសម្រេចបានប្រចាំថ្ងៃ", values: [""] },
-        { name: "លិទ្ធផលការងារមិនទាន់បានសម្រេច", values: [""] },
-        { name: "ព័តមានអំពីដៃគូប្រកួតប្រជែង", values: [""] }
+        { name: "ផែនការប្រចាំថ្ងៃ", values: ["• "] },
+        { name: "លិទ្ធផលការងារសម្រេចបានប្រចាំថ្ងៃ", values: ["• "] },
+        { name: "លិទ្ធផលការងារមិនទាន់បានសម្រេច", values: ["• "] },
+        { name: "ព័តមានអំពីដៃគូប្រកួតប្រជែង", values: ["• "] }
     ]);
 
     useEffect(() => {
         if (editingReport) {
             setReportDate(editingReport.reportDate);
             setReportItems(editingReport.items.length > 0 ? editingReport.items : [
-                { name: "ផែនការប្រចាំថ្ងៃ", values: [""] },
-                { name: "លិទ្ធផលការងារសម្រេចបានប្រចាំថ្ងៃ", values: [""] },
-                { name: "លិទ្ធផលការងារមិនទាន់បានសម្រេច", values: [""] },
-                { name: "ព័តមានអំពីដៃគូប្រកួតប្រជែង", values: [""] }
+                { name: "ផែនការប្រចាំថ្ងៃ", values: ["• "] },
+                { name: "លិទ្ធផលការងារសម្រេចបានប្រចាំថ្ងៃ", values: ["• "] },
+                { name: "លិទ្ធផលការងារមិនទាន់បានសម្រេច", values: ["• "] },
+                { name: "ព័តមានអំពីដៃគូប្រកួតប្រជែង", values: ["• "] }
             ]);
         } else {
             setReportDate(new Date().toISOString().split('T')[0]);
             setReportItems([
-                { name: "ផែនការប្រចាំថ្ងៃ", values: [""] },
-                { name: "លិទ្ធផលការងារសម្រេចបានប្រចាំថ្ងៃ", values: [""] },
-                { name: "លិទ្ធផលការងារមិនទាន់បានសម្រេច", values: [""] },
-                { name: "ព័តមានអំពីដៃគូប្រកួតប្រជែង", values: [""] }
+                { name: "ផែនការប្រចាំថ្ងៃ", values: ["• "] },
+                { name: "លិទ្ធផលការងារសម្រេចបានប្រចាំថ្ងៃ", values: ["• "] },
+                { name: "លិទ្ធផលការងារមិនទាន់បានសម្រេច", values: ["• "] },
+                { name: "ព័តមានអំពីដៃគូប្រកួតប្រជែង", values: ["• "] }
             ]);
         }
     }, [editingReport]);
 
     const addReportItem = () => {
-        setReportItems([...reportItems, { name: "", values: [""] }]);
+        setReportItems([...reportItems, { name: "", values: ["• "] }]);
     };
 
     const removeReportItem = (index: number) => {
@@ -56,7 +56,7 @@ export const ReportFormModal = ({ editingReport, onSave, onClose, loading }: Rep
 
     const addValueToItem = (itemIndex: number) => {
         const updated = [...reportItems];
-        updated[itemIndex].values.push("");
+        updated[itemIndex].values.push("• ");
         setReportItems(updated);
     };
 
@@ -73,12 +73,22 @@ export const ReportFormModal = ({ editingReport, onSave, onClose, loading }: Rep
     };
 
     const handleSave = async () => {
-        const validItems = reportItems.filter(item => item.name.trim() && item.values.some(v => v.trim()));
-        if (validItems.length === 0) {
+        const validItems = reportItems.filter(item =>
+            item.name.trim() &&
+            item.values.some(v => v.trim() && v.trim() !== "•")
+        );
+
+        // Filter out empty values (only dot and space) from valid items
+        const itemsWithFilteredValues = validItems.map(item => ({
+            ...item,
+            values: item.values.filter(v => v.trim() && v.trim() !== "•")
+        }));
+
+        if (itemsWithFilteredValues.length === 0) {
             return;
         }
 
-        await onSave({ reportDate, items: validItems });
+        await onSave({ reportDate, items: itemsWithFilteredValues });
     };
 
     if (!portalRoot) return null;
