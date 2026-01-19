@@ -4,10 +4,15 @@ export const getServiceWorkerVersion = async (): Promise<string> => {
         const response = await fetch('/sw.js', { cache: 'no-cache' });
         const swText = await response.text();
         const versionMatch = swText.match(/const CACHE_VERSION = '([^']+)'/);
-        return versionMatch ? versionMatch[1] : 'v1.0.2';
+        if (versionMatch) {
+            return versionMatch[1];
+        }
+        // If no match found, return a default
+        console.warn('No version found in service worker, using default');
+        return 'v1.0.0';
     } catch (error) {
         console.error('Failed to fetch service worker version:', error);
-        return 'v1.0.2';
+        return 'v1.0.0';
     }
 };
 
@@ -15,10 +20,10 @@ export const getCurrentAppVersion = (): string => {
     // Get current version from localStorage or default
     if (typeof window !== 'undefined') {
         const stored = localStorage.getItem('app-version');
-        // For testing: if no version stored, return v1.0.1 to simulate update needed
-        return stored || 'v1.0.1';
+        // If no version stored, return a default that will trigger update
+        return stored || 'v1.0.0';
     }
-    return 'v1.0.1';
+    return 'v1.0.0';
 };
 
 export const setCurrentAppVersion = (version: string): void => {
