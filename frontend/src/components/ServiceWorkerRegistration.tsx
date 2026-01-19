@@ -2,18 +2,19 @@
 
 import { useEffect, useCallback, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { getServiceWorkerVersion, getCurrentAppVersion, setCurrentAppVersion } from "@/utils/version";
+import { getServiceWorkerVersion, getCurrentAppVersion, setCurrentAppVersion, checkForUpdate } from "@/utils/version";
 
 export default function ServiceWorkerRegistration() {
     const [updateInfo, setUpdateInfo] = useState<{ available: boolean; currentVersion: string; newVersion: string } | null>(null);
     const handleServiceWorkerUpdate = useCallback(async () => {
-        // Get current and new versions
-        const currentVersion = getCurrentAppVersion();
-        const newVersion = await getServiceWorkerVersion();
+        console.log('Service worker update detected');
+        const updateInfo = await checkForUpdate();
 
-        // Only show update if versions are different
-        if (currentVersion !== newVersion) {
-            setUpdateInfo({ available: true, currentVersion, newVersion });
+        if (updateInfo.hasUpdate) {
+            console.log('Update available:', updateInfo);
+            setUpdateInfo({ available: true, ...updateInfo });
+        } else {
+            console.log('No update available');
         }
     }, []);
 
@@ -34,18 +35,41 @@ export default function ServiceWorkerRegistration() {
         window.location.reload();
     }, []);
 
-    // Initialize current version on mount
+    // Initialize current version on mount and check for updates
     useEffect(() => {
         const initializeVersion = async () => {
             const currentVersion = getCurrentAppVersion();
+            console.log('Current app version:', currentVersion);
+
             if (currentVersion === 'v1.0.0') {
                 // First time user, set to current service worker version
                 const swVersion = await getServiceWorkerVersion();
+                console.log('Setting first-time version to:', swVersion);
                 setCurrentAppVersion(swVersion);
+            } else {
+                // Check for updates on load
+                const updateCheck = await checkForUpdate();
+                if (updateCheck.hasUpdate) {
+                    console.log('Update available on load:', updateCheck);
+                    setUpdateInfo({ available: true, ...updateCheck });
+                }
             }
         };
         initializeVersion();
     }, []);
+
+    // Add periodic update check
+    useEffect(() => {
+        const interval = setInterval(async () => {
+            const updateCheck = await checkForUpdate();
+            if (updateCheck.hasUpdate && !updateInfo?.available) {
+                console.log('Periodic update found:', updateCheck);
+                setUpdateInfo({ available: true, ...updateCheck });
+            }
+        }, 5 * 60 * 1000); // Check every 5 minutes
+
+        return () => clearInterval(interval);
+    }, [updateInfo]);
 
     useEffect(() => {
         // Register service worker
