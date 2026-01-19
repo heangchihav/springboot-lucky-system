@@ -47,6 +47,8 @@ type EnrichedMember = {
   removedDate: string | null;
 };
 
+const PAGE_SIZE = 50;
+
 const TOOLTIP_STYLES = {
   content: {
     backgroundColor: "#0f172a",
@@ -183,6 +185,22 @@ function VIPMembersDashboardPage() {
   const [rawMembers, setRawMembers] = useState<VipMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Infinite scroll states for active members
+  const [activeMembersPage, setActiveMembersPage] = useState(0);
+  const [activeMembersData, setActiveMembersData] = useState<EnrichedMember[]>([]);
+  const [activeMembersLoading, setActiveMembersLoading] = useState(false);
+  const [activeMembersHasMore, setActiveMembersHasMore] = useState(true);
+
+  // Infinite scroll states for removed members
+  const [removedMembersPage, setRemovedMembersPage] = useState(0);
+  const [removedMembersData, setRemovedMembersData] = useState<EnrichedMember[]>([]);
+  const [removedMembersLoading, setRemovedMembersLoading] = useState(false);
+  const [removedMembersHasMore, setRemovedMembersHasMore] = useState(true);
+
+  // Refs for scroll detection
+  const activeTableRef = useRef<HTMLDivElement>(null);
+  const removedTableRef = useRef<HTMLDivElement>(null);
 
   const [selectedAreaId, setSelectedAreaId] = useState<FilterValue>("all");
   const [selectedSubAreaId, setSelectedSubAreaId] =
@@ -464,8 +482,44 @@ function VIPMembersDashboardPage() {
       return [];
     }
 
+    // Apply the same filtering logic as memberDetails
+    const normalizedEnd = endDate < startDate ? startDate : endDate;
+    const filteredForTimeline = allMembers.filter((entry) => {
+      const { joinedDate, areaId, subAreaId, branchId } = entry;
+      if (
+        !joinedDate ||
+        joinedDate < startDate ||
+        joinedDate > normalizedEnd
+      ) {
+        return false;
+      }
+
+      if (selectedAreaId !== "all" && areaId !== selectedAreaId) {
+        return false;
+      }
+
+      const areaHasSubAreas = selectedArea
+        ? selectedAreaSubAreas.length > 0
+        : false;
+      if (selectedSubAreaId !== "all") {
+        if (selectedAreaId === "all") {
+          if (subAreaId !== selectedSubAreaId) {
+            return false;
+          }
+        } else if (areaHasSubAreas && subAreaId !== selectedSubAreaId) {
+          return false;
+        }
+      }
+
+      if (normalizedBranchId !== null && branchId !== normalizedBranchId) {
+        return false;
+      }
+
+      return true;
+    });
+
     const baselineIds = new Set<number>();
-    allMembers.forEach(({ member, joinedDate, removedDate }) => {
+    filteredForTimeline.forEach(({ member, joinedDate, removedDate }) => {
       if (!joinedDate) {
         return;
       }
@@ -479,7 +533,7 @@ function VIPMembersDashboardPage() {
     const additionsByDay = new Map<string, number[]>();
     const removalsByDay = new Map<string, number[]>();
 
-    allMembers.forEach(({ member, joinedDate, removedDate }) => {
+    filteredForTimeline.forEach(({ member, joinedDate, removedDate }) => {
       if (joinedDate && joinedDate >= startDate && joinedDate <= endDate) {
         if (!additionsByDay.has(joinedDate)) {
           additionsByDay.set(joinedDate, []);
@@ -573,7 +627,7 @@ function VIPMembersDashboardPage() {
     return Array.from(monthBuckets.values()).sort((a, b) =>
       a.key > b.key ? 1 : -1,
     );
-  }, [allMembers, startDate, endDate, trendView]);
+  }, [allMembers, startDate, endDate, trendView, selectedAreaId, selectedArea, selectedAreaSubAreas, selectedSubAreaId, normalizedBranchId]);
 
   const memberDetails = useMemo(() => {
     const normalizedEnd = endDate < startDate ? startDate : endDate;
@@ -665,6 +719,107 @@ function VIPMembersDashboardPage() {
     if (!value) return;
     setEndDate(value < startDate ? startDate : value);
   };
+
+  // Get current filters for API calls
+  const getCurrentFilters = useCallback(() => {
+    const filters: any = {};
+    if (selectedAreaId !== "all") filters.areaId = selectedAreaId;
+    if (selectedSubAreaId !== "all") filters.subAreaId = selectedSubAreaId;
+    if (normalizedBranchId !== null) filters.branchId = normalizedBranchId;
+    filters.startDate = startDate;
+    filters.endDate = endDate;
+    return filters;
+  }, [selectedAreaId, selectedSubAreaId, normalizedBranchId, startDate, endDate]);
+
+  // Load active members with pagination
+  const loadActiveMembers = useCallback(async (page: number, reset: boolean = false) => {
+    if (activeMembersLoading || (!activeMembersHasMore && !reset)) return;
+
+    setActiveMembersLoading(true);
+    try {
+      const filters = getCurrentFilters();
+      const members = await vipMemberService.listAllMembers(page, PAGE_SIZE, filters);
+      const enriched = flattenMembers(members, { areaMap, subAreaMap, branchMap });
+      const activeOnly = enriched.filter(({ removedDate }) => !removedDate);
+
+      if (reset) {
+        setActiveMembersData(activeOnly);
+        setActiveMembersPage(0);
+      } else {
+        setActiveMembersData(prev => [...prev, ...activeOnly]);
+      }
+
+      setActiveMembersHasMore(activeOnly.length === PAGE_SIZE);
+      setActiveMembersPage(page);
+    } catch (err) {
+      console.error('Failed to load active members:', err);
+    } finally {
+      setActiveMembersLoading(false);
+    }
+  }, [activeMembersLoading, activeMembersHasMore, getCurrentFilters, areaMap, subAreaMap, branchMap]);
+
+  // Load removed members with pagination
+  const loadRemovedMembers = useCallback(async (page: number, reset: boolean = false) => {
+    if (removedMembersLoading || (!removedMembersHasMore && !reset)) return;
+
+    setRemovedMembersLoading(true);
+    try {
+      const filters = getCurrentFilters();
+      const members = await vipMemberService.listAllMembers(page, PAGE_SIZE, filters);
+      const enriched = flattenMembers(members, { areaMap, subAreaMap, branchMap });
+      const removedOnly = enriched.filter(({ removedDate }) => !!removedDate);
+
+      if (reset) {
+        setRemovedMembersData(removedOnly);
+        setRemovedMembersPage(0);
+      } else {
+        setRemovedMembersData(prev => [...prev, ...removedOnly]);
+      }
+
+      setRemovedMembersHasMore(removedOnly.length === PAGE_SIZE);
+      setRemovedMembersPage(page);
+    } catch (err) {
+      console.error('Failed to load removed members:', err);
+    } finally {
+      setRemovedMembersLoading(false);
+    }
+  }, [removedMembersLoading, removedMembersHasMore, getCurrentFilters, areaMap, subAreaMap, branchMap]);
+
+  // Reset pagination when filters change
+  const resetMemberData = useCallback(() => {
+    setActiveMembersData([]);
+    setRemovedMembersData([]);
+    setActiveMembersPage(0);
+    setRemovedMembersPage(0);
+    setActiveMembersHasMore(true);
+    setRemovedMembersHasMore(true);
+  }, []);
+
+  // Scroll detection handlers
+  const handleActiveScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    const element = e.currentTarget;
+    if (element.scrollHeight - element.scrollTop <= element.clientHeight + 100) {
+      if (activeMembersHasMore && !activeMembersLoading) {
+        loadActiveMembers(activeMembersPage + 1);
+      }
+    }
+  }, [activeMembersPage, activeMembersHasMore, activeMembersLoading, loadActiveMembers]);
+
+  const handleRemovedScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    const element = e.currentTarget;
+    if (element.scrollHeight - element.scrollTop <= element.clientHeight + 100) {
+      if (removedMembersHasMore && !removedMembersLoading) {
+        loadRemovedMembers(removedMembersPage + 1);
+      }
+    }
+  }, [removedMembersPage, removedMembersHasMore, removedMembersLoading, loadRemovedMembers]);
+
+  // Load initial data when filters change
+  useEffect(() => {
+    resetMemberData();
+    loadActiveMembers(0, true);
+    loadRemovedMembers(0, true);
+  }, [getCurrentFilters, resetMemberData]);
 
   return (
     <MarketingServiceGuard>
@@ -917,8 +1072,8 @@ function VIPMembersDashboardPage() {
                 <button
                   key={view.key}
                   className={`rounded-full px-4 py-1 ${trendView === view.key
-                      ? "bg-amber-400/20 text-white"
-                      : "text-slate-400 hover:text-white"
+                    ? "bg-amber-400/20 text-white"
+                    : "text-slate-400 hover:text-white"
                     }`}
                   onClick={() => setTrendView(view.key)}
                 >
@@ -978,9 +1133,9 @@ function VIPMembersDashboardPage() {
                 Individual VIP records
               </h2>
               <p className="text-sm text-slate-300">
-                {memberDetails.length === 0
+                {activeMembersData.length === 0 && removedMembersData.length === 0
                   ? "No members match the current filters."
-                  : `${memberDetails.length} member${memberDetails.length === 1 ? "" : "s"} shown with their registration and removal remarks.`}
+                  : `${activeMembersData.length + removedMembersData.length} of ${chartTotal} member${chartTotal === 1 ? "" : "s"} shown with their registration and removal remarks.`}
               </p>
             </div>
             <div className="rounded-2xl border border-white/10 bg-slate-900/60 px-4 py-3 text-right text-sm text-slate-300">
@@ -1003,20 +1158,22 @@ function VIPMembersDashboardPage() {
             </div>
           </div>
           <div className="mt-6 space-y-6">
-            <div className="max-h-112 overflow-auto rounded-2xl border border-emerald-400/40 bg-emerald-950/20 shadow-inner shadow-emerald-900/30 ring-1 ring-emerald-400/30">
+            <div className="max-h-112 overflow-auto rounded-2xl border border-emerald-400/40 bg-emerald-950/20 shadow-inner shadow-emerald-900/30 ring-1 ring-emerald-400/30"
+              onScroll={handleActiveScroll}
+              ref={activeTableRef}>
               <div className="flex items-center justify-between border-b border-emerald-400/30 px-4 py-3">
                 <div>
                   <p className="text-xs uppercase tracking-[0.3em] text-emerald-300/80">
                     Active members
                   </p>
                   <p className="text-sm text-emerald-100/80">
-                    {activeMembers.length === 0
+                    {activeMembersData.length === 0
                       ? "No active members"
-                      : `${activeMembers.length} active member${activeMembers.length === 1 ? "" : "s"}`}
+                      : `${activeMembersData.length} active member${activeMembersData.length === 1 ? "" : "s"}${activeMembersHasMore ? ' (scrolling for more)' : ''}`}
                   </p>
                 </div>
                 <span className="rounded-full bg-emerald-400/20 px-3 py-1 text-xs font-semibold text-emerald-100">
-                  Live
+                  {activeMembersLoading ? 'Loading...' : 'Live'}
                 </span>
               </div>
               <table className="min-w-full divide-y divide-emerald-400/15 text-sm">
@@ -1032,7 +1189,7 @@ function VIPMembersDashboardPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {activeMembers.length === 0 ? (
+                  {activeMembersData.length === 0 ? (
                     <tr>
                       <td
                         className="px-4 py-6 text-center text-emerald-200/70"
@@ -1042,7 +1199,7 @@ function VIPMembersDashboardPage() {
                       </td>
                     </tr>
                   ) : (
-                    activeMembers.map((entry, index) => (
+                    activeMembersData.map((entry, index) => (
                       <tr
                         key={`${entry.member.id}-active-${index}`}
                         className={
@@ -1074,24 +1231,36 @@ function VIPMembersDashboardPage() {
                       </tr>
                     ))
                   )}
+                  {activeMembersLoading && (
+                    <tr>
+                      <td colSpan={5} className="px-4 py-3 text-center text-emerald-200/70">
+                        <div className="flex items-center justify-center space-x-2">
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-emerald-400"></div>
+                          <span>Loading more members...</span>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
 
-            <div className="max-h-112 overflow-auto rounded-2xl border border-rose-400/40 bg-rose-950/20 shadow-inner shadow-rose-900/30 ring-1 ring-rose-400/30">
+            <div className="max-h-112 overflow-auto rounded-2xl border border-rose-400/40 bg-rose-950/20 shadow-inner shadow-rose-900/30 ring-1 ring-rose-400/30"
+              onScroll={handleRemovedScroll}
+              ref={removedTableRef}>
               <div className="flex items-center justify-between border-b border-rose-400/30 px-4 py-3">
                 <div>
                   <p className="text-xs uppercase tracking-[0.3em] text-rose-300/80">
                     Removed members
                   </p>
                   <p className="text-sm text-rose-100/80">
-                    {removedMembers.length === 0
+                    {removedMembersData.length === 0
                       ? "No removed members"
-                      : `${removedMembers.length} removed member${removedMembers.length === 1 ? "" : "s"}`}
+                      : `${removedMembersData.length} removed member${removedMembersData.length === 1 ? "" : "s"}${removedMembersHasMore ? ' (scrolling for more)' : ''}`}
                   </p>
                 </div>
                 <span className="rounded-full bg-rose-400/20 px-3 py-1 text-xs font-semibold text-rose-100">
-                  Archived
+                  {removedMembersLoading ? 'Loading...' : 'Archived'}
                 </span>
               </div>
               <table className="min-w-full divide-y divide-rose-400/15 text-sm">
@@ -1107,7 +1276,7 @@ function VIPMembersDashboardPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {removedMembers.length === 0 ? (
+                  {removedMembersData.length === 0 ? (
                     <tr>
                       <td
                         className="px-4 py-6 text-center text-rose-200/70"
@@ -1117,7 +1286,7 @@ function VIPMembersDashboardPage() {
                       </td>
                     </tr>
                   ) : (
-                    removedMembers.map((entry, index) => (
+                    removedMembersData.map((entry, index) => (
                       <tr
                         key={`${entry.member.id}-removed-${index}`}
                         className={
@@ -1147,6 +1316,16 @@ function VIPMembersDashboardPage() {
                         </td>
                       </tr>
                     ))
+                  )}
+                  {removedMembersLoading && (
+                    <tr>
+                      <td colSpan={5} className="px-4 py-3 text-center text-rose-200/70">
+                        <div className="flex items-center justify-center space-x-2">
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-rose-400"></div>
+                          <span>Loading more members...</span>
+                        </div>
+                      </td>
+                    </tr>
                   )}
                 </tbody>
               </table>

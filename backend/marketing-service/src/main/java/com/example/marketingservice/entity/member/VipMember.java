@@ -10,7 +10,13 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "marketing_vip_members")
+@Table(name = "marketing_vip_members", indexes = {
+        @Index(name = "idx_vip_member_branch_id", columnList = "branch_id"),
+        @Index(name = "idx_vip_member_created_at", columnList = "member_created_at"),
+        @Index(name = "idx_vip_member_deleted_at", columnList = "member_deleted_at"),
+        @Index(name = "idx_vip_member_branch_created", columnList = "branch_id, member_created_at"),
+        @Index(name = "idx_vip_member_active_created", columnList = "member_deleted_at, member_created_at")
+})
 public class VipMember {
 
     @Id

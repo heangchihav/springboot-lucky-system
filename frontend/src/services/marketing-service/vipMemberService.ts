@@ -67,10 +67,25 @@ export type VipMemberPayload = {
   deleteRemark?: string;
 };
 
+export type VipMemberDashboardData = {
+  areaCounts: Record<string, number>;
+  subAreaCounts: Record<string, number>;
+  branchCounts: Record<string, number>;
+  dailyCounts: Array<{ date: string; count: number }>;
+  weeklyCounts: Array<{ week: string; yearWeek: string; count: number }>;
+  monthlyCounts: Array<{ month: string; yearMonth: string; count: number }>;
+  earliestDate: string;
+  latestDate: string;
+  totalMembers: number;
+  activeMembers: number;
+};
+
 const buildFilterQuery = (params?: {
   areaId?: number;
   subAreaId?: number;
   branchId?: number;
+  startDate?: string;
+  endDate?: string;
 }) => {
   const searchParams = new URLSearchParams();
   if (params?.areaId) searchParams.append("areaId", String(params.areaId));
@@ -78,8 +93,28 @@ const buildFilterQuery = (params?: {
     searchParams.append("subAreaId", String(params.subAreaId));
   if (params?.branchId)
     searchParams.append("branchId", String(params.branchId));
+  if (params?.startDate)
+    searchParams.append("startDate", params.startDate);
+  if (params?.endDate)
+    searchParams.append("endDate", params.endDate);
   const query = searchParams.toString();
   return query ? `?${query}` : "";
+};
+
+const buildFilterParams = (params?: {
+  areaId?: number;
+  subAreaId?: number;
+  branchId?: number;
+  startDate?: string;
+  endDate?: string;
+}) => {
+  const filterParams: Record<string, string> = {};
+  if (params?.areaId) filterParams.areaId = String(params.areaId);
+  if (params?.subAreaId) filterParams.subAreaId = String(params.subAreaId);
+  if (params?.branchId) filterParams.branchId = String(params.branchId);
+  if (params?.startDate) filterParams.startDate = params.startDate;
+  if (params?.endDate) filterParams.endDate = params.endDate;
+  return filterParams;
 };
 
 export const vipMemberService = {
@@ -105,5 +140,45 @@ export const vipMemberService = {
 
   deleteMember(id: number): Promise<void> {
     return request(`/vip-members/${id}`, { method: "DELETE" });
+  },
+
+  getDashboardData(params?: {
+    areaId?: number;
+    subAreaId?: number;
+    branchId?: number;
+    startDate?: string;
+    endDate?: string;
+  }): Promise<VipMemberDashboardData> {
+    return request(`/vip-members/dashboard${buildFilterQuery(params)}`);
+  },
+
+  listMembersPaginated(page: number, size: number, filters?: {
+    areaId?: number;
+    subAreaId?: number;
+    branchId?: number;
+    startDate?: string;
+    endDate?: string;
+  }): Promise<VipMember[]> {
+    const params = new URLSearchParams({
+      page: page.toString(),
+      size: size.toString(),
+      ...buildFilterParams(filters),
+    });
+    return request(`/vip-members/paginated?${params.toString()}`);
+  },
+
+  listAllMembers(page: number, size: number, filters?: {
+    areaId?: number;
+    subAreaId?: number;
+    branchId?: number;
+    startDate?: string;
+    endDate?: string;
+  }): Promise<VipMember[]> {
+    const params = new URLSearchParams({
+      page: page.toString(),
+      size: size.toString(),
+      ...buildFilterParams(filters),
+    });
+    return request(`/vip-members/all-members-optimized?${params.toString()}`);
   },
 };
