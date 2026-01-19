@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { API_BASE_URL } from "@/config/env";
 import { DailyReport, CreateReportRequest } from "@/types/types";
+import { apiFetch } from "@/services/httpClient";
 
 export const useDailyReports = () => {
     const [reports, setReports] = useState<DailyReport[]>([]);
@@ -9,8 +9,11 @@ export const useDailyReports = () => {
     const loadReports = async () => {
         setLoading(true);
         try {
-            const response = await fetch(`${API_BASE_URL}/api/marketing/daily-reports`, {
-                credentials: "include",
+            const response = await apiFetch("/api/marketing/daily-reports", {
+                method: "GET",
+                headers: {
+                    "Content-Type": "application/json",
+                },
             });
 
             if (!response.ok) {
@@ -29,12 +32,11 @@ export const useDailyReports = () => {
     const createReport = async (payload: CreateReportRequest) => {
         setLoading(true);
         try {
-            const response = await fetch(`${API_BASE_URL}/api/marketing/daily-reports`, {
+            const response = await apiFetch("/api/marketing/daily-reports", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
                 },
-                credentials: "include",
                 body: JSON.stringify(payload),
             });
 
@@ -53,12 +55,11 @@ export const useDailyReports = () => {
     const updateReport = async (id: string, payload: CreateReportRequest) => {
         setLoading(true);
         try {
-            const response = await fetch(`${API_BASE_URL}/api/marketing/daily-reports/${id}`, {
+            const response = await apiFetch(`/api/marketing/daily-reports/${id}`, {
                 method: "PUT",
                 headers: {
                     "Content-Type": "application/json",
                 },
-                credentials: "include",
                 body: JSON.stringify(payload),
             });
 
@@ -77,9 +78,11 @@ export const useDailyReports = () => {
     const deleteReport = async (id: string) => {
         setLoading(true);
         try {
-            const response = await fetch(`${API_BASE_URL}/api/marketing/daily-reports/${id}`, {
+            const response = await apiFetch(`/api/marketing/daily-reports/${id}`, {
                 method: "DELETE",
-                credentials: "include",
+                headers: {
+                    "Content-Type": "application/json",
+                },
             });
 
             if (!response.ok) {

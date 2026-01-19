@@ -1,4 +1,4 @@
-import { API_BASE_URL } from "@/config/env";
+import { apiFetch } from "@/services/httpClient";
 import { User } from "./userService";
 
 export interface Permission {
@@ -72,11 +72,11 @@ class PermissionsService {
 
   // Permissions
   async getPermissions(): Promise<Permission[]> {
-    const response = await fetch(`${API_BASE_URL}/api/calls/permissions`, {
+    const response = await apiFetch("/api/calls/permissions", {
+      method: "GET",
       headers: {
         "Content-Type": "application/json",
       },
-      credentials: "include",
     });
     return this.handleResponse<Permission[]>(response);
   }
@@ -154,46 +154,43 @@ class PermissionsService {
 
   // Roles
   async getRoles(): Promise<Role[]> {
-    const response = await fetch(`${API_BASE_URL}/api/calls/roles`, {
+    const response = await apiFetch("/api/calls/roles", {
+      method: "GET",
       headers: {
         "Content-Type": "application/json",
       },
-      credentials: "include",
     });
     return this.handleResponse<Role[]>(response);
   }
 
   async createRole(role: CreateRoleRequest): Promise<Role> {
-    const response = await fetch(`${API_BASE_URL}/api/calls/roles`, {
+    const response = await apiFetch("/api/calls/roles", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      credentials: "include",
       body: JSON.stringify(role),
     });
     return this.handleResponse<Role>(response);
   }
 
   async updateRole(id: number, role: UpdateRoleRequest): Promise<Role> {
-    const response = await fetch(`${API_BASE_URL}/api/calls/roles/${id}`, {
+    const response = await apiFetch(`/api/calls/roles/${id}`, {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
       },
-      credentials: "include",
       body: JSON.stringify(role),
     });
     return this.handleResponse<Role>(response);
   }
 
   async deleteRole(id: number): Promise<void> {
-    const response = await fetch(`${API_BASE_URL}/api/calls/roles/${id}`, {
+    const response = await apiFetch(`/api/calls/roles/${id}`, {
       method: "DELETE",
       headers: {
         "Content-Type": "application/json",
       },
-      credentials: "include",
     });
     return this.handleResponse<void>(response);
   }
@@ -201,7 +198,8 @@ class PermissionsService {
   // Users
   async getUsers(): Promise<User[]> {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/calls/users`, {
+      const response = await apiFetch("/api/calls/users", {
+        method: "GET",
         headers: {
           "Content-Type": "application/json",
         },
@@ -267,17 +265,13 @@ class PermissionsService {
 
   async assignUsersToRole(roleId: number, userIds: number[]): Promise<void> {
     try {
-      const response = await fetch(
-        `${API_BASE_URL}/api/calls/roles/${roleId}/assign-users`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          credentials: "include",
-          body: JSON.stringify({ userIds }),
+      const response = await apiFetch(`/api/calls/roles/${roleId}/assign-users`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
         },
-      );
+        body: JSON.stringify({ userIds }),
+      });
       if (!response.ok) {
         const errorText = await response.text();
         throw new Error(`HTTP ${response.status}: ${errorText}`);
@@ -298,17 +292,13 @@ class PermissionsService {
 
   async removeUsersFromRole(roleId: number, userIds: number[]): Promise<void> {
     try {
-      const response = await fetch(
-        `${API_BASE_URL}/api/calls/roles/${roleId}/remove-users`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          credentials: "include",
-          body: JSON.stringify({ userIds }),
+      const response = await apiFetch(`/api/calls/roles/${roleId}/remove-users`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
         },
-      );
+        body: JSON.stringify({ userIds }),
+      });
       if (!response.ok) {
         const errorText = await response.text();
         throw new Error(`HTTP ${response.status}: ${errorText}`);
@@ -327,15 +317,12 @@ class PermissionsService {
 
   async getUsersInRole(roleId: number): Promise<User[]> {
     try {
-      const response = await fetch(
-        `${API_BASE_URL}/api/calls/roles/${roleId}/users`,
-        {
-          headers: {
-            "Content-Type": "application/json",
-          },
-          credentials: "include",
+      const response = await apiFetch(`/api/calls/roles/${roleId}/users`, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
         },
-      );
+      });
       if (!response.ok) {
         const errorText = await response.text();
         throw new Error(`HTTP ${response.status}: ${errorText}`);
@@ -353,13 +340,10 @@ class PermissionsService {
     permissionCode: string,
   ): Promise<boolean> {
     try {
-      const response = await fetch(
-        `${API_BASE_URL}/api/calls/permissions/check?userId=${userId}&permission=${permissionCode}`,
-        {
-          headers: this.getAuthHeaders(),
-          credentials: "include",
-        },
-      );
+      const response = await apiFetch(`/api/calls/permissions/check?userId=${userId}&permission=${permissionCode}`, {
+        method: "GET",
+        headers: this.getAuthHeaders(),
+      });
       const result = await this.handleResponse<{ hasPermission: boolean }>(
         response,
       );
@@ -374,13 +358,10 @@ class PermissionsService {
     userId: number,
   ): Promise<Record<string, boolean>> {
     try {
-      const response = await fetch(
-        `${API_BASE_URL}/api/calls/permissions/frontend-menu`,
-        {
-          headers: { ...this.getAuthHeaders(), "X-User-Id": userId.toString() },
-          credentials: "include",
-        },
-      );
+      const response = await apiFetch("/api/calls/permissions/frontend-menu", {
+        method: "GET",
+        headers: { ...this.getAuthHeaders(), "X-User-Id": userId.toString() },
+      });
       return this.handleResponse<Record<string, boolean>>(response);
     } catch (error) {
       console.error("Error fetching menu permissions:", error);

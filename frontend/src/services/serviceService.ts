@@ -1,4 +1,4 @@
-import { API_BASE_URL } from "@/config/env";
+import { apiFetch } from "@/services/httpClient";
 
 export interface Service {
   id: number;
@@ -30,9 +30,9 @@ class ServiceService {
 
   async getAllServices(): Promise<Service[]> {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/services`, {
+      const response = await apiFetch("/api/services", {
+        method: "GET",
         headers: this.getAuthHeaders(),
-        credentials: "include",
       });
 
       if (!response.ok) {
@@ -48,9 +48,9 @@ class ServiceService {
 
   async getActiveServices(): Promise<Service[]> {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/services/active`, {
+      const response = await apiFetch("/api/services/active", {
+        method: "GET",
         headers: this.getAuthHeaders(),
-        credentials: "include",
       });
 
       if (!response.ok) {
@@ -66,13 +66,10 @@ class ServiceService {
 
   async getServiceByCode(code: string): Promise<Service> {
     try {
-      const response = await fetch(
-        `${API_BASE_URL}/api/services/code/${code}`,
-        {
-          headers: this.getAuthHeaders(),
-          credentials: "include",
-        },
-      );
+      const response = await apiFetch(`/api/services/code/${code}`, {
+        method: "GET",
+        headers: this.getAuthHeaders(),
+      });
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -87,10 +84,9 @@ class ServiceService {
 
   async createService(serviceData: CreateServiceRequest): Promise<Service> {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/services`, {
+      const response = await apiFetch("/api/services", {
         method: "POST",
         headers: this.getAuthHeaders(),
-        credentials: "include",
         body: JSON.stringify(serviceData),
       });
 
@@ -110,10 +106,9 @@ class ServiceService {
     serviceData: UpdateServiceRequest,
   ): Promise<Service> {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/services/${id}`, {
+      const response = await apiFetch(`/api/services/${id}`, {
         method: "PUT",
         headers: this.getAuthHeaders(),
-        credentials: "include",
         body: JSON.stringify(serviceData),
       });
 
@@ -130,13 +125,10 @@ class ServiceService {
 
   async activateService(id: number): Promise<void> {
     try {
-      const response = await fetch(
-        `${API_BASE_URL}/api/services/${id}/activate`,
-        {
-          method: "POST",
-          headers: this.getAuthHeaders(),
-        },
-      );
+      const response = await apiFetch(`/api/services/${id}/activate`, {
+        method: "POST",
+        headers: this.getAuthHeaders(),
+      });
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -149,13 +141,10 @@ class ServiceService {
 
   async deactivateService(id: number): Promise<void> {
     try {
-      const response = await fetch(
-        `${API_BASE_URL}/api/services/${id}/deactivate`,
-        {
-          method: "POST",
-          headers: this.getAuthHeaders(),
-        },
-      );
+      const response = await apiFetch(`/api/services/${id}/deactivate`, {
+        method: "POST",
+        headers: this.getAuthHeaders(),
+      });
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -168,10 +157,9 @@ class ServiceService {
 
   async deleteService(id: number): Promise<void> {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/services/${id}`, {
+      const response = await apiFetch(`/api/services/${id}`, {
         method: "DELETE",
         headers: this.getAuthHeaders(),
-        credentials: "include",
       });
 
       if (!response.ok) {

@@ -6,7 +6,7 @@ import { useCopyReportImage } from "@/hooks/marketing-service/DailyReports/useCo
 import { useAuth } from "@/contexts/AuthContext";
 import { marketingUserAssignmentService, MarketingUserAssignment } from "@/services/marketingUserAssignmentService";
 import { apiService } from "@/services/api";
-import { API_BASE_URL } from "@/config/env";
+import { apiFetch } from "@/services/httpClient";
 
 interface ReportViewModalProps {
     report: DailyReport;
@@ -66,8 +66,8 @@ export const ReportViewModal = ({ report, onClose }: ReportViewModalProps) => {
 
             try {
                 // First get the user ID from username using the user service
-                const userIdResponse = await fetch(`${API_BASE_URL}/api/users/username/${report.createdBy}/id`, {
-                    credentials: "include",
+                const userIdResponse = await apiFetch(`/api/users/username/${report.createdBy}/id`, {
+                    method: "GET",
                 });
 
                 if (!userIdResponse.ok) {

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { API_BASE_URL } from "@/config/env";
+import { apiFetch } from "@/services/httpClient";
 
 const defaultStatuses = [
   { key: "not-called-yet", label: "មិនទាន់តេ" },
@@ -80,8 +80,8 @@ const getStoredUserId = (): number | null => {
 
 const fetchAndCacheUserId = async (): Promise<number | null> => {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
-      credentials: "include",
+    const response = await apiFetch("/api/auth/me", {
+      method: "GET",
     });
 
     if (!response.ok) {
@@ -175,10 +175,9 @@ function Page() {
     setApiError(null);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/calls/statuses`, {
+      const response = await apiFetch("/api/calls/statuses", {
         method: "POST",
         headers: buildAuthHeaders(),
-        credentials: "include",
         body: JSON.stringify({
           key: normalizedKey,
           label: trimmedName,
@@ -243,18 +242,14 @@ function Page() {
     setApiError(null);
 
     try {
-      const response = await fetch(
-        `${API_BASE_URL}/api/calls/statuses/${managingStatusKey}`,
-        {
-          method: "PUT",
-          headers: buildAuthHeaders(),
-          credentials: "include",
-          body: JSON.stringify({
-            key: managingStatusKey,
-            label: trimmedLabel,
-          }),
-        },
-      );
+      const response = await apiFetch(`/api/calls/statuses/${managingStatusKey}`, {
+        method: "PUT",
+        headers: buildAuthHeaders(),
+        body: JSON.stringify({
+          key: managingStatusKey,
+          label: trimmedLabel,
+        }),
+      });
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -288,14 +283,10 @@ function Page() {
     setApiError(null);
 
     try {
-      const response = await fetch(
-        `${API_BASE_URL}/api/calls/statuses/${managingStatusKey}`,
-        {
-          method: "DELETE",
-          headers: buildAuthHeaders(),
-          credentials: "include",
-        },
-      );
+      const response = await apiFetch(`/api/calls/statuses/${managingStatusKey}`, {
+        method: "DELETE",
+        headers: buildAuthHeaders(),
+      });
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -313,7 +304,7 @@ function Page() {
       if (selectedStatus === managingStatusKey) {
         setSelectedStatus(
           statuses.find((status) => status.key !== managingStatusKey)?.key ??
-            "",
+          "",
         );
       }
       closeManagePopup();
@@ -328,9 +319,8 @@ function Page() {
     setApiError(null);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/calls/reports`, {
+      const response = await apiFetch("/api/calls/reports", {
         headers: buildAuthHeaders(),
-        credentials: "include",
       });
 
       if (!response.ok) {
@@ -362,9 +352,8 @@ function Page() {
     setApiError(null);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/calls/statuses`, {
+      const response = await apiFetch("/api/calls/statuses", {
         headers: buildAuthHeaders(),
-        credentials: "include",
       });
       if (!response.ok) {
         throw new Error("Failed to load statuses");
@@ -400,13 +389,9 @@ function Page() {
   };
 
   const loadFallbackBranches = async () => {
-    const fallbackResponse = await fetch(
-      `${API_BASE_URL}/api/calls/branches/active`,
-      {
-        headers: buildAuthHeaders(),
-        credentials: "include",
-      },
-    );
+    const fallbackResponse = await apiFetch("/api/calls/branches/active", {
+      headers: buildAuthHeaders(),
+    });
 
     if (!fallbackResponse.ok) {
       throw new Error("Failed to load branches for selection");
@@ -442,13 +427,9 @@ function Page() {
     }
 
     try {
-      const response = await fetch(
-        `${API_BASE_URL}/api/calls/user-branches/user/${userId}`,
-        {
-          headers: buildAuthHeaders(),
-          credentials: "include",
-        },
-      );
+      const response = await apiFetch(`/api/calls/user-branches/user/${userId}`, {
+        headers: buildAuthHeaders(),
+      });
 
       if (!response.ok) {
         throw new Error("Failed to load user branches");
@@ -507,14 +488,13 @@ function Page() {
     try {
       const isUpdate = editingReportId !== null;
       const url = isUpdate
-        ? `${API_BASE_URL}/api/calls/reports/${editingReportId}`
-        : `${API_BASE_URL}/api/calls/reports`;
+        ? `/api/calls/reports/${editingReportId}`
+        : "/api/calls/reports";
       const method = isUpdate ? "PUT" : "POST";
 
-      const response = await fetch(url, {
+      const response = await apiFetch(url, {
         method,
         headers: buildAuthHeaders(),
-        credentials: "include",
         body: JSON.stringify({
           reportDate: date,
           branchId: selectedBranchId,
@@ -553,10 +533,9 @@ function Page() {
     setApiError(null);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/calls/reports/${id}`, {
+      const response = await apiFetch(`/api/calls/reports/${id}`, {
         method: "DELETE",
         headers: buildAuthHeaders(),
-        credentials: "include",
       });
 
       if (!response.ok) {

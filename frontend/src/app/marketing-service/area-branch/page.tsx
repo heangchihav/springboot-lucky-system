@@ -15,7 +15,7 @@ import {
 } from "@/services/marketing-service/marketingHierarchyService";
 import { marketingUserAssignmentService, MarketingUserAssignment } from "@/services/marketingUserAssignmentService";
 import { SingleSelectHierarchyDropdown, FilterHierarchyDropdown } from "@/components/marketing-service/HierarchyDropdown";
-import { API_BASE_URL } from "@/config/env";
+import { apiFetch } from "@/services/httpClient";
 
 type FormState<T> = Partial<T> & { active?: boolean };
 
@@ -162,8 +162,11 @@ export default function MarketingAreaBranchPage() {
 
   const fetchCurrentUserAssignment = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
-        credentials: "include",
+      const response = await apiFetch("/api/auth/me", {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
 
       if (!response.ok) {

@@ -1,4 +1,4 @@
-import { API_BASE_URL } from "@/config/env";
+import { apiFetch } from "@/services/httpClient";
 
 // Import Service interface from serviceService
 export interface Service {
@@ -89,9 +89,9 @@ class UserService {
   async getAllUsers(): Promise<User[]> {
     try {
       // Use user-service endpoint to get all users
-      const response = await fetch(`${API_BASE_URL}/api/users`, {
+      const response = await apiFetch("/api/users", {
+        method: "GET",
         headers: this.getAuthHeaders(),
-        credentials: "include",
       });
 
       if (!response.ok) {
@@ -112,9 +112,9 @@ class UserService {
   async getAllUsersFromUserService(): Promise<User[]> {
     try {
       // Use user-service endpoint for managing all users across services
-      const response = await fetch(`${API_BASE_URL}/api/users`, {
+      const response = await apiFetch("/api/users", {
+        method: "GET",
         headers: this.getAuthHeaders(),
-        credentials: "include",
       });
 
       if (!response.ok) {
@@ -135,9 +135,9 @@ class UserService {
   async getActiveUsers(): Promise<User[]> {
     try {
       // Use user-service endpoint to get all active users
-      const response = await fetch(`${API_BASE_URL}/api/users`, {
+      const response = await apiFetch("/api/users", {
+        method: "GET",
         headers: this.getAuthHeaders(),
-        credentials: "include",
       });
 
       if (!response.ok) {
@@ -158,10 +158,9 @@ class UserService {
 
   async createUser(userData: CreateUserRequest): Promise<User> {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/users`, {
+      const response = await apiFetch("/api/users", {
         method: "POST",
         headers: this.getAuthHeaders(),
-        credentials: "include",
         body: JSON.stringify(userData),
       });
 
@@ -184,10 +183,9 @@ class UserService {
     userData: UpdateUserRequest,
   ): Promise<User> {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/users/${id}`, {
+      const response = await apiFetch(`/api/users/${id}`, {
         method: "PUT",
         headers: this.getAuthHeaders(),
-        credentials: "include",
         body: JSON.stringify(userData),
       });
 
@@ -214,10 +212,9 @@ class UserService {
 
   async updateUser(id: number, userData: Partial<User>): Promise<User> {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/users/${id}`, {
+      const response = await apiFetch(`/api/users/${id}`, {
         method: "PUT",
         headers: this.getAuthHeaders(),
-        credentials: "include",
         body: JSON.stringify(userData),
       });
 
@@ -245,10 +242,9 @@ class UserService {
 
   async deleteUser(id: number): Promise<void> {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/users/${id}`, {
+      const response = await apiFetch(`/api/users/${id}`, {
         method: "DELETE",
         headers: this.getAuthHeaders(),
-        credentials: "include",
       });
 
       if (!response.ok) {
@@ -262,13 +258,10 @@ class UserService {
 
   async getUserServices(userId: number): Promise<Service[]> {
     try {
-      const response = await fetch(
-        `${API_BASE_URL}/api/users/${userId}/services`,
-        {
-          headers: this.getAuthHeaders(),
-          credentials: "include",
-        },
-      );
+      const response = await apiFetch(`/api/users/${userId}/services`, {
+        method: "GET",
+        headers: this.getAuthHeaders(),
+      });
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -283,13 +276,10 @@ class UserService {
 
   async getUsersByService(serviceId: number): Promise<User[]> {
     try {
-      const response = await fetch(
-        `${API_BASE_URL}/api/services/${serviceId}/users`,
-        {
-          headers: this.getAuthHeaders(),
-          credentials: "include",
-        },
-      );
+      const response = await apiFetch(`/api/services/${serviceId}/users`, {
+        method: "GET",
+        headers: this.getAuthHeaders(),
+      });
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -304,15 +294,15 @@ class UserService {
 
   async searchUsers(query: string, type?: string): Promise<User[]> {
     try {
-      const url = new URL(`${API_BASE_URL}/api/users/search`);
+      const url = new URL("/api/users/search", window.location.origin);
       url.searchParams.append("query", query);
       if (type) {
         url.searchParams.append("type", type);
       }
 
-      const response = await fetch(url.toString(), {
+      const response = await apiFetch(url.pathname + url.search, {
+        method: "GET",
         headers: this.getAuthHeaders(),
-        credentials: "include",
       });
 
       if (!response.ok) {
@@ -331,15 +321,11 @@ class UserService {
     serviceIds: number[],
   ): Promise<void> {
     try {
-      const response = await fetch(
-        `${API_BASE_URL}/api/users/${userId}/services`,
-        {
-          method: "POST",
-          headers: this.getAuthHeaders(),
-          credentials: "include",
-          body: JSON.stringify({ serviceIds }),
-        },
-      );
+      const response = await apiFetch(`/api/users/${userId}/services`, {
+        method: "POST",
+        headers: this.getAuthHeaders(),
+        body: JSON.stringify({ serviceIds }),
+      });
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -358,15 +344,11 @@ class UserService {
     serviceIds: number[],
   ): Promise<void> {
     try {
-      const response = await fetch(
-        `${API_BASE_URL}/api/users/${userId}/services/replace`,
-        {
-          method: "POST",
-          headers: this.getAuthHeaders(),
-          credentials: "include",
-          body: JSON.stringify({ serviceIds }),
-        },
-      );
+      const response = await apiFetch(`/api/users/${userId}/services/replace`, {
+        method: "POST",
+        headers: this.getAuthHeaders(),
+        body: JSON.stringify({ serviceIds }),
+      });
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -382,14 +364,10 @@ class UserService {
 
   async activateUser(userId: number): Promise<User> {
     try {
-      const response = await fetch(
-        `${API_BASE_URL}/api/users/${userId}/activate`,
-        {
-          method: "PUT",
-          headers: this.getAuthHeaders(),
-          credentials: "include",
-        },
-      );
+      const response = await apiFetch(`/api/users/${userId}/activate`, {
+        method: "PUT",
+        headers: this.getAuthHeaders(),
+      });
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -412,14 +390,10 @@ class UserService {
 
   async deactivateUser(userId: number): Promise<User> {
     try {
-      const response = await fetch(
-        `${API_BASE_URL}/api/users/${userId}/deactivate`,
-        {
-          method: "PUT",
-          headers: this.getAuthHeaders(),
-          credentials: "include",
-        },
-      );
+      const response = await apiFetch(`/api/users/${userId}/deactivate`, {
+        method: "PUT",
+        headers: this.getAuthHeaders(),
+      });
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
