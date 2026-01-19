@@ -5,20 +5,34 @@ import PWAInstallPrompt from "./PWAInstallPrompt";
 import ServiceWorkerRegistration from "./ServiceWorkerRegistration";
 
 export default function PWAManager() {
-    const [isLocalhost, setIsLocalhost] = useState(true);
+    const [isPWAInstalled, setIsPWAInstalled] = useState(false);
+    const [isInstallable, setIsInstallable] = useState(false);
 
     useEffect(() => {
-        setIsLocalhost(window.location.hostname.includes("localhost"));
+        // Check if app is running in PWA mode
+        setIsPWAInstalled(window.matchMedia('(display-mode: standalone)').matches);
     }, []);
 
-    if (isLocalhost) {
-        return null;
-    }
+    useEffect(() => {
+        // Listen for beforeinstallprompt event
+        const handleBeforeInstallPrompt = (event: Event) => {
+            event.preventDefault();
+            setIsInstallable(true);
+        };
 
+        window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+
+        return () => {
+            window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+        };
+    }, []);
+
+    // Always register service worker
+    // Show install prompt only if not installed and installable
     return (
         <>
             <ServiceWorkerRegistration />
-            <PWAInstallPrompt />
+            {!isPWAInstalled && isInstallable && <PWAInstallPrompt />}
         </>
     );
 }
