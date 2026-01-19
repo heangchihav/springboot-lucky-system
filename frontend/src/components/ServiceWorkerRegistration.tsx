@@ -1,29 +1,64 @@
 "use client";
 
 import { useEffect, useCallback, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { RefreshCw, X } from "lucide-react";
 import { getServiceWorkerVersion, getCurrentAppVersion, setCurrentAppVersion, checkForUpdate } from "@/utils/version";
 
 export default function ServiceWorkerRegistration() {
     const [updateInfo, setUpdateInfo] = useState<{ available: boolean; currentVersion: string; newVersion: string } | null>(null);
+    const [isUpdating, setIsUpdating] = useState(false);
+
+    // Check if running as PWA
+    const isPWA = () => {
+        if (typeof window === 'undefined') return false;
+
+        const isStandalone = window.matchMedia("(display-mode: standalone)").matches;
+        const isIOSStandalone = (window.navigator as any).standalone === true;
+        const isAndroidApp = document.referrer.includes("android-app://");
+
+        const result = isStandalone || isIOSStandalone || isAndroidApp;
+        console.log('PWA Detection:', { isStandalone, isIOSStandalone, isAndroidApp, result });
+
+        return result;
+    };
     const handleServiceWorkerUpdate = useCallback(async () => {
         console.log('Service worker update detected');
         const updateInfo = await checkForUpdate();
 
         if (updateInfo.hasUpdate) {
             console.log('Update available:', updateInfo);
+
+            // For web users: update automatically
+            if (!isPWA()) {
+                console.log('Web user - updating automatically');
+                setCurrentAppVersion(updateInfo.newVersion);
+                navigator.serviceWorker.controller?.postMessage({ type: 'SKIP_WAITING' });
+                return;
+            }
+
+            // For PWA users: show notification
+            console.log('PWA user - showing update notification');
             setUpdateInfo({ available: true, ...updateInfo });
         } else {
             console.log('No update available');
         }
     }, []);
 
-    const handleUpdateConfirm = useCallback(() => {
-        navigator.serviceWorker.controller?.postMessage({ type: 'SKIP_WAITING' });
+    const handleUpdateConfirm = useCallback(async () => {
+        setIsUpdating(true);
+
+        // Update localStorage immediately
         if (updateInfo) {
             setCurrentAppVersion(updateInfo.newVersion);
         }
+
+        // Trigger service worker update
+        navigator.serviceWorker.controller?.postMessage({ type: 'SKIP_WAITING' });
+
+        // Hide notification immediately
         setUpdateInfo(null);
+
+        // The page will reload automatically when controller changes
     }, [updateInfo]);
 
     const handleUpdateDismiss = useCallback(() => {
@@ -39,7 +74,7 @@ export default function ServiceWorkerRegistration() {
     useEffect(() => {
         const initializeVersion = async () => {
             const currentVersion = getCurrentAppVersion();
-            console.log('Current app version:', currentVersion);
+            console.log('Current app version:', currentVersion, 'Is PWA:', isPWA());
 
             if (currentVersion === 'v1.0.0') {
                 // First time user, set to current service worker version
@@ -50,8 +85,16 @@ export default function ServiceWorkerRegistration() {
                 // Check for updates on load
                 const updateCheck = await checkForUpdate();
                 if (updateCheck.hasUpdate) {
-                    console.log('Update available on load:', updateCheck);
-                    setUpdateInfo({ available: true, ...updateCheck });
+                    if (isPWA()) {
+                        // PWA users: show notification
+                        console.log('PWA update available on load:', updateCheck);
+                        setUpdateInfo({ available: true, ...updateCheck });
+                    } else {
+                        // Web users: update automatically
+                        console.log('Web update available on load - updating automatically:', updateCheck);
+                        setCurrentAppVersion(updateCheck.newVersion);
+                        navigator.serviceWorker.controller?.postMessage({ type: 'SKIP_WAITING' });
+                    }
                 }
             }
         };
@@ -63,8 +106,16 @@ export default function ServiceWorkerRegistration() {
         const interval = setInterval(async () => {
             const updateCheck = await checkForUpdate();
             if (updateCheck.hasUpdate && !updateInfo?.available) {
-                console.log('Periodic update found:', updateCheck);
-                setUpdateInfo({ available: true, ...updateCheck });
+                if (isPWA()) {
+                    // PWA users: show notification
+                    console.log('Periodic PWA update found:', updateCheck);
+                    setUpdateInfo({ available: true, ...updateCheck });
+                } else {
+                    // Web users: update automatically
+                    console.log('Periodic web update found - updating automatically:', updateCheck);
+                    setCurrentAppVersion(updateCheck.newVersion);
+                    navigator.serviceWorker.controller?.postMessage({ type: 'SKIP_WAITING' });
+                }
             }
         }, 5 * 60 * 1000); // Check every 5 minutes
 
@@ -109,53 +160,56 @@ export default function ServiceWorkerRegistration() {
     }, [handleServiceWorkerUpdate, handleControllerChange]);
 
     return (
-        <AnimatePresence>
+        <>
             {updateInfo?.available && (
-                <motion.div
-                    initial={{ opacity: 0, y: -20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -20 }}
-                    className="fixed top-4 right-4 z-50 max-w-sm"
-                >
-                    <div className="bg-linear-to-r from-blue-600/90 to-purple-600/90 backdrop-blur-md rounded-2xl border border-white/20 shadow-2xl p-4">
+                <div className="fixed bottom-4 left-4 right-4 md:left-auto md:right-4 md:max-w-md z-50 animate-in slide-in-from-bottom-5 duration-300">
+                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-2xl border border-gray-200 dark:border-gray-700 p-4">
                         <div className="flex items-start gap-3">
-                            <div className="shrink-0">
-                                <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
-                                    <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                                    </svg>
-                                </div>
+                            <div className="shrink-0 w-12 h-12 bg-linear-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center">
+                                <RefreshCw className={`w-6 h-6 text-white ${isUpdating ? 'animate-spin' : ''}`} />
                             </div>
-                            <div className="flex-1">
-                                <h3 className="text-white font-semibold text-sm mb-1">
+
+                            <div className="flex-1 min-w-0">
+                                <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-1">
                                     App Update Available
                                 </h3>
-                                <p className="text-white/80 text-xs mb-3">
+                                <p className="text-xs text-gray-600 dark:text-gray-400 mb-3">
                                     Update from {updateInfo.currentVersion} to {updateInfo.newVersion}. Get the latest features and improvements.
                                 </p>
+
                                 <div className="flex gap-2">
-                                    <motion.button
-                                        whileHover={{ scale: 1.05 }}
-                                        whileTap={{ scale: 0.95 }}
+                                    <button
+                                        type="button"
                                         onClick={handleUpdateConfirm}
-                                        className="flex-1 bg-white/20 hover:bg-white/30 text-white text-xs font-medium py-2 px-3 rounded-xl transition-colors duration-200"
+                                        disabled={isUpdating}
+                                        className="flex-1 px-4 py-2 bg-blue-500 hover:bg-blue-600 disabled:bg-blue-400 text-white text-sm font-medium rounded-lg transition-colors duration-200"
                                     >
-                                        Update Now
-                                    </motion.button>
-                                    <motion.button
-                                        whileHover={{ scale: 1.05 }}
-                                        whileTap={{ scale: 0.95 }}
+                                        {isUpdating ? 'Updating...' : 'Update Now'}
+                                    </button>
+                                    <button
+                                        type="button"
                                         onClick={handleUpdateDismiss}
-                                        className="flex-1 bg-white/10 hover:bg-white/20 text-white/80 text-xs font-medium py-2 px-3 rounded-xl transition-colors duration-200"
+                                        disabled={isUpdating}
+                                        className="px-4 py-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 disabled:bg-gray-50 dark:disabled:bg-gray-800 text-gray-700 dark:text-gray-300 disabled:text-gray-400 text-sm font-medium rounded-lg transition-colors duration-200"
                                     >
-                                        Later
-                                    </motion.button>
+                                        Not now
+                                    </button>
                                 </div>
                             </div>
+
+                            <button
+                                type="button"
+                                onClick={handleUpdateDismiss}
+                                disabled={isUpdating}
+                                className="shrink-0 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 disabled:text-gray-300 transition-colors"
+                                aria-label="Close"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
                         </div>
                     </div>
-                </motion.div>
+                </div>
             )}
-        </AnimatePresence>
+        </>
     );
 }

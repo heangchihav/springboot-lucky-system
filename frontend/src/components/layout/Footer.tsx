@@ -2,9 +2,46 @@
 
 import { motion } from "framer-motion";
 import { getCurrentAppVersion } from "@/utils/version";
+import { useEffect, useState } from "react";
 
 export function Footer() {
-    const currentVersion = getCurrentAppVersion();
+    const [currentVersion, setCurrentVersion] = useState(getCurrentAppVersion());
+
+    // Update version when localStorage changes
+    useEffect(() => {
+        const checkVersion = () => {
+            const newVersion = getCurrentAppVersion();
+            if (newVersion !== currentVersion) {
+                setCurrentVersion(newVersion);
+            }
+        };
+
+        // Check immediately
+        checkVersion();
+
+        // Set up interval to check for version changes
+        const interval = setInterval(checkVersion, 1000);
+
+        // Listen for storage changes
+        const handleStorageChange = () => {
+            checkVersion();
+        };
+
+        // Listen for custom version change event
+        const handleVersionChange = (event: CustomEvent) => {
+            console.log('Version changed event:', event.detail);
+            setCurrentVersion(event.detail);
+        };
+
+        window.addEventListener('storage', handleStorageChange);
+        window.addEventListener('appVersionChanged', handleVersionChange as EventListener);
+
+        return () => {
+            clearInterval(interval);
+            window.removeEventListener('storage', handleStorageChange);
+            window.removeEventListener('appVersionChanged', handleVersionChange as EventListener);
+        };
+    }, [currentVersion]);
 
     return (
         <footer className="my-2">

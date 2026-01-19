@@ -29,6 +29,8 @@ export const getCurrentAppVersion = (): string => {
 export const setCurrentAppVersion = (version: string): void => {
     if (typeof window !== 'undefined') {
         localStorage.setItem('app-version', version);
+        // Dispatch custom event to notify components
+        window.dispatchEvent(new CustomEvent('appVersionChanged', { detail: version }));
     }
 };
 
