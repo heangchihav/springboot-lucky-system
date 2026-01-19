@@ -1,8 +1,11 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { getCurrentAppVersion } from "@/utils/version";
 
 export function Footer() {
+    const currentVersion = getCurrentAppVersion();
+
     return (
         <footer className="my-2">
             <div className="sm:rounded-2xl border-t border-slate-800 bg-slate-900/50 backdrop-blur-sm shadow-xl">
@@ -26,6 +29,7 @@ export function Footer() {
                                     {char === " " ? "\u00A0" : char}
                                 </motion.span>
                             ))}
+                            <span className="ml-2 text-slate-500">• {currentVersion}</span>
                         </motion.div>
                         <a
                             href="https://t.me/heangchihav"
