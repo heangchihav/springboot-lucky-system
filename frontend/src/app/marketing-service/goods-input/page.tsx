@@ -727,11 +727,9 @@ export default function GoodsInputPage() {
 
     setSubmitting(true);
     try {
-      const today = new Date().toISOString().split('T')[0];
-
       const batchPayload: UserGoodsRecord[] = validEntries.map(entry => ({
         userId: entry.member!.id.toString(),
-        sendDate: today,
+        sendDate: entryForm.goodsDate,
         totalGoods: entry.totalGoods
       }));
 
