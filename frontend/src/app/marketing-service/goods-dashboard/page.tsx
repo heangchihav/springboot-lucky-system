@@ -193,7 +193,6 @@ type MemberShipmentSummary = {
   lastDate: string;
 };
 
-const SHIPMENT_FETCH_LIMIT = 200;
 const compareIsoDatesDesc = (a: string, b: string) =>
   a === b ? 0 : a > b ? -1 : 1;
 const getCreatedAtTime = (value?: string) => {
@@ -361,7 +360,6 @@ export default function GoodsDashboardPage() {
         startDate?: string;
         endDate?: string;
       } = {
-        limit: SHIPMENT_FETCH_LIMIT,
         myOnly: false,
         startDate,
         endDate,

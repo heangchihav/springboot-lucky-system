@@ -65,10 +65,11 @@ public class MarketingGoodsShipmentService {
             Long areaId,
             Long createdBy,
             String memberQuery,
-            int limit,
+            Integer limit,
             LocalDate startDate,
             LocalDate endDate) {
-        int sanitizedLimit = Math.min(Math.max(limit, 1), 100);
+        // If no limit specified, use a large number to fetch all records
+        int sanitizedLimit = limit != null ? Math.min(Math.max(limit, 1), 10000) : 10000;
         Pageable pageable = PageRequest.of(0, sanitizedLimit, Sort.by(Sort.Direction.DESC, "sendDate", "id"));
 
         Specification<MarketingGoodsShipment> spec = (root, query, cb) -> cb.conjunction();

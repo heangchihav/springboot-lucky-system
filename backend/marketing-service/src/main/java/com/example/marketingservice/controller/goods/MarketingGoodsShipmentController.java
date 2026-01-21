@@ -50,7 +50,7 @@ public class MarketingGoodsShipmentController extends BaseController {
             @RequestParam(required = false) Long areaId,
             @RequestParam(defaultValue = "true") boolean myOnly,
             @RequestParam(required = false) String memberQuery,
-            @RequestParam(defaultValue = "15") int limit,
+            @RequestParam(required = false) Integer limit,
             @RequestParam(required = false) LocalDate startDate,
             @RequestParam(required = false) LocalDate endDate,
             HttpServletRequest httpRequest) {
