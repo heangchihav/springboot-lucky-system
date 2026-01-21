@@ -269,6 +269,19 @@ export default function GoodsDashboardPage() {
   const [error, setError] = useState<string | null>(null);
   const filtersDisabled = hierarchyLoading || membersLoading;
 
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const pageSizeOptions = [
+    { value: 5, label: "5" },
+    { value: 10, label: "10" },
+    { value: 50, label: "50" },
+    { value: 100, label: "100" },
+    { value: 1000, label: "1000" },
+  ];
+
   const handleStartDateChange = (value: string) => {
     if (!value) {
       return;
@@ -790,6 +803,32 @@ export default function GoodsDashboardPage() {
     [shipments, memberMap],
   );
 
+  // Filter shipments based on search query
+  const filteredShipmentRows = useMemo(() => {
+    if (!searchQuery.trim()) {
+      return shipmentRows;
+    }
+    const query = searchQuery.toLowerCase().trim();
+    return shipmentRows.filter((row) =>
+      row.member.toLowerCase().includes(query) ||
+      row.phone.toLowerCase().includes(query) ||
+      row.date.toLowerCase().includes(query) ||
+      row.totalGoods.toString().includes(query)
+    );
+  }, [shipmentRows, searchQuery]);
+
+  // Pagination calculations
+  const totalPages = Math.ceil(filteredShipmentRows.length / pageSize);
+  const startIndex = (currentPage - 1) * pageSize;
+  const endIndex = startIndex + pageSize;
+  const paginatedShipmentRows = filteredShipmentRows.slice(startIndex, endIndex);
+
+  // Handle page size change
+  const handlePageSizeChange = (newSize: number) => {
+    setPageSize(newSize);
+    setCurrentPage(1); // Reset to first page when changing page size
+  };
+
   const handleAreaChange = (value: string) => {
     const next = value === "all" ? "all" : Number(value);
     setSelectedAreaId(next);
@@ -1159,20 +1198,42 @@ export default function GoodsDashboardPage() {
         )}
 
         <section className="rounded-3xl border border-white/10 bg-white/5 p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs uppercase tracking-[0.3em] text-amber-300/70">
-                Shipment log
-              </p>
-              <h2 className="text-xl font-semibold text-white">
-                VIP member manifest
-              </h2>
+          <div className="flex flex-col gap-4">
+            {/* Header */}
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs uppercase tracking-[0.3em] text-amber-300/70">
+                  Shipment log
+                </p>
+                <h2 className="text-xl font-semibold text-white">
+                  VIP member manifest
+                </h2>
+              </div>
+              <div className="flex items-center gap-3 text-xs uppercase tracking-[0.3em] text-slate-400">
+                {shipmentsLoading && <span>Refreshing…</span>}
+                <span className="rounded-full border border-white/10 px-3 py-1 text-xs text-slate-200">
+                  {startIndex + 1}-{Math.min(endIndex, filteredShipmentRows.length)} of {filteredShipmentRows.length} rows
+                </span>
+              </div>
             </div>
-            <div className="flex items-center gap-3 text-xs uppercase tracking-[0.3em] text-slate-400">
-              {shipmentsLoading && <span>Refreshing…</span>}
-              <span className="rounded-full border border-white/10 px-3 py-1 text-xs text-slate-200">
-                {shipmentRows.length} rows
-              </span>
+
+            {/* Search Bar */}
+            <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+              <div className="flex-1 max-w-md">
+                <label className="text-[0.6rem] uppercase tracking-[0.25em] text-slate-400 block mb-2">
+                  Search Shipments
+                </label>
+                <input
+                  type="text"
+                  placeholder="Search by member, phone, date, or goods..."
+                  value={searchQuery}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    setCurrentPage(1); // Reset to first page when searching
+                  }}
+                  className="w-full rounded-xl border border-white/10 bg-slate-900/60 px-3 py-2 text-sm text-white placeholder:text-slate-400 focus:border-amber-400/60 focus:outline-none"
+                />
+              </div>
             </div>
           </div>
           <div className="mt-6 overflow-x-auto">
@@ -1186,14 +1247,16 @@ export default function GoodsDashboardPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5">
-                {shipmentRows.length === 0 ? (
+                {paginatedShipmentRows.length === 0 ? (
                   <tr>
                     <td colSpan={4} className="py-6 text-center text-slate-400">
-                      No shipment details for the current filters.
+                      {searchQuery.trim()
+                        ? "No shipments match your search."
+                        : "No shipment details for the current filters."}
                     </td>
                   </tr>
                 ) : (
-                  shipmentRows.map((row, index) => (
+                  paginatedShipmentRows.map((row, index) => (
                     <tr key={`${row.member}-${row.phone}-${index}`}>
                       <td className="py-3 pr-6 whitespace-nowrap">
                         {row.member}
@@ -1214,6 +1277,144 @@ export default function GoodsDashboardPage() {
                 )}
               </tbody>
             </table>
+
+            {/* Enhanced Pagination Controls */}
+            <div className="mt-6 rounded-2xl border border-white/10 bg-linear-to-br from-slate-900/50 to-slate-800/30 p-4 backdrop-blur-sm">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                {/* Records Info & Page Size Selector */}
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
+                  <div className="text-sm">
+                    <span className="text-slate-400">Showing</span>
+                    <span className="mx-2 font-semibold text-white">
+                      {startIndex + 1}-{Math.min(endIndex, filteredShipmentRows.length)}
+                    </span>
+                    <span className="text-slate-400">of</span>
+                    <span className="mx-1 font-semibold text-white">{filteredShipmentRows.length}</span>
+                    <span className="text-slate-400">shipments</span>
+                  </div>
+
+                  {/* Page Size Selector */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-slate-400">Show:</span>
+                    <select
+                      value={pageSize}
+                      onChange={(e) => handlePageSizeChange(Number(e.target.value))}
+                      className="rounded-lg border border-white/20 bg-slate-900/60 px-3 py-1.5 text-sm text-white focus:border-amber-400/60 focus:outline-none focus:ring-2 focus:ring-amber-400/20"
+                    >
+                      {pageSizeOptions.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                    <span className="text-xs text-slate-400">per page</span>
+                  </div>
+                </div>
+
+                {/* Page Navigation */}
+                {totalPages > 1 && (
+                  <div className="flex items-center gap-2">
+                    {/* Previous Button */}
+                    <button
+                      type="button"
+                      onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                      disabled={currentPage === 1}
+                      className="group relative rounded-xl border border-white/20 bg-slate-900/40 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:border-amber-400/40 hover:bg-amber-500/10 disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      <span className="flex items-center gap-2">
+                        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                        </svg>
+                        Previous
+                      </span>
+                    </button>
+
+                    {/* Page Numbers */}
+                    <div className="flex items-center">
+                      {currentPage > 3 && totalPages > 5 && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => setCurrentPage(1)}
+                            className="mx-1 rounded-lg border border-white/20 bg-slate-900/40 px-3 py-2 text-sm text-white transition-all duration-200 hover:border-amber-400/40 hover:bg-amber-500/10"
+                          >
+                            1
+                          </button>
+                          {currentPage > 4 && (
+                            <span className="mx-1 text-slate-500">...</span>
+                          )}
+                        </>
+                      )}
+
+                      {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                        let pageNum;
+                        if (totalPages <= 5) {
+                          pageNum = i + 1;
+                        } else if (currentPage <= 3) {
+                          pageNum = i + 1;
+                        } else if (currentPage >= totalPages - 2) {
+                          pageNum = totalPages - 4 + i;
+                        } else {
+                          pageNum = currentPage - 2 + i;
+                        }
+
+                        return (
+                          <button
+                            key={pageNum}
+                            type="button"
+                            onClick={() => setCurrentPage(pageNum)}
+                            className={`mx-1 rounded-xl px-3 py-2 text-sm font-medium transition-all duration-200 ${currentPage === pageNum
+                              ? "border border-amber-400/60 bg-linear-to-r from-amber-500/20 to-amber-400/20 text-amber-200 shadow-lg shadow-amber-500/20"
+                              : "border border-white/20 bg-slate-900/40 text-white transition-all duration-200 hover:border-amber-400/40 hover:bg-amber-500/10"
+                              }`}
+                          >
+                            {pageNum}
+                          </button>
+                        );
+                      })}
+
+                      {currentPage < totalPages - 2 && totalPages > 5 && (
+                        <>
+                          {currentPage < totalPages - 3 && (
+                            <span className="mx-1 text-slate-500">...</span>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => setCurrentPage(totalPages)}
+                            className="mx-1 rounded-lg border border-white/20 bg-slate-900/40 px-3 py-2 text-sm text-white transition-all duration-200 hover:border-amber-400/40 hover:bg-amber-500/10"
+                          >
+                            {totalPages}
+                          </button>
+                        </>
+                      )}
+                    </div>
+
+                    {/* Next Button */}
+                    <button
+                      type="button"
+                      onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                      disabled={currentPage === totalPages}
+                      className="group relative rounded-xl border border-white/20 bg-slate-900/40 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:border-amber-400/40 hover:bg-amber-500/10 disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      <span className="flex items-center gap-2">
+                        Next
+                        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        </svg>
+                      </span>
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Additional Info */}
+              <div className="mt-4 pt-3 border-t border-white/5">
+                <div className="flex items-center justify-between text-xs text-slate-400">
+                  <span>Page {currentPage} of {totalPages}</span>
+                  <span>{filteredShipmentRows.length} total records</span>
+                </div>
+              </div>
+            </div>
           </div>
         </section>
       </div>

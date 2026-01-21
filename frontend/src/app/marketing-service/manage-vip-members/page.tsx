@@ -86,6 +86,7 @@ export default function MarketingVipManageUserPage() {
 
   const [pasteText, setPasteText] = useState("");
   const [parsedMembers, setParsedMembers] = useState<Array<{ name: string; phone: string }>>([]);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const parsePasteText = (text: string) => {
     const lines = text.trim().split('\n');
@@ -283,11 +284,25 @@ export default function MarketingVipManageUserPage() {
     });
   }, [branches, filters.areaId, filters.subAreaId]);
 
+  const filteredMembers = useMemo(() => {
+    if (!searchQuery.trim()) {
+      return members;
+    }
+    const query = searchQuery.toLowerCase().trim();
+    return members.filter((member) =>
+      member.name.toLowerCase().includes(query) ||
+      member.phone.toLowerCase().includes(query) ||
+      member.branchName?.toLowerCase().includes(query) ||
+      member.areaName?.toLowerCase().includes(query) ||
+      member.subAreaName?.toLowerCase().includes(query)
+    );
+  }, [members, searchQuery]);
+
   // Pagination calculations
-  const totalPages = Math.ceil(members.length / pageSize);
+  const totalPages = Math.ceil(filteredMembers.length / pageSize);
   const startIndex = (currentPage - 1) * pageSize;
   const endIndex = startIndex + pageSize;
-  const paginatedMembers = members.slice(startIndex, endIndex);
+  const paginatedMembers = filteredMembers.slice(startIndex, endIndex);
 
   // Handle page size change
   const handlePageSizeChange = (newSize: number) => {
@@ -1023,6 +1038,26 @@ export default function MarketingVipManageUserPage() {
               </div>
             </div>
 
+            <div className="mt-4 rounded-2xl border border-white/10 bg-slate-950/40 p-4">
+              <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between mb-4">
+                <div className="flex-1 max-w-md">
+                  <label className="text-[0.6rem] uppercase tracking-[0.25em] text-slate-400 block mb-2">
+                    Search Members
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Search by name, phone, branch, area..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full rounded-xl border border-white/10 bg-slate-900/60 px-3 py-2 text-sm text-white placeholder:text-slate-400 focus:border-amber-400/60 focus:outline-none"
+                  />
+                </div>
+                <div className="text-xs text-slate-400">
+                  {filteredMembers.length} of {members.length} members
+                </div>
+              </div>
+            </div>
+
             <div className="overflow-auto rounded-2xl border border-white/10 bg-slate-900/40">
               <table className="min-w-full divide-y divide-white/5 text-sm text-slate-100">
                 <thead className="bg-white/5 text-xs uppercase tracking-[0.25em] text-slate-400">
@@ -1045,7 +1080,7 @@ export default function MarketingVipManageUserPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {members.length === 0 ? (
+                  {filteredMembers.length === 0 ? (
                     <tr>
                       <td
                         className="px-4 py-6 text-center text-slate-400"
@@ -1053,7 +1088,9 @@ export default function MarketingVipManageUserPage() {
                       >
                         {membersLoading
                           ? "Loading members…"
-                          : "No members match the current filters."}
+                          : searchQuery.trim()
+                            ? "No members match your search."
+                            : "No members match the current filters."}
                       </td>
                     </tr>
                   ) : (
