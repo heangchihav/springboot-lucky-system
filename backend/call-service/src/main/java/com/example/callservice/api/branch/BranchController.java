@@ -2,8 +2,8 @@ package com.example.callservice.api.branch;
 
 import com.example.callservice.annotation.RequirePermission;
 import com.example.callservice.dto.branch.BranchDTO;
-import com.example.callservice.entity.area.Area;
 import com.example.callservice.entity.branch.Branch;
+import com.example.callservice.entity.subarea.Subarea;
 import com.example.callservice.service.branch.BranchService;
 import com.example.callservice.api.base.BaseController;
 import jakarta.servlet.http.HttpServletRequest;
@@ -34,9 +34,13 @@ public class BranchController extends BaseController {
         dto.setPhone(branch.getPhone());
         dto.setEmail(branch.getEmail());
         dto.setActive(branch.getActive());
-        if (branch.getArea() != null) {
-            dto.setAreaId(branch.getArea().getId());
-            dto.setAreaName(branch.getArea().getName());
+        if (branch.getSubarea() != null) {
+            dto.setSubareaId(branch.getSubarea().getId());
+            dto.setSubareaName(branch.getSubarea().getName());
+            // Also set area name for display purposes
+            if (branch.getSubarea().getArea() != null) {
+                dto.setAreaName(branch.getSubarea().getArea().getName());
+            }
         }
         return dto;
     }
@@ -124,10 +128,10 @@ public class BranchController extends BaseController {
             branch.setEmail(branchDTO.getEmail());
             branch.setActive(branchDTO.getActive() != null ? branchDTO.getActive() : true);
 
-            // Set area with just the ID - the service will fetch the full entity
-            Area area = new Area();
-            area.setId(branchDTO.getAreaId());
-            branch.setArea(area);
+            // Set subarea with just the ID - the service will fetch the full entity
+            Subarea subarea = new Subarea();
+            subarea.setId(branchDTO.getSubareaId());
+            branch.setSubarea(subarea);
 
             Branch createdBranch = branchService.createBranch(branch);
             return ResponseEntity.status(HttpStatus.CREATED).body(convertToDTO(createdBranch));

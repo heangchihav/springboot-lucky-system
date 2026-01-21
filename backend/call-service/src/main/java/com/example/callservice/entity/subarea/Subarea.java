@@ -1,24 +1,27 @@
-package com.example.callservice.entity.area;
+package com.example.callservice.entity.subarea;
 
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import java.time.LocalDateTime;
 import java.util.List;
+import com.example.callservice.entity.area.Area;
 import com.example.callservice.entity.branch.Branch;
-import com.example.callservice.entity.subarea.Subarea;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 @Entity
-@Table(name = "areas")
-public class Area {
+@Table(name = "subareas")
+@JsonIgnoreProperties({ "area", "branches" })
+public class Subarea {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @NotBlank(message = "Area name is required")
-    @Size(max = 100, message = "Area name must not exceed 100 characters")
-    @Column(name = "name", nullable = false, unique = true)
+    @NotBlank(message = "Subarea name is required")
+    @Size(max = 100, message = "Subarea name must not exceed 100 characters")
+    @Column(name = "name", nullable = false)
     private String name;
 
     @Size(max = 500, message = "Description must not exceed 500 characters")
@@ -27,6 +30,11 @@ public class Area {
 
     @Column(name = "code", unique = true)
     private String code;
+
+    @NotNull(message = "Area is required")
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "area_id", nullable = false)
+    private Area area;
 
     @Column(name = "active", nullable = false)
     private Boolean active = true;
@@ -37,19 +45,17 @@ public class Area {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
-    @OneToMany(mappedBy = "area", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @OneToMany(mappedBy = "subarea", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<Branch> branches;
 
-    @OneToMany(mappedBy = "area", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-    private List<Subarea> subareas;
-
-    public Area() {
+    public Subarea() {
     }
 
-    public Area(String name, String description, String code) {
+    public Subarea(String name, String description, String code, Area area) {
         this.name = name;
         this.description = description;
         this.code = code;
+        this.area = area;
     }
 
     @PrePersist
@@ -96,6 +102,14 @@ public class Area {
         this.code = code;
     }
 
+    public Area getArea() {
+        return area;
+    }
+
+    public void setArea(Area area) {
+        this.area = area;
+    }
+
     public Boolean getActive() {
         return active;
     }
@@ -128,20 +142,13 @@ public class Area {
         this.branches = branches;
     }
 
-    public List<Subarea> getSubareas() {
-        return subareas;
-    }
-
-    public void setSubareas(List<Subarea> subareas) {
-        this.subareas = subareas;
-    }
-
     @Override
     public String toString() {
-        return "Area{" +
+        return "Subarea{" +
                 "id=" + id +
                 ", name='" + name + '\'' +
                 ", code='" + code + '\'' +
+                ", area=" + (area != null ? area.getName() : "null") +
                 ", active=" + active +
                 '}';
     }

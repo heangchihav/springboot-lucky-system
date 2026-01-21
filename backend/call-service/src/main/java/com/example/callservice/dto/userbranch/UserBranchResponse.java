@@ -7,17 +7,23 @@ public class UserBranchResponse {
     private Long userId;
     private Long branchId;
     private String branchName;
+    private Long areaId;
+    private String areaName;
     private Boolean active;
     private LocalDateTime assignedAt;
     private LocalDateTime updatedAt;
 
-    public UserBranchResponse() {}
+    public UserBranchResponse() {
+    }
 
-    public UserBranchResponse(Long id, Long userId, Long branchId, String branchName, Boolean active, LocalDateTime assignedAt, LocalDateTime updatedAt) {
+    public UserBranchResponse(Long id, Long userId, Long branchId, String branchName, Long areaId, String areaName,
+            Boolean active, LocalDateTime assignedAt, LocalDateTime updatedAt) {
         this.id = id;
         this.userId = userId;
         this.branchId = branchId;
         this.branchName = branchName;
+        this.areaId = areaId;
+        this.areaName = areaName;
         this.active = active;
         this.assignedAt = assignedAt;
         this.updatedAt = updatedAt;
@@ -54,6 +60,22 @@ public class UserBranchResponse {
 
     public void setBranchName(String branchName) {
         this.branchName = branchName;
+    }
+
+    public Long getAreaId() {
+        return areaId;
+    }
+
+    public void setAreaId(Long areaId) {
+        this.areaId = areaId;
+    }
+
+    public String getAreaName() {
+        return areaName;
+    }
+
+    public void setAreaName(String areaName) {
+        this.areaName = areaName;
     }
 
     public Boolean getActive() {

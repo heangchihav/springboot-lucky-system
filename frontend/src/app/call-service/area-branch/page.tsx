@@ -5,15 +5,17 @@ import { useAuth } from "@/contexts/AuthContext";
 import {
   areaBranchService,
   Area,
+  Subarea,
   Branch,
   CreateAreaRequest,
+  CreateSubareaRequest,
   CreateBranchRequest,
 } from "@/services/areaBranchService";
 import { PermissionGuard } from "@/components/layout/PermissionGuard";
 
 export default function AreaBranchManagement() {
   const { user, isAuthenticated, hasServiceAccess } = useAuth();
-  const [activeTab, setActiveTab] = useState<"areas" | "branches">("areas");
+  const [activeTab, setActiveTab] = useState<"areas" | "subareas" | "branches">("areas");
 
   // Area states
   const [areas, setAreas] = useState<Area[]>([]);
@@ -26,6 +28,19 @@ export default function AreaBranchManagement() {
   const [editingArea, setEditingArea] = useState<Area | null>(null);
   const [showAreaForm, setShowAreaForm] = useState(false);
 
+  // Subarea states
+  const [subareas, setSubareas] = useState<Subarea[]>([]);
+  const [subareaForm, setSubareaForm] = useState<Partial<Subarea>>({
+    name: "",
+    description: "",
+    code: "",
+    active: true,
+    areaId: undefined,
+    areaName: "",
+  });
+  const [editingSubarea, setEditingSubarea] = useState<Subarea | null>(null);
+  const [showSubareaForm, setShowSubareaForm] = useState(false);
+
   // Branch states
   const [branches, setBranches] = useState<Branch[]>([]);
   const [branchForm, setBranchForm] = useState<Partial<Branch>>({
@@ -36,6 +51,8 @@ export default function AreaBranchManagement() {
     phone: "",
     email: "",
     active: true,
+    subareaId: undefined,
+    subareaName: "",
     areaId: undefined,
     areaName: "",
   });
@@ -55,6 +72,16 @@ export default function AreaBranchManagement() {
     }
   };
 
+  // Fetch subareas
+  const fetchSubareas = async () => {
+    try {
+      const data = await areaBranchService.getSubareas();
+      setSubareas(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to fetch subareas");
+    }
+  };
+
   // Fetch branches
   const fetchBranches = async () => {
     try {
@@ -69,6 +96,7 @@ export default function AreaBranchManagement() {
     // Only fetch data if user is authenticated and has access
     if (isAuthenticated && hasServiceAccess("call")) {
       fetchAreas();
+      fetchSubareas();
       fetchBranches();
     }
   }, [isAuthenticated, hasServiceAccess]);
@@ -176,14 +204,92 @@ export default function AreaBranchManagement() {
     setShowAreaForm(false);
   };
 
+  // Subarea operations
+  const saveSubarea = async () => {
+    setLoading(true);
+    setError("");
+
+    try {
+      if (!subareaForm.areaId) {
+        throw new Error("Area is required for subarea");
+      }
+
+      const subareaData: CreateSubareaRequest = {
+        name: subareaForm.name!,
+        description: subareaForm.description,
+        code: subareaForm.code,
+        active: subareaForm.active ?? true,
+        areaId: subareaForm.areaId!,
+      };
+
+      if (editingSubarea) {
+        await areaBranchService.updateSubarea(editingSubarea.id, subareaData);
+      } else {
+        await areaBranchService.createSubarea(subareaData);
+      }
+
+      await fetchSubareas();
+      resetSubareaForm();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save subarea");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const deleteSubarea = async (id: number) => {
+    if (!confirm("Are you sure you want to delete this subarea?")) return;
+
+    try {
+      await areaBranchService.deleteSubarea(id);
+      await fetchSubareas();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete subarea");
+    }
+  };
+
+  const toggleSubareaStatus = async (id: number, active: boolean) => {
+    try {
+      if (active) {
+        await areaBranchService.activateSubarea(id);
+      } else {
+        await areaBranchService.deactivateSubarea(id);
+      }
+      await fetchSubareas();
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Failed to update subarea status",
+      );
+    }
+  };
+
+  const editSubarea = (subarea: Subarea) => {
+    setEditingSubarea(subarea);
+    setSubareaForm(subarea);
+    setShowSubareaForm(true);
+  };
+
+  const resetSubareaForm = () => {
+    setSubareaForm({
+      name: "",
+      description: "",
+      code: "",
+      active: true,
+      areaId: undefined,
+      areaName: "",
+    });
+    setEditingSubarea(null);
+    setShowSubareaForm(false);
+  };
+
   // Branch operations
   const saveBranch = async () => {
     setLoading(true);
     setError("");
 
     try {
-      if (!branchForm.areaId) {
-        throw new Error("Area is required for branch");
+      if (!branchForm.subareaId) {
+        throw new Error("Subarea is required for branch");
       }
 
       const branchData: CreateBranchRequest = {
@@ -194,7 +300,7 @@ export default function AreaBranchManagement() {
         phone: branchForm.phone,
         email: branchForm.email,
         active: branchForm.active ?? true,
-        areaId: branchForm.areaId!,
+        subareaId: branchForm.subareaId!,
       };
 
       if (editingBranch) {
@@ -253,6 +359,8 @@ export default function AreaBranchManagement() {
       phone: "",
       email: "",
       active: true,
+      subareaId: undefined,
+      subareaName: "",
       areaId: undefined,
       areaName: "",
     });
@@ -296,17 +404,26 @@ export default function AreaBranchManagement() {
           <button
             onClick={() => setActiveTab("areas")}
             className={`py-2 px-1 border-b-2 font-medium text-sm ${activeTab === "areas"
-                ? "border-blue-500 text-blue-400"
-                : "border-transparent text-slate-400 hover:text-slate-300 hover:border-slate-600"
+              ? "border-blue-500 text-blue-400"
+              : "border-transparent text-slate-400 hover:text-slate-300 hover:border-slate-600"
               }`}
           >
             Areas
           </button>
           <button
+            onClick={() => setActiveTab("subareas")}
+            className={`py-2 px-1 border-b-2 font-medium text-sm ${activeTab === "subareas"
+              ? "border-blue-500 text-blue-400"
+              : "border-transparent text-slate-400 hover:text-slate-300 hover:border-slate-600"
+              }`}
+          >
+            Subareas
+          </button>
+          <button
             onClick={() => setActiveTab("branches")}
             className={`py-2 px-1 border-b-2 font-medium text-sm ${activeTab === "branches"
-                ? "border-blue-500 text-blue-400"
-                : "border-transparent text-slate-400 hover:text-slate-300 hover:border-slate-600"
+              ? "border-blue-500 text-blue-400"
+              : "border-transparent text-slate-400 hover:text-slate-300 hover:border-slate-600"
               }`}
           >
             Branches
@@ -456,8 +573,8 @@ export default function AreaBranchManagement() {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span
                         className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${area.active
-                            ? "bg-green-100 text-green-800"
-                            : "bg-red-100 text-red-800"
+                          ? "bg-green-100 text-green-800"
+                          : "bg-red-100 text-red-800"
                           }`}
                       >
                         {area.active ? "Active" : "Inactive"}
@@ -518,6 +635,235 @@ export default function AreaBranchManagement() {
                       >
                         <button
                           onClick={() => deleteArea(area.id)}
+                          className="text-red-400 hover:text-red-300"
+                        >
+                          Delete
+                        </button>
+                      </PermissionGuard>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Subareas Section */}
+      {activeTab === "subareas" && (
+        <div>
+          <div className="mb-4 flex justify-between items-center">
+            <h2 className="text-xl font-semibold text-white">Subareas</h2>
+            <PermissionGuard
+              permission="subarea.create"
+              fallback={
+                <button
+                  disabled
+                  className="px-4 py-2 bg-gray-600 text-white rounded-md cursor-not-allowed"
+                  title="You don't have permission to create subareas"
+                >
+                  Add Subarea
+                </button>
+              }
+            >
+              <button
+                onClick={() => setShowSubareaForm(true)}
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-slate-900"
+              >
+                Add Subarea
+              </button>
+            </PermissionGuard>
+          </div>
+
+          {/* Subarea Form Modal */}
+          {showSubareaForm && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+              <div className="bg-slate-800 rounded-lg p-6 w-full max-w-md">
+                <h3 className="text-lg font-semibold text-white mb-4">
+                  {editingSubarea ? "Edit Subarea" : "Add Subarea"}
+                </h3>
+
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-300 mb-1">
+                      Area *
+                    </label>
+                    <select
+                      value={subareaForm.areaId || ""}
+                      onChange={(e) => {
+                        const selectedArea = areas.find(a => a.id === Number(e.target.value));
+                        setSubareaForm({
+                          ...subareaForm,
+                          areaId: Number(e.target.value),
+                          areaName: selectedArea?.name || ""
+                        });
+                      }}
+                      className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      required
+                    >
+                      <option value="">Select Area</option>
+                      {areas.map((area) => (
+                        <option key={area.id} value={area.id}>
+                          {area.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-300 mb-1">
+                      Name *
+                    </label>
+                    <input
+                      type="text"
+                      value={subareaForm.name || ""}
+                      onChange={(e) => setSubareaForm({ ...subareaForm, name: e.target.value })}
+                      className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-300 mb-1">
+                      Code
+                    </label>
+                    <input
+                      type="text"
+                      value={subareaForm.code || ""}
+                      onChange={(e) => setSubareaForm({ ...subareaForm, code: e.target.value })}
+                      className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-300 mb-1">
+                      Description
+                    </label>
+                    <textarea
+                      value={subareaForm.description || ""}
+                      onChange={(e) => setSubareaForm({ ...subareaForm, description: e.target.value })}
+                      className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      rows={3}
+                    />
+                  </div>
+
+                  <div className="flex items-center">
+                    <input
+                      type="checkbox"
+                      id="subarea-active"
+                      checked={subareaForm.active ?? true}
+                      onChange={(e) => setSubareaForm({ ...subareaForm, active: e.target.checked })}
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-slate-600 rounded bg-slate-700"
+                    />
+                    <label htmlFor="subarea-active" className="ml-2 block text-sm text-slate-300">
+                      Active
+                    </label>
+                  </div>
+                </div>
+
+                <div className="flex justify-end space-x-3 mt-6">
+                  <button
+                    onClick={resetSubareaForm}
+                    className="px-4 py-2 bg-slate-600 text-white rounded-md hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-500"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={saveSubarea}
+                    disabled={loading}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+                  >
+                    {loading ? "Saving..." : editingSubarea ? "Update" : "Create"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Subareas Table */}
+          <div className="bg-slate-800 shadow overflow-hidden sm:rounded-md">
+            <table className="min-w-full divide-y divide-slate-700">
+              <thead className="bg-slate-900">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">
+                    Name
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">
+                    Code
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">
+                    Area
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">
+                    Description
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">
+                    Status
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-slate-800 divide-y divide-slate-700">
+                {subareas.map((subarea) => (
+                  <tr key={subarea.id}>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-white">
+                      {subarea.name}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300">
+                      {subarea.code || "-"}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300">
+                      {subarea.areaName}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-slate-300">
+                      {subarea.description || "-"}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span
+                        className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${subarea.active
+                          ? "bg-green-100 text-green-800"
+                          : "bg-red-100 text-red-800"
+                          }`}
+                      >
+                        {subarea.active ? "Active" : "Inactive"}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                      <PermissionGuard
+                        permission="subarea.edit"
+                        fallback={
+                          <button
+                            disabled
+                            className="text-gray-400 mr-3 cursor-not-allowed"
+                            title="You don't have permission to edit subareas"
+                          >
+                            Edit
+                          </button>
+                        }
+                      >
+                        <button
+                          onClick={() => editSubarea(subarea)}
+                          className="text-blue-400 hover:text-blue-300 mr-3"
+                        >
+                          Edit
+                        </button>
+                      </PermissionGuard>
+                      <PermissionGuard
+                        permission="subarea.delete"
+                        fallback={
+                          <button
+                            disabled
+                            className="text-gray-400 cursor-not-allowed"
+                            title="You don't have permission to delete subareas"
+                          >
+                            Delete
+                          </button>
+                        }
+                      >
+                        <button
+                          onClick={() => deleteSubarea(subarea.id)}
                           className="text-red-400 hover:text-red-300"
                         >
                           Delete
@@ -593,35 +939,37 @@ export default function AreaBranchManagement() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-slate-300 mb-1">
-                    Area *
+                    Subarea *
                   </label>
                   <select
-                    value={branchForm.areaId ?? ""}
+                    value={branchForm.subareaId ?? ""}
                     onChange={(e) => {
-                      const selectedArea = areas.find(
-                        (a) => a.id === Number(e.target.value),
+                      const selectedSubarea = subareas.find(
+                        (s) => s.id === Number(e.target.value),
                       );
                       setBranchForm({
                         ...branchForm,
-                        areaId: selectedArea?.id,
-                        areaName: selectedArea?.name,
+                        subareaId: selectedSubarea?.id,
+                        subareaName: selectedSubarea?.name,
+                        areaId: selectedSubarea?.areaId,
+                        areaName: selectedSubarea?.areaName,
                       });
                     }}
                     className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     required
                   >
                     <option value="" className="bg-slate-700">
-                      Select Area
+                      Select Subarea
                     </option>
-                    {areas
-                      .filter((area) => area.active)
-                      .map((area) => (
+                    {subareas
+                      .filter((subarea) => subarea.active)
+                      .map((subarea) => (
                         <option
-                          key={area.id}
-                          value={area.id}
+                          key={subarea.id}
+                          value={subarea.id}
                           className="bg-slate-700"
                         >
-                          {area.name}
+                          {subarea.name} ({subarea.areaName})
                         </option>
                       ))}
                   </select>
@@ -709,7 +1057,7 @@ export default function AreaBranchManagement() {
                 </button>
                 <button
                   onClick={saveBranch}
-                  disabled={loading || !branchForm.name || !branchForm.areaId}
+                  disabled={loading || !branchForm.name || !branchForm.subareaId}
                   className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-slate-900 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {loading ? "Saving..." : editingBranch ? "Update" : "Save"}
@@ -730,6 +1078,9 @@ export default function AreaBranchManagement() {
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">
                     Area
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">
+                    Subarea
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">
                     Contact
@@ -754,6 +1105,9 @@ export default function AreaBranchManagement() {
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300">
                       {branch.areaName || "-"}
                     </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300">
+                      {branch.subareaName || "-"}
+                    </td>
                     <td className="px-6 py-4 text-sm text-slate-300">
                       <div>{branch.phone || "-"}</div>
                       <div className="text-xs">{branch.email || "-"}</div>
@@ -761,8 +1115,8 @@ export default function AreaBranchManagement() {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span
                         className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${branch.active
-                            ? "bg-green-100 text-green-800"
-                            : "bg-red-100 text-red-800"
+                          ? "bg-green-100 text-green-800"
+                          : "bg-red-100 text-red-800"
                           }`}
                       >
                         {branch.active ? "Active" : "Inactive"}

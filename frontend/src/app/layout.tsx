@@ -21,12 +21,15 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "VET Report System",
   description: "VET Report System - Call and Delivery Management",
-  manifest: "/manifest.json",
-  appleWebApp: {
-    capable: true,
-    statusBarStyle: "default",
-    title: "VET Report",
-  },
+  // Only include PWA metadata for production/non-localhost
+  ...(process.env.NODE_ENV === 'production' && {
+    manifest: "/manifest.json",
+    appleWebApp: {
+      capable: true,
+      statusBarStyle: "default",
+      title: "VET Report",
+    },
+  }),
   openGraph: {
     title: "VET Report System",
     description: "VET Report System - Call and Delivery Management",
@@ -52,15 +55,21 @@ export default function RootLayout({
 }: Readonly<{
   children: ReactNode;
 }>) {
+  const isProduction = process.env.NODE_ENV === 'production';
+
   return (
     <html lang="en">
       <head>
         <meta name="theme-color" content="#f97316" />
-        <meta name="mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-        <meta name="apple-mobile-web-app-title" content="VET Report" />
-        <link rel="apple-touch-icon" href="/Logo.png" />
+        {isProduction && (
+          <>
+            <meta name="mobile-web-app-capable" content="yes" />
+            <meta name="apple-mobile-web-app-capable" content="yes" />
+            <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+            <meta name="apple-mobile-web-app-title" content="VET Report" />
+            <link rel="apple-touch-icon" href="/Logo.png" />
+          </>
+        )}
       </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} bg-slate-950 text-slate-100 antialiased`}
@@ -68,7 +77,7 @@ export default function RootLayout({
         <PreferencesProvider>
           <AuthProvider>
             <ToastProvider>
-              <PWAManager />
+              {isProduction && <PWAManager />}
               <AppShellWrapper>{children}</AppShellWrapper>
             </ToastProvider>
           </AuthProvider>
