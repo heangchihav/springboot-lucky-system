@@ -131,7 +131,8 @@ export const vipMemberService = {
   },
 
   createMember(payload: VipMemberPayload): Promise<VipMember> {
-    return request("/vip-members", { method: "POST", body: payload });
+    return request<VipMember[]>("/vip-members", { method: "POST", body: [payload] })
+      .then(members => members[0]); // Return first created member
   },
 
   updateMember(id: number, payload: VipMemberPayload): Promise<VipMember> {

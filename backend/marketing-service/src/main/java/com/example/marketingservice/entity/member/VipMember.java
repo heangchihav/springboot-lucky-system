@@ -10,7 +10,9 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "marketing_vip_members", indexes = {
+@Table(name = "marketing_vip_members", uniqueConstraints = {
+        @UniqueConstraint(name = "uk_vip_member_phone", columnNames = "phone")
+}, indexes = {
         @Index(name = "idx_vip_member_branch_id", columnList = "branch_id"),
         @Index(name = "idx_vip_member_created_at", columnList = "member_created_at"),
         @Index(name = "idx_vip_member_deleted_at", columnList = "member_deleted_at"),
@@ -69,11 +71,19 @@ public class VipMember {
         if (this.memberCreatedAt == null) {
             this.memberCreatedAt = now.toLocalDate();
         }
+        // Normalize phone number by removing spaces
+        if (this.phone != null) {
+            this.phone = this.phone.replaceAll("\\s", "");
+        }
     }
 
     @PreUpdate
     protected void onUpdate() {
         this.updatedAt = LocalDateTime.now();
+        // Normalize phone number by removing spaces
+        if (this.phone != null) {
+            this.phone = this.phone.replaceAll("\\s", "");
+        }
     }
 
     public Long getId() {

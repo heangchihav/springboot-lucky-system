@@ -18,6 +18,8 @@ public interface VipMemberRepository extends JpaRepository<VipMember, Long>, Jpa
 
         List<VipMember> findByMemberCreatedAtBetween(LocalDate start, LocalDate end);
 
+        VipMember findByPhone(String phone);
+
         // Optimized queries for pagination
         @Query(value = "SELECT v.* FROM marketing_vip_members v WHERE v.branch_id = :branchId ORDER BY v.member_created_at DESC LIMIT :limit OFFSET :offset", nativeQuery = true)
         List<VipMember> findByBranchIdPaginated(@Param("branchId") Long branchId, @Param("offset") int offset,

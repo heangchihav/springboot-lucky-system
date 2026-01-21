@@ -105,6 +105,15 @@ public class VipMemberService {
 
     @Transactional
     public VipMember create(VipMemberRequest request, Long creatorId) {
+        // Normalize phone number by removing spaces
+        String normalizedPhone = request.getPhone() != null ? request.getPhone().replaceAll("\\s", "") : null;
+
+        // Check if phone number already exists
+        if (normalizedPhone != null && vipMemberRepository.findByPhone(normalizedPhone) != null) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "VIP member with phone number " + normalizedPhone + " already exists");
+        }
+
         if (request.getBranchId() != null) {
             MarketingBranch branch = branchRepository.findById(request.getBranchId())
                     .orElseThrow(() -> new ResourceNotFoundException(
@@ -125,6 +134,45 @@ public class VipMemberService {
     }
 
     @Transactional
+    public List<VipMember> createBatch(List<VipMemberRequest> requests, Long creatorId) {
+        List<VipMember> createdMembers = new java.util.ArrayList<>();
+
+        for (VipMemberRequest request : requests) {
+            try {
+                // Normalize phone number by removing spaces
+                String normalizedPhone = request.getPhone() != null ? request.getPhone().replaceAll("\\s", "") : null;
+
+                // Check if phone number already exists, skip if it does
+                if (normalizedPhone != null && vipMemberRepository.findByPhone(normalizedPhone) != null) {
+                    continue; // Skip existing member
+                }
+
+                if (request.getBranchId() != null) {
+                    MarketingBranch branch = branchRepository.findById(request.getBranchId())
+                            .orElseThrow(() -> new ResourceNotFoundException(
+                                    "Marketing branch not found: " + request.getBranchId()));
+
+                    if (!authorizationService.canCreateBranch(creatorId,
+                            branch.getArea().getId(),
+                            branch.getSubArea() != null ? branch.getSubArea().getId() : null)) {
+                        continue; // Skip if no permission
+                    }
+                }
+
+                VipMember member = new VipMember();
+                applyRequest(member, request);
+                member.setCreatedBy(creatorId);
+                createdMembers.add(vipMemberRepository.save(member));
+            } catch (Exception e) {
+                // Log error but continue with other members
+                System.err.println("Error creating member: " + e.getMessage());
+            }
+        }
+
+        return createdMembers;
+    }
+
+    @Transactional
     public VipMember update(Long id, VipMemberRequest request, Long userId) {
         VipMember member = getById(id);
         authorizationService.validateCreator(userId, member.getCreatedBy(), "VIP member");
@@ -141,7 +189,9 @@ public class VipMemberService {
 
     private void applyRequest(VipMember member, VipMemberRequest request) {
         member.setName(request.getName());
-        member.setPhone(request.getPhone());
+        // Normalize phone number by removing spaces
+        String normalizedPhone = request.getPhone() != null ? request.getPhone().replaceAll("\\s", "") : null;
+        member.setPhone(normalizedPhone);
         member.setMemberCreatedAt(request.getMemberCreatedAt());
         member.setMemberDeletedAt(request.getMemberDeletedAt());
         member.setCreateRemark(request.getCreateRemark());

@@ -95,7 +95,7 @@ export default function MarketingVipManageUserPage() {
       const parts = line.split('\t');
       if (parts.length >= 2) {
         let name = parts[0].trim();
-        let phone = parts[1].trim();
+        let phone = parts[1].trim().replace(/\s/g, '');
 
         // Add 0 prefix if phone doesn't start with 0
         if (phone && !phone.startsWith('0')) {
@@ -126,7 +126,7 @@ export default function MarketingVipManageUserPage() {
       // Check for phone number duplicate
       if (checkPhoneDuplicate(member.phone)) {
         duplicateCount++;
-        const existingMember = members.find((m) => m.phone.trim() === member.phone.trim());
+        const existingMember = members.find((m) => m.phone.trim().replace(/\s/g, '') === member.phone.trim().replace(/\s/g, ''));
         if (existingMember) {
           duplicates.push(`${member.name} (already exists as ${existingMember.name})`);
         }
@@ -136,7 +136,7 @@ export default function MarketingVipManageUserPage() {
       try {
         await vipMemberService.createMember({
           name: member.name,
-          phone: member.phone,
+          phone: member.phone.replace(/\s/g, ''),
           branchId: form.branchId,
           memberCreatedAt: form.memberCreatedAt,
           createRemark: form.createRemark,
@@ -397,9 +397,9 @@ export default function MarketingVipManageUserPage() {
   };
 
   const checkPhoneDuplicate = (phone: string) => {
-    const normalizedPhone = phone.trim();
+    const normalizedPhone = phone.trim().replace(/\s/g, '');
     const existingMember = members.find(member =>
-      member.phone.trim() === normalizedPhone
+      member.phone.trim().replace(/\s/g, '') === normalizedPhone
     );
 
     if (existingMember) {
@@ -468,7 +468,7 @@ export default function MarketingVipManageUserPage() {
       // Single member creation/editing
       const payload: VipMemberPayload = {
         name: form.name.trim(),
-        phone: form.phone.trim(),
+        phone: form.phone.trim().replace(/\s/g, ''),
         branchId: form.branchId,
         memberCreatedAt: form.memberCreatedAt,
         memberDeletedAt: form.memberDeletedAt
@@ -513,7 +513,7 @@ export default function MarketingVipManageUserPage() {
       member.subAreaId ?? branch?.subAreaId ?? "all";
     setForm({
       name: member.name,
-      phone: member.phone,
+      phone: member.phone.replace(/\s/g, ''),
       areaId: derivedAreaId,
       subAreaId: derivedSubArea ?? "all",
       branchId: member.branchId,
@@ -827,7 +827,7 @@ export default function MarketingVipManageUserPage() {
                           Preview ({parsedMembers.length} members
                           {(() => {
                             const duplicateCount = parsedMembers.filter(member =>
-                              members.some(m => m.phone.trim() === member.phone.trim())
+                              members.some(m => m.phone.trim().replace(/\s/g, '') === member.phone.trim().replace(/\s/g, ''))
                             ).length;
                             return duplicateCount > 0 ? `, ${duplicateCount} duplicates` : '';
                           })()})
@@ -857,7 +857,7 @@ export default function MarketingVipManageUserPage() {
                               const selectedArea = selectedBranch ? areas.find(a => a.id === selectedBranch.areaId) : null;
 
                               // Check if phone number already exists
-                              const existingMember = members.find(m => m.phone.trim() === member.phone.trim());
+                              const existingMember = members.find(m => m.phone.trim().replace(/\s/g, '') === member.phone.trim().replace(/\s/g, ''));
                               const isDuplicate = !!existingMember;
 
                               return (

@@ -49,12 +49,15 @@ public class VipMemberController extends BaseController {
     }
 
     @PostMapping
-    public ResponseEntity<VipMemberResponse> create(@Valid @RequestBody VipMemberRequest request,
+    public ResponseEntity<List<VipMemberResponse>> create(@Valid @RequestBody List<VipMemberRequest> requests,
             HttpServletRequest httpRequest) {
         checkPermission(httpRequest, "member.create");
         Long creatorId = requireUserId(httpRequest);
+        List<VipMember> createdMembers = vipMemberService.createBatch(requests, creatorId);
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(VipMemberResponse.fromEntity(vipMemberService.create(request, creatorId)));
+                .body(createdMembers.stream()
+                        .map(VipMemberResponse::fromEntity)
+                        .collect(Collectors.toList()));
     }
 
     @PutMapping("/{id}")
