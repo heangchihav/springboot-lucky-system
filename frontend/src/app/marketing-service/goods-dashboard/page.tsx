@@ -48,6 +48,11 @@ const GOODS_TYPE_COLORS = {
   COD: "#22d3ee",
 } as const;
 
+const BAR_COLORS = {
+  base: "#f97316",
+  highlight: "#34d399",
+};
+
 const TOOLTIP_STYLES = {
   content: {
     backgroundColor: "#0f172a",
@@ -252,9 +257,7 @@ export default function GoodsDashboardPage() {
   const [selectedMemberId, setSelectedMemberId] = useState<number | "all">(
     "all",
   );
-  const [totalsView, setTotalsView] = useState<"area" | "branch" | "member">(
-    "area",
-  );
+  const [highlightedMemberId, setHighlightedMemberId] = useState<number | null>(null);
   const [shipmentViewMode, setShipmentViewMode] = useState<
     "goods-type" | "goods-status"
   >("goods-type");
@@ -681,41 +684,136 @@ export default function GoodsDashboardPage() {
       return [];
     }
 
-    const grouped = new Map<
-      string,
-      {
-        label: string;
-        total: number;
+    // Full hierarchical filtering logic similar to VIP members dashboard
+    if (selectedAreaId === "all") {
+      // Show all areas
+      const areaMap = new Map<string, { label: string; total: number; highlight?: boolean }>();
+      filteredSummaries.forEach((summary) => {
+        const key = `area-${summary.areaId ?? "none"}`;
+        const label = summary.areaName ?? "Unassigned area";
+
+        if (!areaMap.has(key)) {
+          areaMap.set(key, { label, total: 0 });
+        }
+        areaMap.get(key)!.total += summary.totalGoods;
+      });
+      return Array.from(areaMap.values()).sort((a, b) => b.total - a.total);
+    }
+
+    // Area is selected - show sub-areas or branches
+    const selectedAreaData = areas.find(area => area.id === selectedAreaId);
+    if (!selectedAreaData) {
+      return [];
+    }
+
+    const areaSubAreas = subAreas.filter(subArea => subArea.areaId === selectedAreaId);
+    const areaBranches = branches.filter(branch => branch.areaId === selectedAreaId);
+
+    if (areaSubAreas.length > 0) {
+      // Area has sub-areas - show sub-areas or branches based on selection
+      if (selectedSubAreaId !== "all") {
+        // Sub-area is selected - show branches in this sub-area
+        if (selectedBranchId !== "all") {
+          // Branch is selected - show members in this branch
+          const memberMap = new Map<string, { label: string; total: number; highlight?: boolean }>();
+          filteredSummaries
+            .filter(summary => summary.areaId === selectedAreaId &&
+              (summary.subAreaId ?? null) === selectedSubAreaId &&
+              summary.branchId === selectedBranchId)
+            .forEach((summary) => {
+              const key = `member-${summary.memberId}`;
+              const label = summary.memberName;
+
+              if (!memberMap.has(key)) {
+                memberMap.set(key, { label, total: 0, highlight: summary.memberId === highlightedMemberId });
+              }
+              memberMap.get(key)!.total += summary.totalGoods;
+              if (summary.memberId === highlightedMemberId) {
+                memberMap.get(key)!.highlight = true;
+              }
+            });
+          return Array.from(memberMap.values()).sort((a, b) => b.total - a.total);
+        } else {
+          // Show branches in the selected sub-area
+          const branchMap = new Map<string, { label: string; total: number; highlight?: boolean }>();
+          filteredSummaries
+            .filter(summary => summary.areaId === selectedAreaId &&
+              (summary.subAreaId ?? null) === selectedSubAreaId)
+            .forEach((summary) => {
+              const key = `branch-${summary.branchId}`;
+              const label = summary.branchName;
+
+              if (!branchMap.has(key)) {
+                branchMap.set(key, { label, total: 0, highlight: selectedBranchId !== "all" && summary.branchId === selectedBranchId });
+              }
+              branchMap.get(key)!.total += summary.totalGoods;
+              if (selectedBranchId !== "all" && summary.branchId === selectedBranchId) {
+                branchMap.get(key)!.highlight = true;
+              }
+            });
+          return Array.from(branchMap.values()).sort((a, b) => b.total - a.total);
+        }
+      } else {
+        // Show sub-areas in the selected area
+        const subAreaMap = new Map<string, { label: string; total: number; highlight?: boolean }>();
+        filteredSummaries
+          .filter(summary => summary.areaId === selectedAreaId)
+          .forEach((summary) => {
+            const subAreaId = summary.subAreaId ?? "none";
+            const key = `sub-${subAreaId}`;
+            const label = summary.subAreaName ?? "Unassigned sub-area";
+
+            if (!subAreaMap.has(key)) {
+              subAreaMap.set(key, { label, total: 0, highlight: selectedSubAreaId !== "all" && (summary.subAreaId ?? null) === selectedSubAreaId });
+            }
+            subAreaMap.get(key)!.total += summary.totalGoods;
+            if (selectedSubAreaId !== "all" && (summary.subAreaId ?? null) === selectedSubAreaId) {
+              subAreaMap.get(key)!.highlight = true;
+            }
+          });
+        return Array.from(subAreaMap.values()).sort((a, b) => b.total - a.total);
       }
-    >();
+    } else {
+      // Area has no sub-areas - show branches directly
+      if (selectedBranchId !== "all") {
+        // Branch is selected - show members in this branch
+        const memberMap = new Map<string, { label: string; total: number; highlight?: boolean }>();
+        filteredSummaries
+          .filter(summary => summary.areaId === selectedAreaId && summary.branchId === selectedBranchId)
+          .forEach((summary) => {
+            const key = `member-${summary.memberId}`;
+            const label = summary.memberName;
 
-    filteredSummaries.forEach((summary) => {
-      const key =
-        totalsView === "area"
-          ? `area-${summary.areaId ?? "none"}`
-          : totalsView === "branch"
-            ? `branch-${summary.branchId}`
-            : `member-${summary.memberId}`;
-      const label =
-        totalsView === "area"
-          ? (summary.areaName ?? "Unassigned area")
-          : totalsView === "branch"
-            ? summary.branchName
-            : summary.memberName;
+            if (!memberMap.has(key)) {
+              memberMap.set(key, { label, total: 0, highlight: summary.memberId === highlightedMemberId });
+            }
+            memberMap.get(key)!.total += summary.totalGoods;
+            if (summary.memberId === highlightedMemberId) {
+              memberMap.get(key)!.highlight = true;
+            }
+          });
+        return Array.from(memberMap.values()).sort((a, b) => b.total - a.total);
+      } else {
+        // Show branches in the selected area
+        const branchMap = new Map<string, { label: string; total: number; highlight?: boolean }>();
+        filteredSummaries
+          .filter(summary => summary.areaId === selectedAreaId)
+          .forEach((summary) => {
+            const key = `branch-${summary.branchId}`;
+            const label = summary.branchName;
 
-      if (!grouped.has(key)) {
-        grouped.set(key, {
-          label,
-          total: 0,
-        });
+            if (!branchMap.has(key)) {
+              branchMap.set(key, { label, total: 0, highlight: selectedBranchId !== "all" && summary.branchId === selectedBranchId });
+            }
+            branchMap.get(key)!.total += summary.totalGoods;
+            if (selectedBranchId !== "all" && summary.branchId === selectedBranchId) {
+              branchMap.get(key)!.highlight = true;
+            }
+          });
+        return Array.from(branchMap.values()).sort((a, b) => b.total - a.total);
       }
-
-      const bucket = grouped.get(key)!;
-      bucket.total += summary.totalGoods;
-    });
-
-    return Array.from(grouped.values()).sort((a, b) => b.total - a.total);
-  }, [filteredSummaries, totalsView]);
+    }
+  }, [filteredSummaries, selectedAreaId, selectedSubAreaId, selectedBranchId, selectedMemberId, highlightedMemberId, areas, subAreas, branches]);
 
   const dailyGoodsTrend = useMemo(() => {
     if (shipments.length === 0) {
@@ -851,6 +949,39 @@ export default function GoodsDashboardPage() {
   const handleMemberChange = (value: string) => {
     const next = value === "all" ? "all" : Number(value);
     setSelectedMemberId(next);
+  };
+
+  const handleChartClick = (clickedData: any) => {
+    const key = clickedData.key || '';
+    const label = clickedData.label || '';
+
+    if (key.startsWith('area-')) {
+      // Clicked on an area - select this area
+      const areaId = Number(key.replace('area-', ''));
+      setSelectedAreaId(areaId);
+      setSelectedSubAreaId('all');
+      setSelectedBranchId('all');
+      setSelectedMemberId('all');
+      setHighlightedMemberId(null);
+    } else if (key.startsWith('sub-')) {
+      // Clicked on a sub-area - select this sub-area
+      const subAreaId = key === 'sub-none' ? 'all' : Number(key.replace('sub-', ''));
+      setSelectedSubAreaId(subAreaId);
+      setSelectedBranchId('all');
+      setSelectedMemberId('all');
+      setHighlightedMemberId(null);
+    } else if (key.startsWith('branch-')) {
+      // Clicked on a branch - select this branch
+      const branchId = Number(key.replace('branch-', ''));
+      setSelectedBranchId(branchId);
+      setSelectedMemberId('all');
+      setHighlightedMemberId(null);
+    } else if (key.startsWith('member-')) {
+      // Clicked on a member - highlight this member
+      const memberId = Number(key.replace('member-', ''));
+      setSelectedMemberId(memberId);
+      setHighlightedMemberId(memberId);
+    }
   };
 
   return (
@@ -1052,79 +1183,70 @@ export default function GoodsDashboardPage() {
                 Totals overview
               </p>
               <h2 className="text-xl font-semibold text-white">
-                ALL goods volume by segment
+                Goods volume by location hierarchy
               </h2>
             </div>
-            <div className="flex items-center gap-3 text-sm text-slate-300">
-              <span className="text-[0.65rem] uppercase tracking-[0.3em] text-slate-500">
-                View by
-              </span>
-              <div className="rounded-full border border-white/10 bg-slate-900/60 p-1">
-                {(["area", "branch", "member"] as const).map((view) => (
-                  <button
-                    key={view}
-                    className={`rounded-full px-4 py-1 text-xs uppercase tracking-[0.2em] ${totalsView === view
-                      ? "bg-amber-400/20 text-white"
-                      : "text-slate-400 hover:text-white"
-                      }`}
-                    onClick={() => setTotalsView(view)}
-                  >
-                    {view}
-                  </button>
-                ))}
-              </div>
-            </div>
           </div>
-          <div className="mt-2 h-80 w-full">
+          <div className={`mt-2 h-96 w-full ${totalsChartData.length > 8 ? 'overflow-x-auto scrollbar-hide' : ''}`}>
             {totalsChartData.length === 0 ? (
               <div className="flex h-full items-center justify-center text-sm text-slate-400">
                 No total goods data to display.
               </div>
             ) : (
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  data={totalsChartData}
-                  margin={{ top: 20, left: 16, right: 16, bottom: 0 }}
-                >
-                  <CartesianGrid
-                    strokeDasharray="3 3"
-                    stroke="#475569"
-                    opacity={0.2}
-                  />
-                  <XAxis
-                    dataKey="label"
-                    stroke="#94a3b8"
-                    angle={-10}
-                    height={60}
-                    tickMargin={12}
-                  />
-                  <YAxis stroke="#94a3b8" allowDecimals={false} />
-                  <Legend
-                    wrapperStyle={{ color: "#cbd5f5" }}
-                    formatter={(value) => (
-                      <span className="text-xs uppercase tracking-[0.25em] text-slate-200">
-                        {value}
-                      </span>
-                    )}
-                  />
-                  <Tooltip
-                    cursor={{ fill: "rgba(255,255,255,0.05)" }}
-                    content={<TotalsTooltip />}
-                  />
-                  <Bar
-                    dataKey="total"
-                    barSize={56}
-                    fill={GOODS_TYPE_COLORS.ALL}
-                    name="Total Goods"
-                    radius={[12, 12, 0, 0]}
+              <div style={{
+                minWidth: totalsChartData.length > 8 ? Math.max(800, totalsChartData.length * 100) : '100%',
+                height: '100%'
+              }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart
+                    data={totalsChartData}
+                    margin={{ top: 24, left: 16, right: 16, bottom: totalsChartData.length > 8 ? 60 : 8 }}
+                    onClick={(data) => {
+                      if (data && data.activePayload && data.activePayload.length > 0) {
+                        const clickedData = data.activePayload[0].payload as any;
+                        handleChartClick(clickedData);
+                      }
+                    }}
                   >
-                    <LabelList
-                      dataKey="total"
-                      content={(props) => <TotalsTopLabel {...props} />}
+                    <CartesianGrid
+                      strokeDasharray="3 3"
+                      stroke="#475569"
+                      opacity={0.2}
                     />
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+                    <XAxis
+                      dataKey="label"
+                      stroke="#94a3b8"
+                      interval={0}
+                      angle={totalsChartData.length > 5 ? -20 : 0}
+                      height={totalsChartData.length > 8 ? 70 : (totalsChartData.length > 5 ? 70 : 40)}
+                      tickMargin={12}
+                    />
+                    <YAxis stroke="#94a3b8" allowDecimals={false} />
+                    <Tooltip
+                      cursor={{ fill: "rgba(255,255,255,0.05)" }}
+                      content={<TotalsTooltip />}
+                    />
+                    <Bar
+                      dataKey="total"
+                      barSize={totalsChartData.length > 8 ? 64 : 48}
+                      name="Total Goods"
+                      radius={[12, 12, 0, 0]}
+                    >
+                      {totalsChartData.map((entry, index) => (
+                        <Cell
+                          key={`cell-${index}`}
+                          fill={entry.highlight ? BAR_COLORS.highlight : BAR_COLORS.base}
+                          style={{ cursor: 'pointer' }}
+                        />
+                      ))}
+                      <LabelList
+                        dataKey="total"
+                        content={(props) => <TotalsTopLabel {...props} />}
+                      />
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
             )}
           </div>
         </section>

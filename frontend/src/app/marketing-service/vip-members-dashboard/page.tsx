@@ -993,62 +993,67 @@ function VIPMembersDashboardPage() {
             </div>
           </div>
 
-          <div className="mt-6 h-96 w-full">
+          <div className={`mt-6 h-96 w-full ${chartSegments.length > 8 ? 'overflow-x-auto scrollbar-hide' : ''}`}>
             {chartSegments.length === 0 ? (
               <div className="flex h-full items-center justify-center text-sm text-slate-400">
                 No members in the selected segment.
               </div>
             ) : (
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  data={chartSegments}
-                  margin={{ top: 24, left: 16, right: 16, bottom: 8 }}
-                >
-                  <CartesianGrid
-                    strokeDasharray="3 3"
-                    stroke="#475569"
-                    opacity={0.2}
-                  />
-                  <XAxis
-                    dataKey="label"
-                    stroke="#94a3b8"
-                    interval={0}
-                    angle={chartSegments.length > 5 ? -20 : 0}
-                    height={chartSegments.length > 5 ? 70 : 40}
-                    tickMargin={12}
-                  />
-                  <YAxis stroke="#94a3b8" allowDecimals={false} />
-                  <Tooltip
-                    cursor={{ fill: "rgba(255,255,255,0.05)" }}
-                    contentStyle={TOOLTIP_STYLES.content}
-                    labelStyle={TOOLTIP_STYLES.label}
-                    itemStyle={TOOLTIP_STYLES.item}
-                    formatter={(value: number, name) => [
-                      `${value.toLocaleString()} member(s)`,
-                      name ?? "Members",
-                    ]}
-                  />
-                  <Bar dataKey="members" radius={[12, 12, 0, 0]} barSize={48}>
-                    {chartSegments.map((segment) => (
-                      <Cell
-                        key={segment.key}
-                        fill={
-                          segment.highlight
-                            ? BAR_COLORS.highlight
-                            : BAR_COLORS.base
-                        }
-                      />
-                    ))}
-                    <LabelList
-                      dataKey="members"
-                      position="top"
-                      fill="#f1f5f9"
-                      fontSize={12}
-                      formatter={(value: number) => value.toLocaleString()}
+              <div style={{
+                minWidth: chartSegments.length > 8 ? Math.max(800, chartSegments.length * 100) : '100%',
+                height: '100%'
+              }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart
+                    data={chartSegments}
+                    margin={{ top: 24, left: 16, right: 16, bottom: chartSegments.length > 8 ? 60 : 8 }}
+                  >
+                    <CartesianGrid
+                      strokeDasharray="3 3"
+                      stroke="#475569"
+                      opacity={0.2}
                     />
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+                    <XAxis
+                      dataKey="label"
+                      stroke="#94a3b8"
+                      interval={0}
+                      angle={chartSegments.length > 5 ? -20 : 0}
+                      height={chartSegments.length > 8 ? 70 : (chartSegments.length > 5 ? 70 : 40)}
+                      tickMargin={12}
+                    />
+                    <YAxis stroke="#94a3b8" allowDecimals={false} />
+                    <Tooltip
+                      cursor={{ fill: "rgba(255,255,255,0.05)" }}
+                      contentStyle={TOOLTIP_STYLES.content}
+                      labelStyle={TOOLTIP_STYLES.label}
+                      itemStyle={TOOLTIP_STYLES.item}
+                      formatter={(value: number, name) => [
+                        `${value.toLocaleString()} member(s)`,
+                        name ?? "Members",
+                      ]}
+                    />
+                    <Bar dataKey="members" radius={[12, 12, 0, 0]} barSize={chartSegments.length > 8 ? 64 : 48}>
+                      {chartSegments.map((segment) => (
+                        <Cell
+                          key={segment.key}
+                          fill={
+                            segment.highlight
+                              ? BAR_COLORS.highlight
+                              : BAR_COLORS.base
+                          }
+                        />
+                      ))}
+                      <LabelList
+                        dataKey="members"
+                        position="top"
+                        fill="#f1f5f9"
+                        fontSize={12}
+                        formatter={(value: number) => value.toLocaleString()}
+                      />
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
             )}
           </div>
         </section>
