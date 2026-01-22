@@ -31,8 +31,8 @@ public class VipMember {
     private String name;
 
     @NotBlank
-    @Size(max = 30)
-    @Column(nullable = false, length = 30)
+    @Size(max = 40)
+    @Column(nullable = false, length = 40)
     private String phone;
 
     @NotNull

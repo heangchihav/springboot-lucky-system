@@ -14,7 +14,7 @@ public class VipMemberRequest {
     private String name;
 
     @NotBlank
-    @Size(max = 30)
+    @Size(max = 40)
     private String phone;
 
     @NotNull
