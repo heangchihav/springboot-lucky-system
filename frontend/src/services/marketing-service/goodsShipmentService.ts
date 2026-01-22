@@ -51,6 +51,7 @@ export type MarketingGoodsShipmentRecord = {
   id: number;
   memberId: number;
   memberName: string;
+  memberPhone: string;
   branchId: number;
   branchName: string;
   sendDate: string;

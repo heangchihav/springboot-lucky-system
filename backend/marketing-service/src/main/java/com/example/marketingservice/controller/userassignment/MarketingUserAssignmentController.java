@@ -54,6 +54,16 @@ public class MarketingUserAssignmentController extends BaseController {
         return ResponseEntity.ok(response);
     }
 
+    @GetMapping("/my-assignments")
+    public ResponseEntity<List<MarketingUserAssignmentResponse>> getMyAssignments(HttpServletRequest httpRequest) {
+        Long userId = requireUserId(httpRequest);
+        List<MarketingUserAssignment> assignments = assignmentService.getActiveAssignmentsByUserId(userId);
+        List<MarketingUserAssignmentResponse> response = assignments.stream()
+                .map(MarketingUserAssignmentResponse::fromEntity)
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(response);
+    }
+
     @GetMapping("/area/{areaId}")
     public ResponseEntity<List<MarketingUserAssignmentResponse>> getAssignmentsByArea(@PathVariable Long areaId) {
         List<MarketingUserAssignment> assignments = assignmentService.getActiveAssignmentsByAreaId(areaId);

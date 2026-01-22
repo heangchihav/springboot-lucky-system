@@ -5,6 +5,7 @@ import com.example.marketingservice.dto.goods.MarketingGoodsShipmentResponse;
 import com.example.marketingservice.dto.goods.MarketingGoodsShipmentUpdateRequest;
 import com.example.marketingservice.dto.goods.UserGoodsRecordRequest;
 import com.example.marketingservice.service.goods.MarketingGoodsShipmentService;
+import com.example.marketingservice.service.userassignment.MarketingUserAssignmentService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
@@ -26,9 +27,12 @@ import java.util.List;
 public class MarketingGoodsShipmentController extends BaseController {
 
     private final MarketingGoodsShipmentService shipmentService;
+    private final MarketingUserAssignmentService userAssignmentService;
 
-    public MarketingGoodsShipmentController(MarketingGoodsShipmentService shipmentService) {
+    public MarketingGoodsShipmentController(MarketingGoodsShipmentService shipmentService,
+            MarketingUserAssignmentService userAssignmentService) {
         this.shipmentService = shipmentService;
+        this.userAssignmentService = userAssignmentService;
     }
 
     @PostMapping
@@ -55,9 +59,44 @@ public class MarketingGoodsShipmentController extends BaseController {
             @RequestParam(required = false) LocalDate endDate,
             HttpServletRequest httpRequest) {
         checkPermission(httpRequest, "goods.view");
-        Long createdBy = myOnly ? requireUserId(httpRequest) : null;
+        Long userId = requireUserId(httpRequest);
+
+        // Apply user's hierarchy assignments when not explicitly filtering
+        List<Long> branchIds = null;
+        List<Long> subAreaIds = null;
+        List<Long> areaIds = null;
+
+        if (areaId == null && subAreaId == null && branchId == null) {
+            var assignments = userAssignmentService.getActiveAssignmentsByUserId(userId);
+
+            // Collect all assigned hierarchy IDs
+            if (!assignments.isEmpty()) {
+                branchIds = new java.util.ArrayList<>();
+                subAreaIds = new java.util.ArrayList<>();
+                areaIds = new java.util.ArrayList<>();
+
+                for (var assignment : assignments) {
+                    if (assignment.getBranch() != null) {
+                        branchIds.add(assignment.getBranch().getId());
+                    }
+                    if (assignment.getSubArea() != null) {
+                        subAreaIds.add(assignment.getSubArea().getId());
+                    }
+                    if (assignment.getArea() != null) {
+                        areaIds.add(assignment.getArea().getId());
+                    }
+                }
+
+                // Remove duplicates
+                branchIds = branchIds.isEmpty() ? null : branchIds.stream().distinct().toList();
+                subAreaIds = subAreaIds.isEmpty() ? null : subAreaIds.stream().distinct().toList();
+                areaIds = areaIds.isEmpty() ? null : areaIds.stream().distinct().toList();
+            }
+        }
+
+        Long createdBy = myOnly ? userId : null;
         return shipmentService.findRecent(memberId, branchId, subAreaId, areaId, createdBy, memberQuery, limit,
-                startDate, endDate);
+                startDate, endDate, branchIds, subAreaIds, areaIds);
     }
 
     @PutMapping("/{id}")

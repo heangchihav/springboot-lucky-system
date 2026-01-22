@@ -9,6 +9,7 @@ public class MarketingGoodsShipmentResponse {
     private Long id;
     private Long memberId;
     private String memberName;
+    private String memberPhone;
     private Long branchId;
     private String branchName;
     private LocalDate sendDate;
@@ -38,6 +39,14 @@ public class MarketingGoodsShipmentResponse {
 
     public void setMemberName(String memberName) {
         this.memberName = memberName;
+    }
+
+    public String getMemberPhone() {
+        return memberPhone;
+    }
+
+    public void setMemberPhone(String memberPhone) {
+        this.memberPhone = memberPhone;
     }
 
     public Long getBranchId() {
@@ -93,6 +102,7 @@ public class MarketingGoodsShipmentResponse {
         response.id = shipment.getId();
         response.memberId = shipment.getMember().getId();
         response.memberName = shipment.getMember().getName();
+        response.memberPhone = shipment.getMember().getPhone();
         response.branchId = shipment.getMember().getBranch().getId();
         response.branchName = shipment.getMember().getBranch().getName();
         response.sendDate = shipment.getSendDate();

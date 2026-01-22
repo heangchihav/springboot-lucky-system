@@ -22,8 +22,10 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 
 @Service
 public class MarketingGoodsShipmentService {
@@ -39,22 +41,36 @@ public class MarketingGoodsShipmentService {
 
     @Transactional
     public int recordBatch(List<UserGoodsRecordRequest.GoodsRecord> records, Long creatorId) {
-        List<MarketingGoodsShipment> shipments = records.stream()
-                .map(record -> {
-                    VipMember member = vipMemberRepository.findById(Long.valueOf(record.getUserId()))
-                            .orElseThrow(
-                                    () -> new ResourceNotFoundException("VIP member not found: " + record.getUserId()));
-                    MarketingGoodsShipment shipment = new MarketingGoodsShipment();
-                    shipment.setMember(member);
-                    shipment.setSendDate(record.getSendDate());
-                    shipment.setTotalGoods(record.getTotalGoods());
-                    shipment.setCreatedBy(creatorId);
-                    return shipment;
-                })
-                .toList();
+        List<MarketingGoodsShipment> shipmentsToSave = new ArrayList<>();
 
-        shipmentRepository.saveAll(shipments);
-        return shipments.size();
+        for (UserGoodsRecordRequest.GoodsRecord record : records) {
+            VipMember member = vipMemberRepository.findById(Long.valueOf(record.getUserId()))
+                    .orElseThrow(
+                            () -> new ResourceNotFoundException("VIP member not found: " + record.getUserId()));
+
+            // Check if a record already exists for this member and date
+            Optional<MarketingGoodsShipment> existingRecord = shipmentRepository
+                    .findByMemberIdAndSendDate(member.getId(), record.getSendDate());
+
+            if (existingRecord.isPresent()) {
+                // Update existing record with new data
+                MarketingGoodsShipment shipment = existingRecord.get();
+                shipment.setTotalGoods(record.getTotalGoods());
+                shipment.setCreatedBy(creatorId); // Update creator to latest person who modified
+                shipmentsToSave.add(shipment);
+            } else {
+                // Create new record
+                MarketingGoodsShipment shipment = new MarketingGoodsShipment();
+                shipment.setMember(member);
+                shipment.setSendDate(record.getSendDate());
+                shipment.setTotalGoods(record.getTotalGoods());
+                shipment.setCreatedBy(creatorId);
+                shipmentsToSave.add(shipment);
+            }
+        }
+
+        List<MarketingGoodsShipment> savedShipments = shipmentRepository.saveAll(shipmentsToSave);
+        return savedShipments.size();
     }
 
     @Transactional(readOnly = true)
@@ -67,7 +83,10 @@ public class MarketingGoodsShipmentService {
             String memberQuery,
             Integer limit,
             LocalDate startDate,
-            LocalDate endDate) {
+            LocalDate endDate,
+            List<Long> branchIds,
+            List<Long> subAreaIds,
+            List<Long> areaIds) {
         // If no limit specified, use a large number to fetch all records
         int sanitizedLimit = limit != null ? Math.min(Math.max(limit, 1), 10000) : 10000;
         Pageable pageable = PageRequest.of(0, sanitizedLimit, Sort.by(Sort.Direction.DESC, "sendDate", "id"));
@@ -83,6 +102,11 @@ public class MarketingGoodsShipmentService {
                 Join<MarketingGoodsShipment, VipMember> memberJoin = root.join("member");
                 return cb.equal(memberJoin.join("branch").get("id"), branchId);
             });
+        } else if (branchIds != null && !branchIds.isEmpty()) {
+            spec = spec.and((root, q, cb) -> {
+                Join<MarketingGoodsShipment, VipMember> memberJoin = root.join("member");
+                return memberJoin.join("branch").get("id").in(branchIds);
+            });
         }
 
         if (subAreaId != null) {
@@ -90,12 +114,22 @@ public class MarketingGoodsShipmentService {
                 Join<MarketingGoodsShipment, VipMember> memberJoin = root.join("member");
                 return cb.equal(memberJoin.join("branch").join("subArea", JoinType.LEFT).get("id"), subAreaId);
             });
+        } else if (subAreaIds != null && !subAreaIds.isEmpty()) {
+            spec = spec.and((root, q, cb) -> {
+                Join<MarketingGoodsShipment, VipMember> memberJoin = root.join("member");
+                return memberJoin.join("branch").join("subArea", JoinType.LEFT).get("id").in(subAreaIds);
+            });
         }
 
         if (areaId != null) {
             spec = spec.and((root, q, cb) -> {
                 Join<MarketingGoodsShipment, VipMember> memberJoin = root.join("member");
                 return cb.equal(memberJoin.join("branch").join("area").get("id"), areaId);
+            });
+        } else if (areaIds != null && !areaIds.isEmpty()) {
+            spec = spec.and((root, q, cb) -> {
+                Join<MarketingGoodsShipment, VipMember> memberJoin = root.join("member");
+                return memberJoin.join("branch").join("area").get("id").in(areaIds);
             });
         }
 

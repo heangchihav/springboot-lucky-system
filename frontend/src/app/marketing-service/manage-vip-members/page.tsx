@@ -16,6 +16,10 @@ import {
   VipMember,
   VipMemberPayload,
 } from "@/services/marketing-service/vipMemberService";
+import {
+  marketingUserAssignmentService,
+  MarketingUserAssignment,
+} from "@/services/marketing-service/marketingUserAssignmentService";
 
 type FilterValue = number | "all";
 type SubAreaSelection = number | "all";
@@ -48,11 +52,14 @@ const defaultForm: MemberFormState = {
 
 export default function MarketingVipManageUserPage() {
   const { showToast } = useToast();
-  const { user } = useAuth();
+  const { user, isAuthenticated, isLoading, hasServiceAccess } = useAuth();
+  const canAccessMarketing = isAuthenticated && hasServiceAccess("marketing");
+  const currentUserId = user?.id ?? null;
   const [areas, setAreas] = useState<MarketingArea[]>([]);
   const [subAreas, setSubAreas] = useState<MarketingSubArea[]>([]);
   const [branches, setBranches] = useState<MarketingBranch[]>([]);
   const [members, setMembers] = useState<VipMember[]>([]);
+  const [userAssignments, setUserAssignments] = useState<MarketingUserAssignment[]>([]);
 
   const [filters, setFilters] = useState<{
     areaId: FilterValue;
@@ -192,6 +199,62 @@ export default function MarketingVipManageUserPage() {
   useEffect(() => {
     void loadLookups();
   }, []);
+
+  useEffect(() => {
+    if (!canAccessMarketing || isLoading || !currentUserId) {
+      return;
+    }
+
+    const loadUserAssignments = async () => {
+      try {
+        const assignments = await marketingUserAssignmentService.getUserAssignments();
+        setUserAssignments(assignments);
+
+        // Apply user assignments to filters if no manual filters are set
+        if (assignments.length > 0 && filters.areaId === "all" && filters.subAreaId === "all" && filters.branchId === "all") {
+          // Extract unique area, subarea, and branch IDs from assignments
+          const areaIds = [...new Set(assignments.filter(a => a.areaId).map(a => a.areaId!))];
+          const subAreaIds = [...new Set(assignments.filter(a => a.subAreaId).map(a => a.subAreaId!))];
+          const branchIds = [...new Set(assignments.filter(a => a.branchId).map(a => a.branchId!))];
+
+          // Set filters based on assignments (prioritize more specific assignments)
+          if (branchIds.length > 0) {
+            // If user has branch assignments, use them
+            if (branchIds.length === 1) {
+              setFilters(prev => ({ ...prev, branchId: branchIds[0] }));
+            }
+            // Set subarea and area based on first branch assignment
+            const firstAssignment = assignments.find(a => a.branchId);
+            if (firstAssignment?.subAreaId) {
+              setFilters(prev => ({ ...prev, subAreaId: firstAssignment.subAreaId! }));
+            }
+            if (firstAssignment?.areaId) {
+              setFilters(prev => ({ ...prev, areaId: firstAssignment.areaId! }));
+            }
+          } else if (subAreaIds.length > 0) {
+            // If user has subarea assignments but no branch assignments
+            if (subAreaIds.length === 1) {
+              setFilters(prev => ({ ...prev, subAreaId: subAreaIds[0] }));
+            }
+            // Set area based on first subarea assignment
+            const firstAssignment = assignments.find(a => a.subAreaId);
+            if (firstAssignment?.areaId) {
+              setFilters(prev => ({ ...prev, areaId: firstAssignment.areaId! }));
+            }
+          } else if (areaIds.length > 0) {
+            // If user only has area assignments
+            if (areaIds.length === 1) {
+              setFilters(prev => ({ ...prev, areaId: areaIds[0] }));
+            }
+          }
+        }
+      } catch (error) {
+        console.error("Failed to load user assignments:", error);
+      }
+    };
+
+    void loadUserAssignments();
+  }, [canAccessMarketing, isLoading, currentUserId]);
 
   useEffect(() => {
     let active = true;

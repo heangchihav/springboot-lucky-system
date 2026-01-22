@@ -21,6 +21,10 @@ import {
   MarketingGoodsShipmentRecord,
   UserGoodsRecord,
 } from "@/services/marketing-service/goodsShipmentService";
+import {
+  marketingUserAssignmentService,
+  MarketingUserAssignment,
+} from "@/services/marketing-service/marketingUserAssignmentService";
 
 type FilterValue = number | "all";
 
@@ -67,6 +71,7 @@ export default function GoodsInputPage() {
   const [areas, setAreas] = useState<MarketingArea[]>([]);
   const [subAreas, setSubAreas] = useState<MarketingSubArea[]>([]);
   const [branches, setBranches] = useState<MarketingBranch[]>([]);
+  const [userAssignments, setUserAssignments] = useState<MarketingUserAssignment[]>([]);
 
   const [selectedMemberId, setSelectedMemberId] = useState<number | null>(null);
   const [recentScope, setRecentScope] = useState<"mine" | "all">("mine");
@@ -171,6 +176,62 @@ export default function GoodsInputPage() {
 
     void loadHierarchy();
   }, [canAccessMarketing, isLoading]);
+
+  useEffect(() => {
+    if (!canAccessMarketing || isLoading || !currentUserId) {
+      return;
+    }
+
+    const loadUserAssignments = async () => {
+      try {
+        const assignments = await marketingUserAssignmentService.getUserAssignments();
+        setUserAssignments(assignments);
+
+        // Apply user assignments to filters if no manual filters are set
+        if (assignments.length > 0 && filterAreaId === "all" && filterSubAreaId === "all" && filterBranchId === "all") {
+          // Extract unique area, subarea, and branch IDs from assignments
+          const areaIds = [...new Set(assignments.filter(a => a.areaId).map(a => a.areaId!))];
+          const subAreaIds = [...new Set(assignments.filter(a => a.subAreaId).map(a => a.subAreaId!))];
+          const branchIds = [...new Set(assignments.filter(a => a.branchId).map(a => a.branchId!))];
+
+          // Set filters based on assignments (prioritize more specific assignments)
+          if (branchIds.length > 0) {
+            // If user has branch assignments, use them
+            if (branchIds.length === 1) {
+              setFilterBranchId(branchIds[0]);
+            }
+            // Set subarea and area based on first branch assignment
+            const firstAssignment = assignments.find(a => a.branchId);
+            if (firstAssignment?.subAreaId) {
+              setFilterSubAreaId(firstAssignment.subAreaId);
+            }
+            if (firstAssignment?.areaId) {
+              setFilterAreaId(firstAssignment.areaId);
+            }
+          } else if (subAreaIds.length > 0) {
+            // If user has subarea assignments but no branch assignments
+            if (subAreaIds.length === 1) {
+              setFilterSubAreaId(subAreaIds[0]);
+            }
+            // Set area based on first subarea assignment
+            const firstAssignment = assignments.find(a => a.subAreaId);
+            if (firstAssignment?.areaId) {
+              setFilterAreaId(firstAssignment.areaId);
+            }
+          } else if (areaIds.length > 0) {
+            // If user only has area assignments
+            if (areaIds.length === 1) {
+              setFilterAreaId(areaIds[0]);
+            }
+          }
+        }
+      } catch (error) {
+        console.error("Failed to load user assignments:", error);
+      }
+    };
+
+    void loadUserAssignments();
+  }, [canAccessMarketing, isLoading, currentUserId]);
 
   useEffect(() => {
     if (
@@ -304,6 +365,7 @@ export default function GoodsInputPage() {
     const query = searchQuery.toLowerCase().trim();
     return recentShipments.filter((record) =>
       record.memberName.toLowerCase().includes(query) ||
+      record.memberPhone.toLowerCase().includes(query) ||
       record.branchName.toLowerCase().includes(query) ||
       record.sendDate.toLowerCase().includes(query) ||
       record.totalGoods.toString().includes(query)
@@ -1112,6 +1174,7 @@ export default function GoodsInputPage() {
                   <tr className="text-xs uppercase tracking-[0.3em] text-slate-400">
                     <th className="pb-3 pr-4">Date</th>
                     <th className="pb-3 pr-4">Member</th>
+                    <th className="pb-3 pr-4">Phone</th>
                     <th className="pb-3 pr-4">Branch</th>
                     <th className="pb-3 pr-4 text-right">Total Goods</th>
                     <th className="pb-3 pr-4 text-right">Logged</th>
@@ -1123,6 +1186,7 @@ export default function GoodsInputPage() {
                     <tr key={record.id}>
                       <td className="py-3 pr-4">{record.sendDate}</td>
                       <td className="py-3 pr-4">{record.memberName}</td>
+                      <td className="py-3 pr-4 text-slate-300">{record.memberPhone || "—"}</td>
                       <td className="py-3 pr-4">{record.branchName}</td>
                       <td className="py-3 pr-4 text-right text-white font-semibold">
                         {record.totalGoods?.toLocaleString() || 0}

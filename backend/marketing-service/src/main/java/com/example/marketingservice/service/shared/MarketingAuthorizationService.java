@@ -177,50 +177,53 @@ public class MarketingAuthorizationService {
     }
 
     public List<Long> getAccessibleAreaIds(Long userId) {
-        Optional<MarketingUserAssignment> assignment = getUserAssignment(userId);
-
-        if (assignment.isEmpty()) {
+        if (isRootUser(userId)) {
             return null;
         }
 
-        MarketingUserAssignment userAssignment = assignment.get();
-
-        if (userAssignment.getArea() != null) {
-            return List.of(userAssignment.getArea().getId());
+        List<MarketingUserAssignment> assignments = assignmentRepository.findActiveByUserId(userId);
+        if (assignments.isEmpty()) {
+            return null;
         }
 
-        return List.of();
+        return assignments.stream()
+                .filter(assignment -> assignment.getArea() != null)
+                .map(assignment -> assignment.getArea().getId())
+                .distinct()
+                .toList();
     }
 
     public List<Long> getAccessibleSubAreaIds(Long userId) {
-        Optional<MarketingUserAssignment> assignment = getUserAssignment(userId);
-
-        if (assignment.isEmpty()) {
+        if (isRootUser(userId)) {
             return null;
         }
 
-        MarketingUserAssignment userAssignment = assignment.get();
-
-        if (userAssignment.getSubArea() != null) {
-            return List.of(userAssignment.getSubArea().getId());
+        List<MarketingUserAssignment> assignments = assignmentRepository.findActiveByUserId(userId);
+        if (assignments.isEmpty()) {
+            return null;
         }
 
-        return null;
+        return assignments.stream()
+                .filter(assignment -> assignment.getSubArea() != null)
+                .map(assignment -> assignment.getSubArea().getId())
+                .distinct()
+                .toList();
     }
 
     public List<Long> getAccessibleBranchIds(Long userId) {
-        Optional<MarketingUserAssignment> assignment = getUserAssignment(userId);
-
-        if (assignment.isEmpty()) {
+        if (isRootUser(userId)) {
             return null;
         }
 
-        MarketingUserAssignment userAssignment = assignment.get();
-
-        if (userAssignment.getBranch() != null) {
-            return List.of(userAssignment.getBranch().getId());
+        List<MarketingUserAssignment> assignments = assignmentRepository.findActiveByUserId(userId);
+        if (assignments.isEmpty()) {
+            return null;
         }
 
-        return null;
+        return assignments.stream()
+                .filter(assignment -> assignment.getBranch() != null)
+                .map(assignment -> assignment.getBranch().getId())
+                .distinct()
+                .toList();
     }
 }
