@@ -1136,7 +1136,7 @@ export default function GoodsDashboardPage() {
           </div>
         </section>
 
-        {dailyGoodsTrend.length > 0 && (
+        {trendData.length > 0 && (
           <section className="rounded-3xl border border-white/10 bg-white/5 p-6">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div>
@@ -1144,7 +1144,7 @@ export default function GoodsDashboardPage() {
                   Trend
                 </p>
                 <h2 className="text-xl font-semibold text-white">
-                  Total goods per day
+                  Total goods per {trendView === "day" ? "day" : trendView === "week" ? "week" : "month"}
                 </h2>
                 <p className="text-sm text-slate-300">
                   Visualize how combined COD and non-COD goods fluctuate inside
@@ -1169,7 +1169,7 @@ export default function GoodsDashboardPage() {
             <div className="mt-6 h-72 w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart
-                  data={dailyGoodsTrend}
+                  data={trendData}
                   margin={{ top: 16, left: 8, right: 16, bottom: 8 }}
                 >
                   <CartesianGrid
