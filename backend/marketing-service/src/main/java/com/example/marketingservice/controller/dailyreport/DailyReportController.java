@@ -74,8 +74,11 @@ public class DailyReportController extends BaseController {
                     request.getItems());
             return ResponseEntity.status(HttpStatus.CREATED).body(createdReport);
         } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().build();
+            System.err.println("Invalid input for daily report creation: " + e.getMessage());
+            return ResponseEntity.badRequest().body(null);
         } catch (RuntimeException e) {
+            System.err.println("Error creating daily report: " + e.getMessage());
+            e.printStackTrace();
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
@@ -93,9 +96,12 @@ public class DailyReportController extends BaseController {
                     request.getItems());
             return ResponseEntity.ok(updatedReport);
         } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().build();
+            System.err.println("Invalid input for daily report update: " + e.getMessage());
+            return ResponseEntity.badRequest().body(null);
         } catch (RuntimeException e) {
-            return ResponseEntity.notFound().build();
+            System.err.println("Error updating daily report: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
 

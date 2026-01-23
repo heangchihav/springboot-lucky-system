@@ -15,12 +15,12 @@ public class DailyReportItem {
     @JoinColumn(name = "daily_report_id", nullable = false)
     private DailyReport dailyReport;
 
-    @Column(name = "item_name", nullable = false)
+    @Column(name = "item_name", nullable = false, length = 1000)
     private String itemName;
 
     @ElementCollection
     @CollectionTable(name = "marketing_daily_report_item_values", joinColumns = @JoinColumn(name = "daily_report_item_id"))
-    @Column(name = "value")
+    @Column(name = "value", length = 2000)
     private List<String> values;
 
     // Constructors
