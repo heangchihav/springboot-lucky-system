@@ -1,6 +1,8 @@
 package com.example.marketingservice.service.member;
 
 import com.example.marketingservice.dto.member.VipMemberDashboardResponse;
+import com.example.marketingservice.dto.member.VipMemberPaginatedResponse;
+import com.example.marketingservice.dto.member.PaginatedVipMemberResponse;
 import com.example.marketingservice.dto.member.VipMemberRequest;
 import com.example.marketingservice.entity.branch.MarketingBranch;
 import com.example.marketingservice.entity.member.VipMember;
@@ -474,5 +476,152 @@ public class VipMemberService {
 
         Pageable pageable = PageRequest.of(page, size, Sort.by("memberCreatedAt").descending());
         return vipMemberRepository.findAll(spec, pageable);
+    }
+
+    @Transactional(readOnly = true)
+    public PaginatedVipMemberResponse getAllMembersPaginated(Long userId, int page, int size, Long areaId,
+            Long subAreaId,
+            Long branchId, LocalDate startDate, LocalDate endDate) {
+        // Get user access permissions
+        List<Long> accessibleAreaIds = authorizationService.getAccessibleAreaIds(userId);
+        List<Long> accessibleSubAreaIds = authorizationService.getAccessibleSubAreaIds(userId);
+        List<Long> accessibleBranchIds = authorizationService.getAccessibleBranchIds(userId);
+
+        // Apply access control filters
+        Long filteredAreaId = applyAccessFilter(areaId, accessibleAreaIds);
+        Long filteredSubAreaId = applyAccessFilter(subAreaId, accessibleSubAreaIds);
+        Long filteredBranchId = applyAccessFilter(branchId, accessibleBranchIds);
+
+        // Build specification for filtering
+        Specification<VipMember> spec = Specification.where((root, query, cb) -> cb.conjunction());
+
+        if (filteredBranchId != null) {
+            spec = spec.and((root, q, cb) -> cb.equal(root.get("branchId"), filteredBranchId));
+        } else if (filteredSubAreaId != null) {
+            spec = spec.and((root, q, cb) -> cb.equal(root.join("branch").get("subArea").get("id"), filteredSubAreaId));
+        } else if (filteredAreaId != null) {
+            spec = spec.and((root, q, cb) -> cb.equal(root.join("branch").get("area").get("id"), filteredAreaId));
+        }
+
+        if (startDate != null) {
+            spec = spec.and((root, q, cb) -> cb.greaterThanOrEqualTo(root.get("memberCreatedAt"), startDate));
+        }
+
+        if (endDate != null) {
+            spec = spec.and((root, q, cb) -> cb.lessThanOrEqualTo(root.get("memberCreatedAt"), endDate));
+        }
+
+        // Get total count
+        long totalCount = vipMemberRepository.count(spec);
+
+        // Get paginated results
+        Pageable pageable = PageRequest.of(page, size, Sort.by("memberCreatedAt").descending());
+        Page<VipMember> pageResult = vipMemberRepository.findAll(spec, pageable);
+
+        List<VipMemberPaginatedResponse> responseList = pageResult.getContent().stream()
+                .map(VipMemberPaginatedResponse::fromEntity)
+                .toList();
+
+        return new PaginatedVipMemberResponse(responseList, totalCount, page, size);
+    }
+
+    @Transactional(readOnly = true)
+    public PaginatedVipMemberResponse getActiveMembersPaginated(Long userId, int page, int size, Long areaId,
+            Long subAreaId,
+            Long branchId, LocalDate startDate, LocalDate endDate) {
+        // Get user access permissions
+        List<Long> accessibleAreaIds = authorizationService.getAccessibleAreaIds(userId);
+        List<Long> accessibleSubAreaIds = authorizationService.getAccessibleSubAreaIds(userId);
+        List<Long> accessibleBranchIds = authorizationService.getAccessibleBranchIds(userId);
+
+        // Apply access control filters
+        Long filteredAreaId = applyAccessFilter(areaId, accessibleAreaIds);
+        Long filteredSubAreaId = applyAccessFilter(subAreaId, accessibleSubAreaIds);
+        Long filteredBranchId = applyAccessFilter(branchId, accessibleBranchIds);
+
+        // Build specification for filtering - only active members
+        Specification<VipMember> spec = Specification.where((root, query, cb) -> cb.conjunction());
+
+        if (filteredBranchId != null) {
+            spec = spec.and((root, q, cb) -> cb.equal(root.get("branchId"), filteredBranchId));
+        } else if (filteredSubAreaId != null) {
+            spec = spec.and((root, q, cb) -> cb.equal(root.join("branch").get("subArea").get("id"), filteredSubAreaId));
+        } else if (filteredAreaId != null) {
+            spec = spec.and((root, q, cb) -> cb.equal(root.join("branch").get("area").get("id"), filteredAreaId));
+        }
+
+        if (startDate != null) {
+            spec = spec.and((root, q, cb) -> cb.greaterThanOrEqualTo(root.get("memberCreatedAt"), startDate));
+        }
+
+        if (endDate != null) {
+            spec = spec.and((root, q, cb) -> cb.lessThanOrEqualTo(root.get("memberCreatedAt"), endDate));
+        }
+
+        // Only active members (not deleted)
+        spec = spec.and((root, q, cb) -> cb.isNull(root.get("memberDeletedAt")));
+
+        // Get total count
+        long totalCount = vipMemberRepository.count(spec);
+
+        // Get paginated results
+        Pageable pageable = PageRequest.of(page, size, Sort.by("memberCreatedAt").descending());
+        Page<VipMember> pageResult = vipMemberRepository.findAll(spec, pageable);
+
+        List<VipMemberPaginatedResponse> responseList = pageResult.getContent().stream()
+                .map(VipMemberPaginatedResponse::fromEntity)
+                .toList();
+
+        return new PaginatedVipMemberResponse(responseList, totalCount, page, size);
+    }
+
+    @Transactional(readOnly = true)
+    public PaginatedVipMemberResponse getRemovedMembersPaginated(Long userId, int page, int size, Long areaId,
+            Long subAreaId,
+            Long branchId, LocalDate startDate, LocalDate endDate) {
+        // Get user access permissions
+        List<Long> accessibleAreaIds = authorizationService.getAccessibleAreaIds(userId);
+        List<Long> accessibleSubAreaIds = authorizationService.getAccessibleSubAreaIds(userId);
+        List<Long> accessibleBranchIds = authorizationService.getAccessibleBranchIds(userId);
+
+        // Apply access control filters
+        Long filteredAreaId = applyAccessFilter(areaId, accessibleAreaIds);
+        Long filteredSubAreaId = applyAccessFilter(subAreaId, accessibleSubAreaIds);
+        Long filteredBranchId = applyAccessFilter(branchId, accessibleBranchIds);
+
+        // Build specification for filtering - only removed members
+        Specification<VipMember> spec = Specification.where((root, query, cb) -> cb.conjunction());
+
+        if (filteredBranchId != null) {
+            spec = spec.and((root, q, cb) -> cb.equal(root.get("branchId"), filteredBranchId));
+        } else if (filteredSubAreaId != null) {
+            spec = spec.and((root, q, cb) -> cb.equal(root.join("branch").get("subArea").get("id"), filteredSubAreaId));
+        } else if (filteredAreaId != null) {
+            spec = spec.and((root, q, cb) -> cb.equal(root.join("branch").get("area").get("id"), filteredAreaId));
+        }
+
+        if (startDate != null) {
+            spec = spec.and((root, q, cb) -> cb.greaterThanOrEqualTo(root.get("memberCreatedAt"), startDate));
+        }
+
+        if (endDate != null) {
+            spec = spec.and((root, q, cb) -> cb.lessThanOrEqualTo(root.get("memberCreatedAt"), endDate));
+        }
+
+        // Only removed members (deleted)
+        spec = spec.and((root, q, cb) -> cb.isNotNull(root.get("memberDeletedAt")));
+
+        // Get total count
+        long totalCount = vipMemberRepository.count(spec);
+
+        // Get paginated results
+        Pageable pageable = PageRequest.of(page, size, Sort.by("memberDeletedAt").descending());
+        Page<VipMember> pageResult = vipMemberRepository.findAll(spec, pageable);
+
+        List<VipMemberPaginatedResponse> responseList = pageResult.getContent().stream()
+                .map(VipMemberPaginatedResponse::fromEntity)
+                .toList();
+
+        return new PaginatedVipMemberResponse(responseList, totalCount, page, size);
     }
 }

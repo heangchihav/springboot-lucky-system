@@ -738,18 +738,18 @@ function VIPMembersDashboardPage() {
     setActiveMembersLoading(true);
     try {
       const filters = getCurrentFilters();
-      const members = await vipMemberService.listAllMembers(page, PAGE_SIZE, filters);
-      const enriched = flattenMembers(members, { areaMap, subAreaMap, branchMap });
-      const activeOnly = enriched.filter(({ removedDate }) => !removedDate);
+      const paginatedResponse = await vipMemberService.listActiveMembersPaginated(page, PAGE_SIZE, filters);
+      const enriched = flattenMembers(paginatedResponse.data, { areaMap, subAreaMap, branchMap });
 
       if (reset) {
-        setActiveMembersData(activeOnly);
+        setActiveMembersData(enriched);
         setActiveMembersPage(0);
       } else {
-        setActiveMembersData(prev => [...prev, ...activeOnly]);
+        setActiveMembersData(prev => [...prev, ...enriched]);
       }
 
-      setActiveMembersHasMore(activeOnly.length === PAGE_SIZE);
+      // Update hasMore based on total count from backend
+      setActiveMembersHasMore((page + 1) * PAGE_SIZE < paginatedResponse.totalCount);
       setActiveMembersPage(page);
     } catch (err) {
       console.error('Failed to load active members:', err);
@@ -765,18 +765,18 @@ function VIPMembersDashboardPage() {
     setRemovedMembersLoading(true);
     try {
       const filters = getCurrentFilters();
-      const members = await vipMemberService.listAllMembers(page, PAGE_SIZE, filters);
-      const enriched = flattenMembers(members, { areaMap, subAreaMap, branchMap });
-      const removedOnly = enriched.filter(({ removedDate }) => !!removedDate);
+      const paginatedResponse = await vipMemberService.listRemovedMembersPaginated(page, PAGE_SIZE, filters);
+      const enriched = flattenMembers(paginatedResponse.data, { areaMap, subAreaMap, branchMap });
 
       if (reset) {
-        setRemovedMembersData(removedOnly);
+        setRemovedMembersData(enriched);
         setRemovedMembersPage(0);
       } else {
-        setRemovedMembersData(prev => [...prev, ...removedOnly]);
+        setRemovedMembersData(prev => [...prev, ...enriched]);
       }
 
-      setRemovedMembersHasMore(removedOnly.length === PAGE_SIZE);
+      // Update hasMore based on total count from backend
+      setRemovedMembersHasMore((page + 1) * PAGE_SIZE < paginatedResponse.totalCount);
       setRemovedMembersPage(page);
     } catch (err) {
       console.error('Failed to load removed members:', err);

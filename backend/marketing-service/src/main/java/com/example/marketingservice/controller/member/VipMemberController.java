@@ -3,6 +3,7 @@ package com.example.marketingservice.controller.member;
 import com.example.marketingservice.controller.base.BaseController;
 import com.example.marketingservice.dto.member.VipMemberDashboardResponse;
 import com.example.marketingservice.dto.member.VipMemberPaginatedResponse;
+import com.example.marketingservice.dto.member.PaginatedVipMemberResponse;
 import com.example.marketingservice.dto.member.VipMemberRequest;
 import com.example.marketingservice.dto.member.VipMemberResponse;
 import com.example.marketingservice.entity.member.VipMember;
@@ -141,5 +142,53 @@ public class VipMemberController extends BaseController {
         checkPermission(httpRequest, "member.view");
         Long userId = requireUserId(httpRequest);
         return vipMemberService.getAllMembers(userId, page, size, areaId, subAreaId, branchId, startDate, endDate);
+    }
+
+    @GetMapping("/all-members-paginated")
+    public PaginatedVipMemberResponse getAllMembersPaginated(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "50") int size,
+            @RequestParam(required = false) Long areaId,
+            @RequestParam(required = false) Long subAreaId,
+            @RequestParam(required = false) Long branchId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            HttpServletRequest httpRequest) {
+        checkPermission(httpRequest, "member.view");
+        Long userId = requireUserId(httpRequest);
+        return vipMemberService.getAllMembersPaginated(userId, page, size, areaId, subAreaId, branchId, startDate,
+                endDate);
+    }
+
+    @GetMapping("/active-members-paginated")
+    public PaginatedVipMemberResponse getActiveMembersPaginated(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "50") int size,
+            @RequestParam(required = false) Long areaId,
+            @RequestParam(required = false) Long subAreaId,
+            @RequestParam(required = false) Long branchId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            HttpServletRequest httpRequest) {
+        checkPermission(httpRequest, "member.view");
+        Long userId = requireUserId(httpRequest);
+        return vipMemberService.getActiveMembersPaginated(userId, page, size, areaId, subAreaId, branchId, startDate,
+                endDate);
+    }
+
+    @GetMapping("/removed-members-paginated")
+    public PaginatedVipMemberResponse getRemovedMembersPaginated(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "50") int size,
+            @RequestParam(required = false) Long areaId,
+            @RequestParam(required = false) Long subAreaId,
+            @RequestParam(required = false) Long branchId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            HttpServletRequest httpRequest) {
+        checkPermission(httpRequest, "member.view");
+        Long userId = requireUserId(httpRequest);
+        return vipMemberService.getRemovedMembersPaginated(userId, page, size, areaId, subAreaId, branchId, startDate,
+                endDate);
     }
 }

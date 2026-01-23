@@ -67,6 +67,14 @@ export type VipMemberPayload = {
   deleteRemark?: string;
 };
 
+export type PaginatedVipMemberResponse = {
+  data: VipMember[];
+  totalCount: number;
+  currentPage: number;
+  pageSize: number;
+  totalPages: number;
+};
+
 export type VipMemberDashboardData = {
   areaCounts: Record<string, number>;
   subAreaCounts: Record<string, number>;
@@ -181,5 +189,50 @@ export const vipMemberService = {
       ...buildFilterParams(filters),
     });
     return request(`/vip-members/all-members-optimized?${params.toString()}`);
+  },
+
+  listAllMembersPaginated(page: number, size: number, filters?: {
+    areaId?: number;
+    subAreaId?: number;
+    branchId?: number;
+    startDate?: string;
+    endDate?: string;
+  }): Promise<PaginatedVipMemberResponse> {
+    const params = new URLSearchParams({
+      page: page.toString(),
+      size: size.toString(),
+      ...buildFilterParams(filters),
+    });
+    return request(`/vip-members/all-members-paginated?${params.toString()}`);
+  },
+
+  listActiveMembersPaginated(page: number, size: number, filters?: {
+    areaId?: number;
+    subAreaId?: number;
+    branchId?: number;
+    startDate?: string;
+    endDate?: string;
+  }): Promise<PaginatedVipMemberResponse> {
+    const params = new URLSearchParams({
+      page: page.toString(),
+      size: size.toString(),
+      ...buildFilterParams(filters),
+    });
+    return request(`/vip-members/active-members-paginated?${params.toString()}`);
+  },
+
+  listRemovedMembersPaginated(page: number, size: number, filters?: {
+    areaId?: number;
+    subAreaId?: number;
+    branchId?: number;
+    startDate?: string;
+    endDate?: string;
+  }): Promise<PaginatedVipMemberResponse> {
+    const params = new URLSearchParams({
+      page: page.toString(),
+      size: size.toString(),
+      ...buildFilterParams(filters),
+    });
+    return request(`/vip-members/removed-members-paginated?${params.toString()}`);
   },
 };
