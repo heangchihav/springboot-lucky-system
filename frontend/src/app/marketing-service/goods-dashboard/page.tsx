@@ -29,6 +29,7 @@ import {
 import {
   goodsShipmentService,
   MarketingGoodsShipmentRecord,
+  GoodsDashboardStatsResponse,
 } from "@/services/marketing-service/goodsShipmentService";
 import {
   vipMemberService,
@@ -246,6 +247,9 @@ export default function GoodsDashboardPage() {
   const [shipments, setShipments] = useState<MarketingGoodsShipmentRecord[]>(
     [],
   );
+  const [dashboardStats, setDashboardStats] = useState<
+    GoodsDashboardStatsResponse | null
+  >(null);
 
   const [selectedAreaId, setSelectedAreaId] = useState<number | "all">("all");
   const [selectedSubAreaId, setSelectedSubAreaId] = useState<number | "all">(
@@ -268,6 +272,7 @@ export default function GoodsDashboardPage() {
   const [hierarchyLoading, setHierarchyLoading] = useState(false);
   const [membersLoading, setMembersLoading] = useState(false);
   const [shipmentsLoading, setShipmentsLoading] = useState(false);
+  const [dashboardStatsLoading, setDashboardStatsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const filtersDisabled = hierarchyLoading || membersLoading;
 
@@ -348,6 +353,58 @@ export default function GoodsDashboardPage() {
 
     void loadMembers();
   }, []);
+
+  const refreshDashboardStats = useCallback(async () => {
+    setDashboardStatsLoading(true);
+    setError(null);
+    try {
+      const params: {
+        areaId?: number;
+        subAreaId?: number;
+        branchId?: number;
+        memberId?: number;
+        startDate?: string;
+        endDate?: string;
+      } = {
+        startDate,
+        endDate,
+      };
+
+      if (selectedAreaId !== "all") {
+        params.areaId = selectedAreaId;
+      }
+      if (selectedSubAreaId !== "all") {
+        params.subAreaId = selectedSubAreaId;
+      }
+      if (selectedBranchId !== "all") {
+        params.branchId = selectedBranchId;
+      }
+      if (selectedMemberId !== "all") {
+        params.memberId = selectedMemberId;
+      }
+
+      const stats = await goodsShipmentService.getDashboardStats(params);
+      setDashboardStats(stats);
+    } catch (err) {
+      setDashboardStats(null);
+      setError(
+        err instanceof Error ? err.message : "Failed to load dashboard stats.",
+      );
+    } finally {
+      setDashboardStatsLoading(false);
+    }
+  }, [
+    selectedAreaId,
+    selectedSubAreaId,
+    selectedBranchId,
+    selectedMemberId,
+    startDate,
+    endDate,
+  ]);
+
+  useEffect(() => {
+    void refreshDashboardStats();
+  }, [refreshDashboardStats]);
 
   const refreshShipments = useCallback(async () => {
     setShipmentsLoading(true);
@@ -593,41 +650,25 @@ export default function GoodsDashboardPage() {
   const displayedMemberCount = filteredSummaries.length;
 
   const chartData = useMemo(() => {
-    if (filteredSummaries.length === 0) {
+    if (!dashboardStats || dashboardStats.statusMetrics.length === 0) {
       return [];
     }
 
-    const totals = filteredSummaries.reduce(
-      (acc, summary) => {
-        acc.TOTAL += summary.totalGoods;
-
-        return acc;
-      },
-      {
-        TOTAL: 0,
-      },
-    );
-
-    return [
-      {
-        metric: "Total Goods",
-        TOTAL: totals.TOTAL,
-      },
-    ];
-  }, [filteredSummaries]);
+    return dashboardStats.statusMetrics.map(metric => ({
+      metric: metric.metric,
+      TOTAL: metric.total,
+      shipping: metric.shipping,
+      arrived: metric.arrived,
+      completed: metric.completed,
+    }));
+  }, [dashboardStats]);
 
   const goodsTypeTotals = useMemo(() => {
-    if (chartData.length === 0) {
+    if (!dashboardStats) {
       return { TOTAL: 0 };
     }
-    return chartData.reduce(
-      (acc, row) => {
-        acc.TOTAL += row.TOTAL;
-        return acc;
-      },
-      { TOTAL: 0 },
-    );
-  }, [chartData]);
+    return { TOTAL: dashboardStats.summaryStats.totalGoods };
+  }, [dashboardStats]);
 
   const goodsTypeChartData = useMemo(
     () =>
@@ -680,210 +721,68 @@ export default function GoodsDashboardPage() {
   );
 
   const totalsChartData = useMemo(() => {
-    if (filteredSummaries.length === 0) {
+    if (!dashboardStats || dashboardStats.hierarchyTotals.length === 0) {
       return [];
     }
 
-    // Full hierarchical filtering logic similar to VIP members dashboard
-    if (selectedAreaId === "all") {
-      // Show all areas
-      const areaMap = new Map<string, { label: string; total: number; highlight?: boolean }>();
-      filteredSummaries.forEach((summary) => {
-        const key = `area-${summary.areaId ?? "none"}`;
-        const label = summary.areaName ?? "Unassigned area";
-
-        if (!areaMap.has(key)) {
-          areaMap.set(key, { label, total: 0 });
-        }
-        areaMap.get(key)!.total += summary.totalGoods;
-      });
-      return Array.from(areaMap.values()).sort((a, b) => b.total - a.total);
-    }
-
-    // Area is selected - show sub-areas or branches
-    const selectedAreaData = areas.find(area => area.id === selectedAreaId);
-    if (!selectedAreaData) {
-      return [];
-    }
-
-    const areaSubAreas = subAreas.filter(subArea => subArea.areaId === selectedAreaId);
-    const areaBranches = branches.filter(branch => branch.areaId === selectedAreaId);
-
-    if (areaSubAreas.length > 0) {
-      // Area has sub-areas - show sub-areas or branches based on selection
-      if (selectedSubAreaId !== "all") {
-        // Sub-area is selected - show branches in this sub-area
-        if (selectedBranchId !== "all") {
-          // Branch is selected - show members in this branch
-          const memberMap = new Map<string, { label: string; total: number; highlight?: boolean }>();
-          filteredSummaries
-            .filter(summary => summary.areaId === selectedAreaId &&
-              (summary.subAreaId ?? null) === selectedSubAreaId &&
-              summary.branchId === selectedBranchId)
-            .forEach((summary) => {
-              const key = `member-${summary.memberId}`;
-              const label = summary.memberName;
-
-              if (!memberMap.has(key)) {
-                memberMap.set(key, { label, total: 0, highlight: summary.memberId === highlightedMemberId });
-              }
-              memberMap.get(key)!.total += summary.totalGoods;
-              if (summary.memberId === highlightedMemberId) {
-                memberMap.get(key)!.highlight = true;
-              }
-            });
-          return Array.from(memberMap.values()).sort((a, b) => b.total - a.total);
-        } else {
-          // Show branches in the selected sub-area
-          const branchMap = new Map<string, { label: string; total: number; highlight?: boolean }>();
-          filteredSummaries
-            .filter(summary => summary.areaId === selectedAreaId &&
-              (summary.subAreaId ?? null) === selectedSubAreaId)
-            .forEach((summary) => {
-              const key = `branch-${summary.branchId}`;
-              const label = summary.branchName;
-
-              if (!branchMap.has(key)) {
-                branchMap.set(key, { label, total: 0, highlight: selectedBranchId !== "all" && summary.branchId === selectedBranchId });
-              }
-              branchMap.get(key)!.total += summary.totalGoods;
-              if (selectedBranchId !== "all" && summary.branchId === selectedBranchId) {
-                branchMap.get(key)!.highlight = true;
-              }
-            });
-          return Array.from(branchMap.values()).sort((a, b) => b.total - a.total);
-        }
-      } else {
-        // Show sub-areas in the selected area
-        const subAreaMap = new Map<string, { label: string; total: number; highlight?: boolean }>();
-        filteredSummaries
-          .filter(summary => summary.areaId === selectedAreaId)
-          .forEach((summary) => {
-            const subAreaId = summary.subAreaId ?? "none";
-            const key = `sub-${subAreaId}`;
-            const label = summary.subAreaName ?? "Unassigned sub-area";
-
-            if (!subAreaMap.has(key)) {
-              subAreaMap.set(key, { label, total: 0, highlight: selectedSubAreaId !== "all" && (summary.subAreaId ?? null) === selectedSubAreaId });
-            }
-            subAreaMap.get(key)!.total += summary.totalGoods;
-            if (selectedSubAreaId !== "all" && (summary.subAreaId ?? null) === selectedSubAreaId) {
-              subAreaMap.get(key)!.highlight = true;
-            }
-          });
-        return Array.from(subAreaMap.values()).sort((a, b) => b.total - a.total);
-      }
-    } else {
-      // Area has no sub-areas - show branches directly
-      if (selectedBranchId !== "all") {
-        // Branch is selected - show members in this branch
-        const memberMap = new Map<string, { label: string; total: number; highlight?: boolean }>();
-        filteredSummaries
-          .filter(summary => summary.areaId === selectedAreaId && summary.branchId === selectedBranchId)
-          .forEach((summary) => {
-            const key = `member-${summary.memberId}`;
-            const label = summary.memberName;
-
-            if (!memberMap.has(key)) {
-              memberMap.set(key, { label, total: 0, highlight: summary.memberId === highlightedMemberId });
-            }
-            memberMap.get(key)!.total += summary.totalGoods;
-            if (summary.memberId === highlightedMemberId) {
-              memberMap.get(key)!.highlight = true;
-            }
-          });
-        return Array.from(memberMap.values()).sort((a, b) => b.total - a.total);
-      } else {
-        // Show branches in the selected area
-        const branchMap = new Map<string, { label: string; total: number; highlight?: boolean }>();
-        filteredSummaries
-          .filter(summary => summary.areaId === selectedAreaId)
-          .forEach((summary) => {
-            const key = `branch-${summary.branchId}`;
-            const label = summary.branchName;
-
-            if (!branchMap.has(key)) {
-              branchMap.set(key, { label, total: 0, highlight: selectedBranchId !== "all" && summary.branchId === selectedBranchId });
-            }
-            branchMap.get(key)!.total += summary.totalGoods;
-            if (selectedBranchId !== "all" && summary.branchId === selectedBranchId) {
-              branchMap.get(key)!.highlight = true;
-            }
-          });
-        return Array.from(branchMap.values()).sort((a, b) => b.total - a.total);
-      }
-    }
-  }, [filteredSummaries, selectedAreaId, selectedSubAreaId, selectedBranchId, selectedMemberId, highlightedMemberId, areas, subAreas, branches]);
+    return dashboardStats.hierarchyTotals.map(total => ({
+      key: total.key,
+      label: total.label,
+      total: total.total,
+      highlight: total.highlight,
+    }));
+  }, [dashboardStats]);
 
   const dailyGoodsTrend = useMemo(() => {
-    if (shipments.length === 0) {
+    if (!dashboardStats || dashboardStats.dailyTrends.length === 0) {
       return [];
     }
 
-    const totalsByDate = shipments.reduce((map, record) => {
-      const totalGoods = record.totalGoods || 0;
-      map.set(record.sendDate, (map.get(record.sendDate) ?? 0) + totalGoods);
-      return map;
-    }, new Map<string, number>());
+    return dashboardStats.dailyTrends.map(trend => ({
+      date: trend.date,
+      label: formatDate(trend.date),
+      total: trend.totalGoods,
+    }));
+  }, [dashboardStats]);
 
-    const baseSeries = Array.from(totalsByDate.entries())
-      .sort(([a], [b]) => (a === b ? 0 : a < b ? -1 : 1))
-      .map(([date, total]) => ({
-        date,
-        label: formatDate(date),
-        total,
-      }));
-
-    if (trendView === "day") {
-      return baseSeries;
+  const weeklyGoodsTrend = useMemo(() => {
+    if (!dashboardStats || dashboardStats.weeklyTrends.length === 0) {
+      return [];
     }
 
-    if (trendView === "week") {
-      const grouped = new Map<
-        string,
-        { total: number; count: number; label: string }
-      >();
-      baseSeries.forEach((item) => {
-        const parsed = parseIsoDate(item.date);
-        const year = parsed.getUTCFullYear();
-        const week = getIsoWeekNumber(parsed);
-        const key = `${year}-W${week}`;
-        const label = `W${week} ${year}`;
-        const bucket = grouped.get(key) ?? { total: 0, count: 0, label };
-        bucket.total += item.total;
-        bucket.count += 1;
-        grouped.set(key, bucket);
-      });
-      return Array.from(grouped.entries())
-        .sort(([a], [b]) => (a === b ? 0 : a < b ? -1 : 1))
-        .map(([key, bucket]) => ({
-          date: key,
-          label: bucket.label,
-          total: bucket.total,
-        }));
+    return dashboardStats.weeklyTrends.map(trend => ({
+      date: trend.label,
+      label: trend.label,
+      total: trend.totalGoods,
+    }));
+  }, [dashboardStats]);
+
+  const monthlyGoodsTrend = useMemo(() => {
+    if (!dashboardStats || dashboardStats.monthlyTrends.length === 0) {
+      return [];
     }
 
-    // trendView === 'month'
-    const grouped = new Map<string, { total: number; label: string }>();
-    baseSeries.forEach((item) => {
-      const parsed = parseIsoDate(item.date);
-      const key = `${parsed.getUTCFullYear()}-${parsed.getUTCMonth()}`;
-      const bucket = grouped.get(key) ?? {
-        total: 0,
-        label: formatMonthLabel(parsed),
-      };
-      bucket.total += item.total;
-      grouped.set(key, bucket);
-    });
-    return Array.from(grouped.entries())
-      .sort(([a], [b]) => (a === b ? 0 : a < b ? -1 : 1))
-      .map(([key, bucket]) => ({
-        date: key,
-        label: bucket.label,
-        total: bucket.total,
-      }));
-  }, [shipments, trendView]);
+    return dashboardStats.monthlyTrends.map(trend => ({
+      date: trend.label,
+      label: trend.label,
+      total: trend.totalGoods,
+    }));
+  }, [dashboardStats]);
 
+  const trendData = useMemo(() => {
+    switch (trendView) {
+      case "day":
+        return dailyGoodsTrend;
+      case "week":
+        return weeklyGoodsTrend;
+      case "month":
+        return monthlyGoodsTrend;
+      default:
+        return dailyGoodsTrend;
+    }
+  }, [trendView, dailyGoodsTrend, weeklyGoodsTrend, monthlyGoodsTrend]);
+
+  // Keep the existing shipments logic for the detailed records table
   const shipmentRows = useMemo(
     () =>
       shipments.map((record) => {
@@ -904,20 +803,26 @@ export default function GoodsDashboardPage() {
     if (!searchQuery.trim()) {
       return shipmentRows;
     }
-    const query = searchQuery.toLowerCase().trim();
+
+    const query = searchQuery.toLowerCase();
     return shipmentRows.filter((row) =>
       row.member.toLowerCase().includes(query) ||
-      row.phone.toLowerCase().includes(query) ||
-      row.date.toLowerCase().includes(query) ||
-      row.totalGoods.toString().includes(query)
+      row.phone.toLowerCase().includes(query)
     );
   }, [shipmentRows, searchQuery]);
 
-  // Pagination calculations
+  // Pagination for filtered rows
+  const { paginatedShipmentRows, startIndex, endIndex } = useMemo(() => {
+    const startIdx = (currentPage - 1) * pageSize;
+    const endIdx = startIdx + pageSize;
+    return {
+      paginatedShipmentRows: filteredShipmentRows.slice(startIdx, endIdx),
+      startIndex: startIdx,
+      endIndex: endIdx,
+    };
+  }, [filteredShipmentRows, currentPage, pageSize]);
+
   const totalPages = Math.ceil(filteredShipmentRows.length / pageSize);
-  const startIndex = (currentPage - 1) * pageSize;
-  const endIndex = startIndex + pageSize;
-  const paginatedShipmentRows = filteredShipmentRows.slice(startIndex, endIndex);
 
   // Handle page size change
   const handlePageSizeChange = (newSize: number) => {
@@ -1188,9 +1093,13 @@ export default function GoodsDashboardPage() {
             </div>
           </div>
           <div className={`mt-2 h-96 w-full ${totalsChartData.length > 8 ? 'overflow-x-auto scrollbar-hide' : ''}`}>
-            {totalsChartData.length === 0 ? (
+            {totalsChartData.length === 0 && !dashboardStatsLoading ? (
               <div className="flex h-full items-center justify-center text-sm text-slate-400">
-                No total goods data to display.
+                {dashboardStatsLoading ? "Loading chart data..." : "No total goods data to display."}
+              </div>
+            ) : dashboardStatsLoading ? (
+              <div className="flex h-full items-center justify-center text-sm text-slate-400">
+                Loading chart data...
               </div>
             ) : (
               <div style={{
@@ -1330,7 +1239,7 @@ export default function GoodsDashboardPage() {
                 </h2>
               </div>
               <div className="flex items-center gap-3 text-xs uppercase tracking-[0.3em] text-slate-400">
-                {shipmentsLoading && <span>Refreshing…</span>}
+                {(shipmentsLoading || dashboardStatsLoading) && <span>Refreshing…</span>}
                 <span className="rounded-full border border-white/10 px-3 py-1 text-xs text-slate-200">
                   {startIndex + 1}-{Math.min(endIndex, filteredShipmentRows.length)} of {filteredShipmentRows.length} rows
                 </span>

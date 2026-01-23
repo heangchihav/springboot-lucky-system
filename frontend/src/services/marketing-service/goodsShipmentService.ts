@@ -60,6 +60,47 @@ export type MarketingGoodsShipmentRecord = {
   createdBy: number;
 };
 
+export type GoodsDashboardStatsResponse = {
+  statusMetrics: Array<{
+    metric: string;
+    shipping: number;
+    arrived: number;
+    completed: number;
+    total: number;
+  }>;
+  hierarchyTotals: Array<{
+    key: string;
+    label: string;
+    total: number;
+    type: "area" | "branch" | "subArea" | "member";
+    id: number;
+    highlight: boolean;
+  }>;
+  dailyTrends: Array<{
+    date: string;
+    totalGoods: number;
+  }>;
+  weeklyTrends: Array<{
+    week: number;
+    year: number;
+    label: string;
+    totalGoods: number;
+  }>;
+  monthlyTrends: Array<{
+    month: number;
+    year: number;
+    label: string;
+    totalGoods: number;
+  }>;
+  summaryStats: {
+    totalGoods: number;
+    totalMembers: number;
+    totalBranches: number;
+    totalAreas: number;
+    totalSubAreas: number;
+  };
+};
+
 export const goodsShipmentService = {
   createBatch(payload: UserGoodsRecord[]): Promise<{ accepted: number }> {
     return request("/goods-shipments", {
@@ -134,6 +175,50 @@ export const goodsShipmentService = {
 
   delete(id: number) {
     return request<void>(`/goods-shipments/${id}`, { method: "DELETE" });
+  },
+
+  getDashboardStats(
+    params: {
+      areaId?: number;
+      subAreaId?: number;
+      branchId?: number;
+      memberId?: number;
+      startDate?: string;
+      endDate?: string;
+    } = {},
+  ) {
+    const search = new URLSearchParams();
+    const {
+      areaId,
+      subAreaId,
+      branchId,
+      memberId,
+      startDate,
+      endDate,
+    } = params;
+
+    if (areaId) {
+      search.set("areaId", String(areaId));
+    }
+    if (subAreaId) {
+      search.set("subAreaId", String(subAreaId));
+    }
+    if (branchId) {
+      search.set("branchId", String(branchId));
+    }
+    if (memberId) {
+      search.set("memberId", String(memberId));
+    }
+    if (startDate) {
+      search.set("startDate", startDate);
+    }
+    if (endDate) {
+      search.set("endDate", endDate);
+    }
+
+    const query = search.toString();
+    const path = query ? `/goods-shipments/dashboard-stats?${query}` : "/goods-shipments/dashboard-stats";
+    return request<GoodsDashboardStatsResponse>(path);
   },
 };
 

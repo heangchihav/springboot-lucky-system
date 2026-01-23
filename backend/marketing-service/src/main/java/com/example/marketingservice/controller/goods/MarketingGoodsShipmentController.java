@@ -1,6 +1,7 @@
 package com.example.marketingservice.controller.goods;
 
 import com.example.marketingservice.controller.base.BaseController;
+import com.example.marketingservice.dto.goods.GoodsDashboardStatsResponse;
 import com.example.marketingservice.dto.goods.MarketingGoodsShipmentResponse;
 import com.example.marketingservice.dto.goods.MarketingGoodsShipmentUpdateRequest;
 import com.example.marketingservice.dto.goods.UserGoodsRecordRequest;
@@ -117,5 +118,54 @@ public class MarketingGoodsShipmentController extends BaseController {
         Long userId = requireUserId(httpRequest);
         shipmentService.deleteShipment(id, userId);
         return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/dashboard-stats")
+    public GoodsDashboardStatsResponse getDashboardStats(
+            @RequestParam(required = false) Long areaId,
+            @RequestParam(required = false) Long subAreaId,
+            @RequestParam(required = false) Long branchId,
+            @RequestParam(required = false) Long memberId,
+            @RequestParam(required = false) LocalDate startDate,
+            @RequestParam(required = false) LocalDate endDate,
+            HttpServletRequest httpRequest) {
+        checkPermission(httpRequest, "goods.view");
+        Long userId = requireUserId(httpRequest);
+
+        // Apply user's hierarchy assignments when not explicitly filtering
+        List<Long> branchIds = null;
+        List<Long> subAreaIds = null;
+        List<Long> areaIds = null;
+
+        if (areaId == null && subAreaId == null && branchId == null) {
+            var assignments = userAssignmentService.getActiveAssignmentsByUserId(userId);
+
+            // Collect all assigned hierarchy IDs
+            if (!assignments.isEmpty()) {
+                branchIds = new java.util.ArrayList<>();
+                subAreaIds = new java.util.ArrayList<>();
+                areaIds = new java.util.ArrayList<>();
+
+                for (var assignment : assignments) {
+                    if (assignment.getBranch() != null) {
+                        branchIds.add(assignment.getBranch().getId());
+                    }
+                    if (assignment.getSubArea() != null) {
+                        subAreaIds.add(assignment.getSubArea().getId());
+                    }
+                    if (assignment.getArea() != null) {
+                        areaIds.add(assignment.getArea().getId());
+                    }
+                }
+
+                // Remove duplicates
+                branchIds = branchIds.isEmpty() ? null : branchIds.stream().distinct().toList();
+                subAreaIds = subAreaIds.isEmpty() ? null : subAreaIds.stream().distinct().toList();
+                areaIds = areaIds.isEmpty() ? null : areaIds.stream().distinct().toList();
+            }
+        }
+
+        return shipmentService.getDashboardStats(areaId, subAreaId, branchId, memberId, startDate, endDate,
+                branchIds, subAreaIds, areaIds);
     }
 }
