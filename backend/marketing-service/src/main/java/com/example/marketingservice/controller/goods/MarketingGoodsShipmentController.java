@@ -2,6 +2,7 @@ package com.example.marketingservice.controller.goods;
 
 import com.example.marketingservice.controller.base.BaseController;
 import com.example.marketingservice.dto.goods.GoodsDashboardStatsResponse;
+import com.example.marketingservice.dto.goods.PaginatedGoodsShipmentResponse;
 import com.example.marketingservice.dto.goods.MarketingGoodsShipmentResponse;
 import com.example.marketingservice.dto.goods.MarketingGoodsShipmentUpdateRequest;
 import com.example.marketingservice.dto.goods.UserGoodsRecordRequest;
@@ -48,7 +49,7 @@ public class MarketingGoodsShipmentController extends BaseController {
     }
 
     @GetMapping
-    public List<MarketingGoodsShipmentResponse> listRecent(
+    public Object listRecent(
             @RequestParam(required = false) Long memberId,
             @RequestParam(required = false) Long branchId,
             @RequestParam(required = false) Long subAreaId,
@@ -56,6 +57,8 @@ public class MarketingGoodsShipmentController extends BaseController {
             @RequestParam(defaultValue = "true") boolean myOnly,
             @RequestParam(required = false) String memberQuery,
             @RequestParam(required = false) Integer limit,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size,
             @RequestParam(required = false) LocalDate startDate,
             @RequestParam(required = false) LocalDate endDate,
             HttpServletRequest httpRequest) {
@@ -96,8 +99,20 @@ public class MarketingGoodsShipmentController extends BaseController {
         }
 
         Long createdBy = myOnly ? userId : null;
-        return shipmentService.findRecent(memberId, branchId, subAreaId, areaId, createdBy, memberQuery, limit,
-                startDate, endDate, branchIds, subAreaIds, areaIds);
+
+        // Handle pagination - if page and size are provided, use pagination
+        if (page != null && size != null) {
+            // Convert to 0-based page index for backend
+            int pageIndex = Math.max(0, page - 1);
+            int pageSizeValue = Math.max(1, size);
+
+            return shipmentService.findRecentPaginated(memberId, branchId, subAreaId, areaId, createdBy, memberQuery,
+                    startDate, endDate, branchIds, subAreaIds, areaIds, page, pageSizeValue);
+        } else {
+            // Use existing limit-based logic for backward compatibility
+            return shipmentService.findRecent(memberId, branchId, subAreaId, areaId, createdBy, memberQuery, limit,
+                    startDate, endDate, branchIds, subAreaIds, areaIds);
+        }
     }
 
     @PutMapping("/{id}")

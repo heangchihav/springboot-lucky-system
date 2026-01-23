@@ -109,117 +109,112 @@ export const goodsShipmentService = {
     });
   },
 
-  listRecent(
-    params: {
-      memberId?: number;
-      branchId?: number;
-      subAreaId?: number;
-      areaId?: number;
-      memberQuery?: string;
-      limit?: number;
-      myOnly?: boolean;
-      startDate?: string;
-      endDate?: string;
-    } = {},
-  ) {
-    const search = new URLSearchParams();
-    const {
-      memberId,
-      branchId,
-      subAreaId,
-      areaId,
-      memberQuery,
-      limit,
-      myOnly = true,
-      startDate,
-      endDate,
-    } = params;
+  listRecent: async (params: {
+    memberId?: number;
+    branchId?: number;
+    subAreaId?: number;
+    areaId?: number;
+    limit?: number;
+    page?: number;
+    size?: number;
+    myOnly?: boolean;
+    memberQuery?: string;
+    startDate?: string;
+    endDate?: string;
+  }) => {
+    const searchParams = new URLSearchParams();
 
-    if (memberId) {
-      search.set("memberId", String(memberId));
-    }
-    if (!memberId && branchId) {
-      search.set("branchId", String(branchId));
-    }
-    if (subAreaId) {
-      search.set("subAreaId", String(subAreaId));
-    }
-    if (areaId) {
-      search.set("areaId", String(areaId));
-    }
-    if (memberQuery?.trim()) {
-      search.set("memberQuery", memberQuery.trim());
-    }
-    if (limit) {
-      search.set("limit", String(limit));
-    }
-    search.set("myOnly", String(myOnly));
-    if (startDate) {
-      search.set("startDate", startDate);
-    }
-    if (endDate) {
-      search.set("endDate", endDate);
-    }
+    if (params.memberId !== undefined) searchParams.append('memberId', params.memberId.toString());
+    if (params.branchId !== undefined) searchParams.append('branchId', params.branchId.toString());
+    if (params.subAreaId !== undefined) searchParams.append('subAreaId', params.subAreaId.toString());
+    if (params.areaId !== undefined) searchParams.append('areaId', params.areaId.toString());
+    if (params.limit !== undefined) searchParams.append('limit', params.limit.toString());
+    if (params.page !== undefined) searchParams.append('page', params.page.toString());
+    if (params.size !== undefined) searchParams.append('size', params.size.toString());
+    if (params.myOnly !== undefined) searchParams.append('myOnly', params.myOnly.toString());
+    if (params.memberQuery) searchParams.append('memberQuery', params.memberQuery);
+    if (params.startDate) searchParams.append('startDate', params.startDate);
+    if (params.endDate) searchParams.append('endDate', params.endDate);
 
-    const query = search.toString();
-    const path = query ? `/goods-shipments?${query}` : "/goods-shipments";
-    return request<MarketingGoodsShipmentRecord[]>(path);
+    // If pagination parameters are provided, expect paginated response
+    if (params.page !== undefined && params.size !== undefined) {
+      const response = await request<PaginatedGoodsShipmentResponse>(`/goods-shipments?${searchParams.toString()}`);
+      return response.data; // Return just the data array for compatibility
+    } else {
+      // Legacy limit-based response
+      const response = await request<MarketingGoodsShipmentRecord[]>(`/goods-shipments?${searchParams.toString()}`);
+      return response;
+    }
   },
 
-  update(id: number, payload: MarketingGoodsShipmentRecordUpdatePayload) {
+  listRecentPaginated: async (params: {
+    memberId?: number;
+    branchId?: number;
+    subAreaId?: number;
+    areaId?: number;
+    page?: number;
+    size?: number;
+    myOnly?: boolean;
+    memberQuery?: string;
+    startDate?: string;
+    endDate?: string;
+  }) => {
+    const searchParams = new URLSearchParams();
+
+    if (params.memberId !== undefined) searchParams.append('memberId', params.memberId.toString());
+    if (params.branchId !== undefined) searchParams.append('branchId', params.branchId.toString());
+    if (params.subAreaId !== undefined) searchParams.append('subAreaId', params.subAreaId.toString());
+    if (params.areaId !== undefined) searchParams.append('areaId', params.areaId.toString());
+    if (params.page !== undefined) searchParams.append('page', params.page.toString());
+    if (params.size !== undefined) searchParams.append('size', params.size.toString());
+    if (params.myOnly !== undefined) searchParams.append('myOnly', params.myOnly.toString());
+    if (params.memberQuery) searchParams.append('memberQuery', params.memberQuery);
+    if (params.startDate) searchParams.append('startDate', params.startDate);
+    if (params.endDate) searchParams.append('endDate', params.endDate);
+
+    const response = await request<PaginatedGoodsShipmentResponse>(`/goods-shipments?${searchParams.toString()}`);
+    return response;
+  },
+
+  update: async (id: number, payload: MarketingGoodsShipmentRecordUpdatePayload) => {
     return request<MarketingGoodsShipmentRecord>(`/goods-shipments/${id}`, {
       method: "PUT",
       body: payload,
     });
   },
 
-  delete(id: number) {
+  delete: async (id: number) => {
     return request<void>(`/goods-shipments/${id}`, { method: "DELETE" });
   },
 
-  getDashboardStats(
-    params: {
-      areaId?: number;
-      subAreaId?: number;
-      branchId?: number;
-      memberId?: number;
-      startDate?: string;
-      endDate?: string;
-    } = {},
-  ) {
-    const search = new URLSearchParams();
-    const {
-      areaId,
-      subAreaId,
-      branchId,
-      memberId,
-      startDate,
-      endDate,
-    } = params;
+  getDashboardStats: async (params: {
+    areaId?: number;
+    subAreaId?: number;
+    branchId?: number;
+    memberId?: number;
+    startDate?: string;
+    endDate?: string;
+  } = {}) => {
+    const searchParams = new URLSearchParams();
 
-    if (areaId) {
-      search.set("areaId", String(areaId));
-    }
-    if (subAreaId) {
-      search.set("subAreaId", String(subAreaId));
-    }
-    if (branchId) {
-      search.set("branchId", String(branchId));
-    }
-    if (memberId) {
-      search.set("memberId", String(memberId));
-    }
-    if (startDate) {
-      search.set("startDate", startDate);
-    }
-    if (endDate) {
-      search.set("endDate", endDate);
-    }
+    if (params.areaId !== undefined) searchParams.append('areaId', params.areaId.toString());
+    if (params.subAreaId !== undefined) searchParams.append('subAreaId', params.subAreaId.toString());
+    if (params.branchId !== undefined) searchParams.append('branchId', params.branchId.toString());
+    if (params.memberId !== undefined) searchParams.append('memberId', params.memberId.toString());
+    if (params.startDate) searchParams.append('startDate', params.startDate);
+    if (params.endDate) searchParams.append('endDate', params.endDate);
 
-    const query = search.toString();
-    const path = query ? `/goods-shipments/dashboard-stats?${query}` : "/goods-shipments/dashboard-stats";
-    return request<GoodsDashboardStatsResponse>(path);
+    const response = await request<GoodsDashboardStatsResponse>(`/goods-shipments/dashboard-stats?${searchParams.toString()}`);
+    return response;
   },
+};
+
+export type PaginatedGoodsShipmentResponse = {
+  data: MarketingGoodsShipmentRecord[];
+  totalCount: number;
+  currentPage: number;
+  pageSize: number;
+  totalPages: number;
 };
 
 export type MarketingGoodsShipmentRecordUpdatePayload = {

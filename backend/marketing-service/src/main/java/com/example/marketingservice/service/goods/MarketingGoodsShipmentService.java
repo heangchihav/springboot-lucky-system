@@ -1,6 +1,7 @@
 package com.example.marketingservice.service.goods;
 
 import com.example.marketingservice.dto.goods.GoodsDashboardStatsResponse;
+import com.example.marketingservice.dto.goods.PaginatedGoodsShipmentResponse;
 import com.example.marketingservice.dto.goods.MarketingGoodsShipmentResponse;
 import com.example.marketingservice.dto.goods.MarketingGoodsShipmentUpdateRequest;
 import com.example.marketingservice.dto.goods.UserGoodsRecordRequest;
@@ -166,6 +167,137 @@ public class MarketingGoodsShipmentService {
         return page.stream()
                 .map(MarketingGoodsShipmentResponse::fromEntity)
                 .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public PaginatedGoodsShipmentResponse findRecentPaginated(
+            Long memberId,
+            Long branchId,
+            Long subAreaId,
+            Long areaId,
+            Long createdBy,
+            String memberQuery,
+            LocalDate startDate,
+            LocalDate endDate,
+            List<Long> branchIds,
+            List<Long> subAreaIds,
+            List<Long> areaIds,
+            int currentPage,
+            int pageSize) {
+
+        int offset = (currentPage - 1) * pageSize;
+
+        // First, get total count for pagination
+        String countJpql = "SELECT COUNT(s) FROM MarketingGoodsShipment s " +
+                "LEFT JOIN s.member m " +
+                "LEFT JOIN m.branch b " +
+                "LEFT JOIN b.area " +
+                "LEFT JOIN b.subArea " +
+                "WHERE " + buildWhereClause(memberId, branchId, subAreaId, areaId, createdBy, memberQuery, startDate,
+                        endDate, branchIds, subAreaIds, areaIds);
+
+        Query countQuery = entityManager.createQuery(countJpql, Long.class);
+        setQueryParameters(countQuery, memberId, branchId, subAreaId, areaId, createdBy, memberQuery, startDate,
+                endDate, branchIds, subAreaIds, areaIds);
+
+        Long totalCount = ((Number) countQuery.getSingleResult()).longValue();
+
+        // Use custom query with offset for better performance with large datasets
+        String jpql = "SELECT s FROM MarketingGoodsShipment s " +
+                "LEFT JOIN FETCH s.member m " +
+                "LEFT JOIN FETCH m.branch b " +
+                "LEFT JOIN FETCH b.area " +
+                "LEFT JOIN FETCH b.subArea " +
+                "WHERE "
+                + buildWhereClause(memberId, branchId, subAreaId, areaId, createdBy, memberQuery, startDate, endDate,
+                        branchIds, subAreaIds, areaIds)
+                +
+                " ORDER BY s.sendDate DESC, s.id DESC";
+
+        Query query = entityManager.createQuery(jpql, MarketingGoodsShipment.class);
+        query.setFirstResult(offset);
+        query.setMaxResults(pageSize);
+
+        // Set parameters
+        setQueryParameters(query, memberId, branchId, subAreaId, areaId, createdBy, memberQuery, startDate, endDate,
+                branchIds, subAreaIds, areaIds);
+
+        @SuppressWarnings("unchecked")
+        List<MarketingGoodsShipment> results = query.getResultList();
+
+        List<MarketingGoodsShipmentResponse> responseList = results.stream()
+                .map(MarketingGoodsShipmentResponse::fromEntity)
+                .toList();
+
+        return new PaginatedGoodsShipmentResponse(responseList, totalCount, currentPage, pageSize);
+    }
+
+    private String buildWhereClause(Long memberId, Long branchId, Long subAreaId, Long areaId, Long createdBy,
+            String memberQuery, LocalDate startDate, LocalDate endDate,
+            List<Long> branchIds, List<Long> subAreaIds, List<Long> areaIds) {
+        List<String> conditions = new ArrayList<>();
+
+        if (memberId != null) {
+            conditions.add("m.id = :memberId");
+        }
+        if (branchId != null) {
+            conditions.add("b.id = :branchId");
+        } else if (branchIds != null && !branchIds.isEmpty()) {
+            conditions.add("b.id IN :branchIds");
+        }
+        if (subAreaId != null) {
+            conditions.add("b.subArea.id = :subAreaId");
+        } else if (subAreaIds != null && !subAreaIds.isEmpty()) {
+            conditions.add("b.subArea.id IN :subAreaIds");
+        }
+        if (areaId != null) {
+            conditions.add("b.area.id = :areaId");
+        } else if (areaIds != null && !areaIds.isEmpty()) {
+            conditions.add("b.area.id IN :areaIds");
+        }
+        if (createdBy != null) {
+            conditions.add("s.createdBy = :createdBy");
+        }
+        if (memberQuery != null && !memberQuery.trim().isEmpty()) {
+            conditions.add("(LOWER(m.name) LIKE :memberQuery OR LOWER(m.phone) LIKE :memberQuery)");
+        }
+        if (startDate != null) {
+            conditions.add("s.sendDate >= :startDate");
+        }
+        if (endDate != null) {
+            conditions.add("s.sendDate <= :endDate");
+        }
+
+        return String.join(" AND ", conditions);
+    }
+
+    private void setQueryParameters(Query query, Long memberId, Long branchId, Long subAreaId, Long areaId,
+            Long createdBy,
+            String memberQuery, LocalDate startDate, LocalDate endDate,
+            List<Long> branchIds, List<Long> subAreaIds, List<Long> areaIds) {
+        if (memberId != null)
+            query.setParameter("memberId", memberId);
+        if (branchId != null)
+            query.setParameter("branchId", branchId);
+        if (subAreaId != null)
+            query.setParameter("subAreaId", subAreaId);
+        if (areaId != null)
+            query.setParameter("areaId", areaId);
+        if (createdBy != null)
+            query.setParameter("createdBy", createdBy);
+        if (memberQuery != null && !memberQuery.trim().isEmpty()) {
+            query.setParameter("memberQuery", "%" + memberQuery.toLowerCase() + "%");
+        }
+        if (startDate != null)
+            query.setParameter("startDate", startDate);
+        if (endDate != null)
+            query.setParameter("endDate", endDate);
+        if (branchIds != null && !branchIds.isEmpty())
+            query.setParameter("branchIds", branchIds);
+        if (subAreaIds != null && !subAreaIds.isEmpty())
+            query.setParameter("subAreaIds", subAreaIds);
+        if (areaIds != null && !areaIds.isEmpty())
+            query.setParameter("areaIds", areaIds);
     }
 
     @Transactional

@@ -279,6 +279,8 @@ export default function GoodsDashboardPage() {
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [isPaginating, setIsPaginating] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
   const pageSizeOptions = [
@@ -409,20 +411,25 @@ export default function GoodsDashboardPage() {
   const refreshShipments = useCallback(async () => {
     setShipmentsLoading(true);
     setError(null);
+    setIsPaginating(true);
     try {
       const params: {
         areaId?: number;
         subAreaId?: number;
         branchId?: number;
         memberId?: number;
-        limit?: number;
+        page?: number;
+        size?: number;
         myOnly?: boolean;
         startDate?: string;
         endDate?: string;
+        memberQuery?: string;
       } = {
         myOnly: false,
         startDate,
         endDate,
+        page: currentPage,
+        size: pageSize,
       };
 
       if (selectedAreaId !== "all") {
@@ -437,51 +444,25 @@ export default function GoodsDashboardPage() {
       if (selectedMemberId !== "all") {
         params.memberId = selectedMemberId;
       }
+      if (searchQuery.trim()) {
+        params.memberQuery = searchQuery.trim();
+      }
 
-      const records = await goodsShipmentService.listRecent(params);
+      const paginatedResponse = await goodsShipmentService.listRecentPaginated(params);
 
-      const filteredByDate = records.filter((record) => {
-        const matchesStart = !startDate || record.sendDate >= startDate;
-        const matchesEnd = !endDate || record.sendDate <= endDate;
-        return matchesStart && matchesEnd;
-      });
+      // Use the data directly from backend - no client-side processing
+      setShipments(paginatedResponse.data);
+      setTotalRecords(paginatedResponse.totalCount);
 
-      const latestPerMemberPerDay = Array.from(
-        filteredByDate
-          .reduce((map, record) => {
-            const key = `${record.memberId}-${record.sendDate}`;
-            const existing = map.get(key);
-            if (!existing) {
-              map.set(key, record);
-              return map;
-            }
-            const existingTime = getCreatedAtTime(existing.createdAt);
-            const currentTime = getCreatedAtTime(record.createdAt);
-            if (
-              currentTime > existingTime ||
-              (currentTime === existingTime && record.id > existing.id)
-            ) {
-              map.set(key, record);
-            }
-            return map;
-          }, new Map<string, MarketingGoodsShipmentRecord>())
-          .values(),
-      ).sort((a, b) => {
-        const dateComparison = compareIsoDatesDesc(a.sendDate, b.sendDate);
-        if (dateComparison !== 0) {
-          return dateComparison;
-        }
-        return getCreatedAtTime(b.createdAt) - getCreatedAtTime(a.createdAt);
-      });
-
-      setShipments(latestPerMemberPerDay);
     } catch (err) {
       setShipments([]);
+      setTotalRecords(0);
       setError(
         err instanceof Error ? err.message : "Failed to load shipments.",
       );
     } finally {
       setShipmentsLoading(false);
+      setIsPaginating(false);
     }
   }, [
     selectedAreaId,
@@ -490,6 +471,9 @@ export default function GoodsDashboardPage() {
     selectedMemberId,
     startDate,
     endDate,
+    currentPage,
+    pageSize,
+    searchQuery,
   ]);
 
   useEffect(() => {
@@ -811,18 +795,10 @@ export default function GoodsDashboardPage() {
     );
   }, [shipmentRows, searchQuery]);
 
-  // Pagination for filtered rows
-  const { paginatedShipmentRows, startIndex, endIndex } = useMemo(() => {
-    const startIdx = (currentPage - 1) * pageSize;
-    const endIdx = startIdx + pageSize;
-    return {
-      paginatedShipmentRows: filteredShipmentRows.slice(startIdx, endIdx),
-      startIndex: startIdx,
-      endIndex: endIdx,
-    };
-  }, [filteredShipmentRows, currentPage, pageSize]);
-
-  const totalPages = Math.ceil(filteredShipmentRows.length / pageSize);
+  // Calculate pagination info
+  const totalPages = Math.ceil(totalRecords / pageSize);
+  const startIndex = totalRecords === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+  const endIndex = Math.min(currentPage * pageSize, totalRecords);
 
   // Handle page size change
   const handlePageSizeChange = (newSize: number) => {
@@ -1241,7 +1217,7 @@ export default function GoodsDashboardPage() {
               <div className="flex items-center gap-3 text-xs uppercase tracking-[0.3em] text-slate-400">
                 {(shipmentsLoading || dashboardStatsLoading) && <span>Refreshing…</span>}
                 <span className="rounded-full border border-white/10 px-3 py-1 text-xs text-slate-200">
-                  {startIndex + 1}-{Math.min(endIndex, filteredShipmentRows.length)} of {filteredShipmentRows.length} rows
+                  {isPaginating ? "Loading..." : `${startIndex}-${endIndex} of ${totalRecords} rows`}
                 </span>
               </div>
             </div>
@@ -1276,7 +1252,7 @@ export default function GoodsDashboardPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5">
-                {paginatedShipmentRows.length === 0 ? (
+                {filteredShipmentRows.length === 0 && !shipmentsLoading ? (
                   <tr>
                     <td colSpan={4} className="py-6 text-center text-slate-400">
                       {searchQuery.trim()
@@ -1285,7 +1261,7 @@ export default function GoodsDashboardPage() {
                     </td>
                   </tr>
                 ) : (
-                  paginatedShipmentRows.map((row, index) => (
+                  filteredShipmentRows.map((row, index) => (
                     <tr key={`${row.member}-${row.phone}-${index}`}>
                       <td className="py-3 pr-6 whitespace-nowrap">
                         {row.member}
@@ -1315,10 +1291,10 @@ export default function GoodsDashboardPage() {
                   <div className="text-sm">
                     <span className="text-slate-400">Showing</span>
                     <span className="mx-2 font-semibold text-white">
-                      {startIndex + 1}-{Math.min(endIndex, filteredShipmentRows.length)}
+                      {startIndex}-{endIndex}
                     </span>
                     <span className="text-slate-400">of</span>
-                    <span className="mx-1 font-semibold text-white">{filteredShipmentRows.length}</span>
+                    <span className="mx-1 font-semibold text-white">{totalRecords}</span>
                     <span className="text-slate-400">shipments</span>
                   </div>
 
@@ -1328,7 +1304,8 @@ export default function GoodsDashboardPage() {
                     <select
                       value={pageSize}
                       onChange={(e) => handlePageSizeChange(Number(e.target.value))}
-                      className="rounded-lg border border-white/20 bg-slate-900/60 px-3 py-1.5 text-sm text-white focus:border-amber-400/60 focus:outline-none focus:ring-2 focus:ring-amber-400/20"
+                      disabled={isPaginating}
+                      className="rounded-lg border border-white/20 bg-slate-900/60 px-3 py-1.5 text-sm text-white focus:border-amber-400/60 focus:outline-none focus:ring-2 focus:ring-amber-400/20 disabled:opacity-50"
                     >
                       {pageSizeOptions.map((option) => (
                         <option key={option.value} value={option.value}>
@@ -1347,7 +1324,7 @@ export default function GoodsDashboardPage() {
                     <button
                       type="button"
                       onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                      disabled={currentPage === 1}
+                      disabled={currentPage === 1 || isPaginating}
                       className="group relative rounded-xl border border-white/20 bg-slate-900/40 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:border-amber-400/40 hover:bg-amber-500/10 disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       <span className="flex items-center gap-2">
@@ -1365,7 +1342,8 @@ export default function GoodsDashboardPage() {
                           <button
                             type="button"
                             onClick={() => setCurrentPage(1)}
-                            className="mx-1 rounded-lg border border-white/20 bg-slate-900/40 px-3 py-2 text-sm text-white transition-all duration-200 hover:border-amber-400/40 hover:bg-amber-500/10"
+                            disabled={isPaginating}
+                            className="mx-1 rounded-lg border border-white/20 bg-slate-900/40 px-3 py-2 text-sm text-white transition-all duration-200 hover:border-amber-400/40 hover:bg-amber-500/10 disabled:opacity-40"
                           >
                             1
                           </button>
@@ -1392,9 +1370,10 @@ export default function GoodsDashboardPage() {
                             key={pageNum}
                             type="button"
                             onClick={() => setCurrentPage(pageNum)}
+                            disabled={isPaginating}
                             className={`mx-1 rounded-xl px-3 py-2 text-sm font-medium transition-all duration-200 ${currentPage === pageNum
                               ? "border border-amber-400/60 bg-linear-to-r from-amber-500/20 to-amber-400/20 text-amber-200 shadow-lg shadow-amber-500/20"
-                              : "border border-white/20 bg-slate-900/40 text-white transition-all duration-200 hover:border-amber-400/40 hover:bg-amber-500/10"
+                              : "border border-white/20 bg-slate-900/40 text-white transition-all duration-200 hover:border-amber-400/40 hover:bg-amber-500/10 disabled:opacity-40"
                               }`}
                           >
                             {pageNum}
@@ -1410,7 +1389,8 @@ export default function GoodsDashboardPage() {
                           <button
                             type="button"
                             onClick={() => setCurrentPage(totalPages)}
-                            className="mx-1 rounded-lg border border-white/20 bg-slate-900/40 px-3 py-2 text-sm text-white transition-all duration-200 hover:border-amber-400/40 hover:bg-amber-500/10"
+                            disabled={isPaginating}
+                            className="mx-1 rounded-lg border border-white/20 bg-slate-900/40 px-3 py-2 text-sm text-white transition-all duration-200 hover:border-amber-400/40 hover:bg-amber-500/10 disabled:opacity-40"
                           >
                             {totalPages}
                           </button>
@@ -1422,7 +1402,7 @@ export default function GoodsDashboardPage() {
                     <button
                       type="button"
                       onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                      disabled={currentPage === totalPages}
+                      disabled={currentPage === totalPages || isPaginating}
                       className="group relative rounded-xl border border-white/20 bg-slate-900/40 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:border-amber-400/40 hover:bg-amber-500/10 disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       <span className="flex items-center gap-2">
@@ -1440,7 +1420,7 @@ export default function GoodsDashboardPage() {
               <div className="mt-4 pt-3 border-t border-white/5">
                 <div className="flex items-center justify-between text-xs text-slate-400">
                   <span>Page {currentPage} of {totalPages}</span>
-                  <span>{filteredShipmentRows.length} total records</span>
+                  <span>{totalRecords} total records</span>
                 </div>
               </div>
             </div>
