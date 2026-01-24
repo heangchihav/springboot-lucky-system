@@ -1,18 +1,7 @@
 import { useState, useEffect } from "react";
 import { apiFetch } from "@/services/httpClient";
 import { marketingUserAssignmentService, MarketingUserAssignment } from "@/services/marketingUserAssignmentService";
-
-interface ReportItem {
-    name: string;
-    values: string[];
-}
-
-interface DailyReport {
-    id: string;
-    reportDate: string;
-    createdBy: string;
-    items: ReportItem[];
-}
+import { DailyReport } from "@/types/types";
 
 interface ReportsTableProps {
     reports: DailyReport[];
