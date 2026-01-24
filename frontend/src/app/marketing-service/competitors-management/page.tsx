@@ -582,6 +582,8 @@ export default function CompetitorsPage() {
   }, [selectedAreaId, subAreas]);
 
   const filteredAreasForForm = useMemo(() => {
+    // If user has no assignments, show all areas
+    if (currentUserAssignments.length === 0) return areas;
     return areas;
   }, [areas]);
 
@@ -1041,13 +1043,21 @@ export default function CompetitorsPage() {
                   }}
                 >
                   <option value="">Select area</option>
-                  {filteredAreasForForm
-                    .filter(area => currentUserAssignments.some(a => a.areaId === area.id))
-                    .map((area) => (
+                  {currentUserAssignments.length === 0 ? (
+                    areas.map((area) => (
                       <option key={area.id} value={area.id}>
                         {area.name}
                       </option>
-                    ))}
+                    ))
+                  ) : (
+                    filteredAreasForForm
+                      .filter(area => currentUserAssignments.some(a => a.areaId === area.id))
+                      .map((area) => (
+                        <option key={area.id} value={area.id}>
+                          {area.name}
+                        </option>
+                      ))
+                  )}
                 </select>
               </div>
               <div className="flex flex-col">
@@ -1062,13 +1072,21 @@ export default function CompetitorsPage() {
                   disabled={!selectedAreaId}
                 >
                   <option value="">None (Area level)</option>
-                  {filteredSubAreasForForm
-                    .filter(subArea => currentUserAssignments.some(a => a.subAreaId === subArea.id))
-                    .map((subArea) => (
+                  {currentUserAssignments.length === 0 ? (
+                    filteredSubAreasForForm.map((subArea) => (
                       <option key={subArea.id} value={subArea.id}>
                         {subArea.name}
                       </option>
-                    ))}
+                    ))
+                  ) : (
+                    filteredSubAreasForForm
+                      .filter(subArea => currentUserAssignments.some(a => a.subAreaId === subArea.id))
+                      .map((subArea) => (
+                        <option key={subArea.id} value={subArea.id}>
+                          {subArea.name}
+                        </option>
+                      ))
+                  )}
                 </select>
               </div>
               <div className="flex items-end">

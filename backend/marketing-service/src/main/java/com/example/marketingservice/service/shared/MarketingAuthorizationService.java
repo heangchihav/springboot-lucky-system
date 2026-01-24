@@ -141,10 +141,19 @@ public class MarketingAuthorizationService {
 
         MarketingUserAssignment userAssignment = assignment.get();
 
-        if (userAssignment.getBranch() != null || userAssignment.getSubArea() != null) {
-            return false;
+        // If user has branch assignment, check if the branch belongs to the requested
+        // area
+        if (userAssignment.getBranch() != null) {
+            return userAssignment.getBranch().getArea().getId().equals(areaId);
         }
 
+        // If user has sub-area assignment, check if the sub-area belongs to the
+        // requested area
+        if (userAssignment.getSubArea() != null) {
+            return userAssignment.getSubArea().getArea().getId().equals(areaId);
+        }
+
+        // If user has area assignment, check if it matches the requested area
         if (userAssignment.getArea() != null) {
             return userAssignment.getArea().getId().equals(areaId);
         }

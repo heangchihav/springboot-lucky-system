@@ -50,14 +50,17 @@ export function AreaSubAreaFilter({
     className = "grid grid-cols-1 gap-4 lg:grid-cols-3",
 }: AreaSubAreaFilterProps) {
     // Filter areas based on user assignments
-    const filteredAreas = areas.filter(area =>
-        currentUserAssignments.some(a => a.areaId === area.id)
-    );
+    const filteredAreas = currentUserAssignments.length === 0
+        ? areas
+        : areas.filter(area =>
+            currentUserAssignments.some(a => a.areaId === area.id)
+        );
 
     // Filter sub-areas based on selected area and user assignments
     const filteredSubAreas = subAreas.filter(subArea => {
         const matchesSelectedArea = !selectedAreaId || subArea.areaId === selectedAreaId;
-        const hasUserAccess = currentUserAssignments.some(a => a.subAreaId === subArea.id);
+        const hasUserAccess = currentUserAssignments.length === 0 ||
+            currentUserAssignments.some(a => a.subAreaId === subArea.id);
         return matchesSelectedArea && hasUserAccess;
     });
 
