@@ -1913,17 +1913,17 @@ export default function CompetitorsPage() {
                   <thead>
                     <tr className="border-b border-white/10">
                       <th className="text-left py-3 px-4 font-semibold text-white text-xs uppercase tracking-wider">No</th>
-                      <th className="text-left py-3 px-4 font-semibold text-white text-xs uppercase tracking-wider">Competitor</th>
-                      <th className="text-left py-3 px-4 font-semibold text-white text-xs uppercase tracking-wider">Area</th>
-                      <th className="text-left py-3 px-4 font-semibold text-white text-xs uppercase tracking-wider">Sub-area</th>
-                      <th className="text-left py-3 px-4 font-semibold text-white text-xs uppercase tracking-wider">Price Range</th>
-                      <th className="text-left py-3 px-4 font-semibold text-white text-xs uppercase tracking-wider">Branches</th>
-                      <th className="text-left py-3 px-4 font-semibold text-white text-xs uppercase tracking-wider">Strengths</th>
-                      <th className="text-left py-3 px-4 font-semibold text-white text-xs uppercase tracking-wider">Weaknesses</th>
-                      <th className="text-left py-3 px-4 font-semibold text-white text-xs uppercase tracking-wider">Remarks</th>
-                      <th className="text-left py-3 px-4 font-semibold text-white text-xs uppercase tracking-wider">Created By</th>
-                      <th className="text-left py-3 px-4 font-semibold text-white text-xs uppercase tracking-wider">Created At</th>
-                      <th className="text-left py-3 px-4 font-semibold text-white text-xs uppercase tracking-wider">Action</th>
+                      <th className="text-left py-3 px-4 font-semibold text-white text-xs uppercase tracking-wider whitespace-nowrap">Competitor</th>
+                      <th className="text-left py-3 px-4 font-semibold text-white text-xs uppercase tracking-wider whitespace-nowrap">Area</th>
+                      <th className="text-left py-3 px-4 font-semibold text-white text-xs uppercase tracking-wider whitespace-nowrap">Sub-area</th>
+                      <th className="text-left py-3 px-4 font-semibold text-white text-xs uppercase tracking-wider whitespace-nowrap">Price Range</th>
+                      <th className="text-left py-3 px-4 font-semibold text-white text-xs uppercase tracking-wider whitespace-nowrap">Branches</th>
+                      <th className="text-left py-3 px-4 font-semibold text-white text-xs uppercase tracking-wider w-[300px] whitespace-nowrap">Strengths</th>
+                      <th className="text-left py-3 px-4 font-semibold text-white text-xs uppercase tracking-wider w-[300px] whitespace-nowrap">Weaknesses</th>
+                      <th className="text-left py-3 px-4 font-semibold text-white text-xs uppercase tracking-wider whitespace-nowrap">Remarks</th>
+                      <th className="text-left py-3 px-4 font-semibold text-white text-xs uppercase tracking-wider whitespace-nowrap">Created By</th>
+                      <th className="text-left py-3 px-4 font-semibold text-white text-xs uppercase tracking-wider whitespace-nowrap">Created At</th>
+                      <th className="text-left py-3 px-4 font-semibold text-white text-xs uppercase tracking-wider whitespace-nowrap">Action</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-white/5">
@@ -1947,39 +1947,39 @@ export default function CompetitorsPage() {
                               </div>
                             </div>
                           </td>
-                          <td className="py-3 px-4 text-white text-sm">{record.areaName}</td>
-                          <td className="py-3 px-4 text-white text-sm">{subAreaLabel}</td>
-                          <td className="py-3 px-4 text-white text-sm">
+                          <td className="py-3 px-4 text-white text-sm whitespace-nowrap">{record.areaName}</td>
+                          <td className="py-3 px-4 text-white text-sm whitespace-nowrap">{subAreaLabel}</td>
+                          <td className="py-3 px-4 text-white text-sm whitespace-nowrap">
                             ៛{record.profile.priceRange.lowestPrice} - ៛{record.profile.priceRange.highestPrice}
                           </td>
-                          <td className="py-3 px-4 text-white text-sm">{record.profile.branchCount}</td>
-                          <td className="py-3 px-4">
-                            <div className="flex flex-wrap gap-1 max-w-xs">
+                          <td className="py-3 px-4 text-white text-sm whitespace-nowrap">{record.profile.branchCount}</td>
+                          <td className="py-3 px-4 min-w-[300px]">
+                            <div className="space-y-1">
                               {(record.profile.strengths || []).map((strength: string, idx: number) => (
-                                <span key={idx} className="inline-flex items-center gap-1 rounded-full bg-blue-500/10 px-2 py-1 text-xs text-blue-300">
+                                <div key={idx} className="text-xs text-blue-300 bg-blue-500/10 rounded px-2 py-1">
                                   {strength}
-                                </span>
+                                </div>
                               ))}
                             </div>
                           </td>
-                          <td className="py-3 px-4">
-                            <div className="flex flex-wrap gap-1 max-w-xs">
+                          <td className="py-3 px-4 min-w-[300px]">
+                            <div className="space-y-1">
                               {(record.profile.weaknesses || []).map((weakness: string, idx: number) => (
-                                <span key={idx} className="inline-flex items-center gap-1 rounded-full bg-rose-500/10 px-2 py-1 text-xs text-rose-300">
+                                <div key={idx} className="text-xs text-rose-300 bg-rose-500/10 rounded px-2 py-1">
                                   {weakness}
-                                </span>
+                                </div>
                               ))}
                             </div>
                           </td>
-                          <td className="py-3 px-4 text-white text-sm max-w-xs">
+                          <td className="py-3 px-4 text-white text-sm max-w-xs whitespace-nowrap">
                             <p className="truncate" title={record.profile.remarks || 'No remarks'}>
                               {record.profile.remarks || 'No remarks'}
                             </p>
                           </td>
-                          <td className="py-3 px-4 text-white text-sm">
+                          <td className="py-3 px-4 text-white text-sm whitespace-nowrap">
                             {userLookup[record.createdBy || 0] || 'Unknown'}
                           </td>
-                          <td className="py-3 px-4 text-white text-sm">
+                          <td className="py-3 px-4 text-white text-sm whitespace-nowrap">
                             {new Date(record.createdAt).toLocaleDateString()}
                           </td>
                           <td className="py-3 px-4">
