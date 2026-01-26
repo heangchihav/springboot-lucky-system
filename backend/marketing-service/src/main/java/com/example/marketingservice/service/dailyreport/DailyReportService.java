@@ -33,6 +33,7 @@ public class DailyReportService {
     private String userServiceUrl;
 
     private Map<String, String> userFullNameCache = new java.util.concurrent.ConcurrentHashMap<>();
+    private Map<String, String> userPhoneCache = new java.util.concurrent.ConcurrentHashMap<>();
 
     public List<DailyReportDto> getAllReports() {
         List<DailyReport> reports = dailyReportRepository.findAllByOrderByCreatedAtDesc();
@@ -160,7 +161,13 @@ public class DailyReportService {
             throw new IllegalArgumentException("At least one valid item with values is required");
         }
 
-        existingReport.setItems(items);
+        // Properly update the items collection to avoid orphan deletion issues
+        existingReport.getItems().clear();
+        for (DailyReportItem item : items) {
+            item.setDailyReport(existingReport);
+            existingReport.getItems().add(item);
+        }
+
         DailyReport updatedReport = dailyReportRepository.save(existingReport);
 
         return convertToDto(updatedReport);
@@ -201,6 +208,10 @@ public class DailyReportService {
                 @SuppressWarnings("unchecked")
                 Map<String, Object> response = restTemplate.getForObject(url, Map.class);
                 if (response != null && response.containsKey("fullName")) {
+                    // Also cache the phone number if available
+                    if (response.containsKey("phone")) {
+                        userPhoneCache.put(user, (String) response.get("phone"));
+                    }
                     return (String) response.get("fullName");
                 }
             } catch (Exception e) {
@@ -208,6 +219,31 @@ public class DailyReportService {
                 System.err.println("Error fetching user full name for " + user + ": " + e.getMessage());
             }
             return username; // Fallback to username if full name not found
+        });
+    }
+
+    private String getUserPhone(String username) {
+        if (username == null)
+            return null;
+
+        // Check cache first
+        return userPhoneCache.computeIfAbsent(username, user -> {
+            try {
+                String url = userServiceUrl + "/api/users/username/" + user + "/fullname";
+                @SuppressWarnings("unchecked")
+                Map<String, Object> response = restTemplate.getForObject(url, Map.class);
+                if (response != null && response.containsKey("phone")) {
+                    // Also cache the full name if available
+                    if (response.containsKey("fullName")) {
+                        userFullNameCache.put(user, (String) response.get("fullName"));
+                    }
+                    return (String) response.get("phone");
+                }
+            } catch (Exception e) {
+                // Log error but don't fail the report generation
+                System.err.println("Error fetching user phone for " + user + ": " + e.getMessage());
+            }
+            return null; // Return null if phone not found
         });
     }
 
@@ -221,12 +257,14 @@ public class DailyReportService {
                 .collect(Collectors.toList());
 
         String createdByFullName = null;
+        String createdByPhone = null;
         if (userId != null) {
-            // Try to get user full name by first getting the username from userId
+            // Try to get user full name and phone by first getting the username from userId
             try {
                 String username = getUsernameById(userId);
                 if (username != null) {
                     createdByFullName = getUserFullName(username);
+                    createdByPhone = getUserPhone(username);
                 }
             } catch (Exception e) {
                 // Log error but don't fail the report generation
@@ -237,11 +275,15 @@ public class DailyReportService {
         if (createdByFullName == null) {
             createdByFullName = getUserFullName(report.getCreatedBy());
         }
+        if (createdByPhone == null) {
+            createdByPhone = getUserPhone(report.getCreatedBy());
+        }
 
         return new DailyReportDto(
                 report.getReportId(),
                 report.getCreatedBy(),
                 createdByFullName,
+                createdByPhone,
                 report.getReportDate(),
                 report.getCreatedAt(),
                 report.getUpdatedAt(),

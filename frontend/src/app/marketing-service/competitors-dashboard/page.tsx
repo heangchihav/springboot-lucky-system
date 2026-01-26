@@ -22,13 +22,18 @@ import {
   type MarketingCompetitor,
 } from "@/services/marketing-service/competitorService";
 
+const AREA_LEVEL_FILTER_VALUE = "__AREA_LEVEL__";
+
+type DashboardSubArea = {
+  name: string;
+  companies: Record<number, number>;
+  isAreaLevel: boolean;
+};
+
 type DashboardArea = {
   id: number;
   name: string;
-  provinces: {
-    name: string;
-    companies: Record<number, number>;
-  }[];
+  subAreas: DashboardSubArea[];
 };
 
 type CompanyListItem = {
@@ -37,8 +42,11 @@ type CompanyListItem = {
 };
 
 type CompanyDetailRow = {
-  id: number;
+  rowKey: string;
+  competitorId: number;
   name: string;
+  areaName: string;
+  subAreaName?: string | null;
   lowestPrice: number;
   highestPrice: number;
   strengths: string[];
@@ -69,7 +77,7 @@ export default function CompetitorsDashboardPage() {
   const [assignments, setAssignments] = useState<MarketingCompetitorAssignment[]>([]);
   const [competitors, setCompetitors] = useState<MarketingCompetitor[]>([]);
   const [selectedArea, setSelectedArea] = useState<number | "all">("all");
-  const [selectedProvince, setSelectedProvince] = useState<string | "all">("all");
+  const [selectedSubArea, setSelectedSubArea] = useState<string | "all">("all");
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -111,14 +119,18 @@ export default function CompetitorsDashboardPage() {
   }, [competitors]);
 
   const { dashboardAreas, companyList } = useMemo(() => {
-    const areaMap = new Map<
-      number,
-      {
-        id: number;
-        name: string;
-        provinces: Map<string, Map<number, number>>;
-      }
-    >();
+    type SubAreaAccumulator = {
+      companies: Map<number, number>;
+      isAreaLevel: boolean;
+    };
+
+    type AreaAccumulator = {
+      id: number;
+      name: string;
+      subAreas: Map<string, SubAreaAccumulator>;
+    };
+
+    const areaMap = new Map<number, AreaAccumulator>();
     const competitorIdSet = new Set<number>();
 
     assignments.forEach((assignment) => {
@@ -127,20 +139,26 @@ export default function CompetitorsDashboardPage() {
         {
           id: assignment.areaId,
           name: assignment.areaName,
-          provinces: new Map<string, Map<number, number>>(),
+          subAreas: new Map<string, SubAreaAccumulator>(),
         };
       areaMap.set(assignment.areaId, areaEntry);
 
       const provinceName = assignment.subAreaName || assignment.areaName;
+      const isAreaLevel = !assignment.subAreaName;
       const provinceEntry =
-        areaEntry.provinces.get(provinceName) ?? new Map<number, number>();
-      areaEntry.provinces.set(provinceName, provinceEntry);
+        areaEntry.subAreas.get(provinceName) ??
+        {
+          companies: new Map<number, number>(),
+          isAreaLevel,
+        };
+      provinceEntry.isAreaLevel = provinceEntry.isAreaLevel || isAreaLevel;
+      areaEntry.subAreas.set(provinceName, provinceEntry);
 
       Object.entries(assignment.competitorProfiles).forEach(([competitorId, profile]) => {
         const id = Number(competitorId);
         competitorIdSet.add(id);
-        const current = provinceEntry.get(id) ?? 0;
-        provinceEntry.set(id, current + (profile.branchCount ?? 0));
+        const current = provinceEntry.companies.get(id) ?? 0;
+        provinceEntry.companies.set(id, current + (profile.branchCount ?? 0));
       });
     });
 
@@ -156,16 +174,17 @@ export default function CompetitorsDashboardPage() {
       .map((area) => ({
         id: area.id,
         name: area.name,
-        provinces: Array.from(area.provinces.entries())
+        subAreas: Array.from(area.subAreas.entries())
           .sort((a, b) => a[0].localeCompare(b[0]))
           .map(([provinceName, companiesMap]) => {
             const companies: Record<number, number> = {};
             sortedCompanyList.forEach((company) => {
-              companies[company.id] = companiesMap.get(company.id) ?? 0;
+              companies[company.id] = companiesMap.companies.get(company.id) ?? 0;
             });
             return {
               name: provinceName,
               companies,
+              isAreaLevel: companiesMap.isAreaLevel,
             };
           }),
       }));
@@ -176,33 +195,45 @@ export default function CompetitorsDashboardPage() {
     };
   }, [assignments, competitorLookup]);
 
-  useEffect(() => {
-    if (selectedArea !== "all" && !dashboardAreas.some((area) => area.id === selectedArea)) {
-      setSelectedArea("all");
-    }
-  }, [dashboardAreas, selectedArea]);
-
-  const availableProvinces = useMemo(() => {
+  const availableSubAreas = useMemo(() => {
     if (dashboardAreas.length === 0) return [];
+
+    const addSubAreaValue = (values: Set<string>, subArea: DashboardSubArea) => {
+      if (subArea.isAreaLevel) {
+        values.add(AREA_LEVEL_FILTER_VALUE);
+      } else {
+        values.add(subArea.name);
+      }
+    };
+
+    const values = new Set<string>();
+
     if (selectedArea === "all") {
-      return Array.from(
-        new Set(
-          dashboardAreas.flatMap((area) => area.provinces.map((province) => province.name)),
-        ),
-      );
+      dashboardAreas.forEach((area) => {
+        area.subAreas.forEach((subArea) => addSubAreaValue(values, subArea));
+      });
+    } else {
+      const targetArea = dashboardAreas.find((area) => area.id === selectedArea);
+      targetArea?.subAreas.forEach((subArea) => addSubAreaValue(values, subArea));
     }
-    const targetArea = dashboardAreas.find((area) => area.id === selectedArea);
-    return targetArea ? targetArea.provinces.map((province) => province.name) : [];
+
+    const sortedValues = Array.from(values);
+    sortedValues.sort((a, b) => {
+      if (a === AREA_LEVEL_FILTER_VALUE) return -1;
+      if (b === AREA_LEVEL_FILTER_VALUE) return 1;
+      return a.localeCompare(b);
+    });
+    return sortedValues;
   }, [dashboardAreas, selectedArea]);
 
   useEffect(() => {
     if (
-      selectedProvince !== "all" &&
-      !availableProvinces.includes(selectedProvince)
+      selectedSubArea !== "all" &&
+      !availableSubAreas.includes(selectedSubArea)
     ) {
-      setSelectedProvince("all");
+      setSelectedSubArea("all");
     }
-  }, [availableProvinces, selectedProvince]);
+  }, [availableSubAreas, selectedSubArea]);
 
   const companyColorMap = useMemo(() => {
     const map = new Map<number, string>();
@@ -224,13 +255,19 @@ export default function CompetitorsDashboardPage() {
     companyList.forEach((company) => totals.set(company.id, 0));
 
     filteredAreas.forEach((area) => {
-      area.provinces.forEach((province) => {
-        if (selectedProvince !== "all" && province.name !== selectedProvince) {
+      area.subAreas.forEach((subArea) => {
+        if (
+          selectedSubArea !== "all" &&
+          !(
+            (selectedSubArea === AREA_LEVEL_FILTER_VALUE && subArea.isAreaLevel) ||
+            (selectedSubArea !== AREA_LEVEL_FILTER_VALUE && subArea.name === selectedSubArea)
+          )
+        ) {
           return;
         }
         companyList.forEach((company) => {
           const nextValue =
-            (totals.get(company.id) ?? 0) + (province.companies[company.id] ?? 0);
+            (totals.get(company.id) ?? 0) + (subArea.companies[company.id] ?? 0);
           totals.set(company.id, nextValue);
         });
       });
@@ -247,33 +284,39 @@ export default function CompetitorsDashboardPage() {
         percent: sum === 0 ? 0 : Math.round((total / sum) * 100),
       };
     });
-  }, [companyList, filteredAreas, selectedProvince]);
+  }, [companyList, filteredAreas, selectedSubArea]);
 
   const detailRows = useMemo(() => {
     const rows: {
       area: string;
-      province: string;
+      subArea: string;
       companies: Record<number, number>;
       total: number;
     }[] = [];
 
     filteredAreas.forEach((area) => {
-      area.provinces.forEach((province) => {
-        if (selectedProvince !== "all" && province.name !== selectedProvince) {
+      area.subAreas.forEach((subArea) => {
+        if (
+          selectedSubArea !== "all" &&
+          !(
+            (selectedSubArea === AREA_LEVEL_FILTER_VALUE && subArea.isAreaLevel) ||
+            (selectedSubArea !== AREA_LEVEL_FILTER_VALUE && subArea.name === selectedSubArea)
+          )
+        ) {
           return;
         }
 
         const companies: Record<number, number> = {};
         let total = 0;
         companyList.forEach((company) => {
-          const value = province.companies[company.id] ?? 0;
+          const value = subArea.companies[company.id] ?? 0;
           companies[company.id] = value;
           total += value;
         });
 
         rows.push({
           area: area.name,
-          province: province.name,
+          subArea: subArea.isAreaLevel ? "Area level" : subArea.name,
           companies,
           total,
         });
@@ -281,60 +324,47 @@ export default function CompetitorsDashboardPage() {
     });
 
     return rows;
-  }, [companyList, filteredAreas, selectedProvince]);
+  }, [companyList, filteredAreas, selectedSubArea]);
 
   const companyDetails = useMemo<CompanyDetailRow[]>(() => {
-    const detailMap = new Map<
-      number,
-      {
-        id: number;
-        name: string;
-        lowestPrice: number;
-        highestPrice: number;
-        strengths: Set<string>;
-        weaknesses: Set<string>;
-        remark?: string;
-      }
-    >();
+    const rows: CompanyDetailRow[] = [];
 
     assignments.forEach((assignment) => {
+      const matchesArea = selectedArea === "all" || assignment.areaId === selectedArea;
+      const provinceName = assignment.subAreaName ?? assignment.areaName;
+      const matchesSubArea =
+        selectedSubArea === "all" ||
+        (selectedSubArea === AREA_LEVEL_FILTER_VALUE && !assignment.subAreaName) ||
+        (selectedSubArea !== AREA_LEVEL_FILTER_VALUE && selectedSubArea === provinceName);
+
+      if (!matchesArea || !matchesSubArea) return;
+
       Object.entries(assignment.competitorProfiles).forEach(([competitorId, profile]) => {
         const id = Number(competitorId);
-        const existing =
-          detailMap.get(id) ??
-          {
-            id,
-            name: competitorLookup[id]?.name ?? `Competitor ${id}`,
-            lowestPrice: profile.priceRange.lowestPrice,
-            highestPrice: profile.priceRange.highestPrice,
-            strengths: new Set<string>(),
-            weaknesses: new Set<string>(),
-            remark: profile.remarks,
-          };
 
-        existing.lowestPrice = Math.min(existing.lowestPrice, profile.priceRange.lowestPrice);
-        existing.highestPrice = Math.max(existing.highestPrice, profile.priceRange.highestPrice);
-        profile.strengths?.forEach((item) => existing.strengths.add(item));
-        profile.weaknesses?.forEach((item) => existing.weaknesses.add(item));
-        if (!existing.remark && profile.remarks) {
-          existing.remark = profile.remarks;
-        }
-        detailMap.set(id, existing);
+        rows.push({
+          rowKey: `${assignment.id}-${competitorId}`,
+          competitorId: id,
+          name: competitorLookup[id]?.name ?? `Competitor ${id}`,
+          areaName: assignment.areaName,
+          subAreaName: assignment.subAreaName ?? null,
+          lowestPrice: profile.priceRange?.lowestPrice ?? 0,
+          highestPrice: profile.priceRange?.highestPrice ?? 0,
+          strengths: profile.strengths ?? [],
+          weaknesses: profile.weaknesses ?? [],
+          remark: profile.remarks ?? "No remarks provided",
+        });
       });
     });
 
-    return Array.from(detailMap.values())
-      .map((detail) => ({
-        id: detail.id,
-        name: detail.name,
-        lowestPrice: detail.lowestPrice,
-        highestPrice: detail.highestPrice,
-        strengths: Array.from(detail.strengths),
-        weaknesses: Array.from(detail.weaknesses),
-        remark: detail.remark ?? "No remarks provided",
-      }))
-      .sort((a, b) => a.name.localeCompare(b.name));
-  }, [assignments, competitorLookup]);
+    return rows.sort((a, b) => {
+      const nameCompare = a.name.localeCompare(b.name);
+      if (nameCompare !== 0) return nameCompare;
+      const regionA = a.subAreaName ?? a.areaName;
+      const regionB = b.subAreaName ?? b.areaName;
+      return regionA.localeCompare(regionB);
+    });
+  }, [assignments, competitorLookup, selectedArea, selectedSubArea]);
 
   const totalBranches = chartData.reduce((sum, entry) => sum + entry.total, 0);
 
@@ -389,7 +419,7 @@ export default function CompetitorsDashboardPage() {
                     const value =
                       event.target.value === "all" ? "all" : Number(event.target.value);
                     setSelectedArea(value);
-                    setSelectedProvince("all");
+                    setSelectedSubArea("all");
                   }}
                   disabled={dashboardAreas.length === 0}
                 >
@@ -403,20 +433,20 @@ export default function CompetitorsDashboardPage() {
               </div>
               <div className="flex flex-col">
                 <label className="text-[0.6rem] uppercase tracking-[0.3em] text-slate-300">
-                  Province
+                  Sub-area
                 </label>
                 <select
                   className="mt-2 w-44 rounded-2xl border border-white/20 bg-slate-900/60 px-4 py-2 text-sm text-white focus:border-amber-400/60 focus:outline-none"
-                  value={selectedProvince}
+                  value={selectedSubArea}
                   onChange={(event) =>
-                    setSelectedProvince(event.target.value as string | "all")
+                    setSelectedSubArea(event.target.value as string | "all")
                   }
-                  disabled={availableProvinces.length === 0}
+                  disabled={availableSubAreas.length === 0}
                 >
-                  <option value="all">All provinces</option>
-                  {availableProvinces.map((province) => (
-                    <option key={province} value={province}>
-                      {province}
+                  <option value="all">All sub-areas</option>
+                  {availableSubAreas.map((subArea) => (
+                    <option key={subArea} value={subArea}>
+                      {subArea === AREA_LEVEL_FILTER_VALUE ? "None (Area level)" : subArea}
                     </option>
                   ))}
                 </select>
@@ -524,7 +554,7 @@ export default function CompetitorsDashboardPage() {
                 <thead>
                   <tr className="text-xs uppercase tracking-[0.3em] text-slate-400">
                     <th className="pb-3 pr-6">Area</th>
-                    <th className="pb-3 pr-6">Province</th>
+                    <th className="pb-3 pr-6">Sub-area</th>
                     {companyList.map((company) => (
                       <th key={company.id} className="pb-3 pr-6">
                         {company.name}
@@ -535,9 +565,9 @@ export default function CompetitorsDashboardPage() {
                 </thead>
                 <tbody className="divide-y divide-white/5">
                   {detailRows.map((row) => (
-                    <tr key={`${row.area}-${row.province}`}>
-                      <td className="py-3 pr-6">{row.area}</td>
-                      <td className="py-3 pr-6 text-slate-300">{row.province}</td>
+                    <tr key={`${row.area}-${row.subArea}`}>
+                      <td className="py-3 pr-6 text-slate-300">{row.area}</td>
+                      <td className="py-3 pr-6 text-slate-300">{row.subArea}</td>
                       {companyList.map((company) => (
                         <td
                           key={company.id}
@@ -580,6 +610,7 @@ export default function CompetitorsDashboardPage() {
                 <thead>
                   <tr className="text-xs uppercase tracking-[0.3em] text-slate-400">
                     <th className="pb-3 pr-6">Company</th>
+                    <th className="pb-3 pr-6">Region</th>
                     <th className="pb-3 pr-6">Price range</th>
                     <th className="pb-3 pr-6">Strengths</th>
                     <th className="pb-3 pr-6">Weaknesses</th>
@@ -588,14 +619,24 @@ export default function CompetitorsDashboardPage() {
                 </thead>
                 <tbody className="divide-y divide-white/5">
                   {companyDetails.map((detail) => (
-                    <tr key={detail.id}>
+                    <tr key={detail.rowKey}>
                       <td className="py-3 pr-6">
                         <div className="flex items-center gap-3">
                           <span
                             className="h-2.5 w-2.5 rounded-full"
-                            style={{ backgroundColor: companyColorMap.get(detail.id) }}
+                            style={{ backgroundColor: companyColorMap.get(detail.competitorId) }}
                           />
                           <span className="font-semibold">{detail.name}</span>
+                        </div>
+                      </td>
+                      <td className="py-3 pr-6">
+                        <div className="flex flex-col text-slate-300">
+                          <span className="font-medium text-white">
+                            {detail.subAreaName ?? detail.areaName}
+                          </span>
+                          {detail.subAreaName && (
+                            <span className="text-xs text-slate-500">Area: {detail.areaName}</span>
+                          )}
                         </div>
                       </td>
                       <td className="py-3 pr-6">
@@ -684,8 +725,9 @@ export default function CompetitorsDashboardPage() {
                         ? "all"
                         : Number(event.target.value);
                     setSelectedArea(value);
-                    setSelectedProvince("all");
+                    setSelectedSubArea("all");
                   }}
+                  disabled={dashboardAreas.length === 0}
                 >
                   <option value="all">All areas</option>
                   {dashboardAreas.map((area) => (
@@ -697,20 +739,20 @@ export default function CompetitorsDashboardPage() {
               </div>
               <div className="flex flex-col">
                 <label className="text-[0.6rem] uppercase tracking-[0.3em] text-slate-300">
-                  Province
+                  Sub-area
                 </label>
                 <select
                   className="mt-2 w-44 rounded-2xl border border-white/20 bg-slate-900/60 px-4 py-2 text-sm text-white focus:border-amber-400/60 focus:outline-none"
-                  value={selectedProvince}
+                  value={selectedSubArea}
                   onChange={(event) =>
-                    setSelectedProvince(event.target.value as string | "all")
+                    setSelectedSubArea(event.target.value as string | "all")
                   }
-                  disabled={availableProvinces.length === 0}
+                  disabled={availableSubAreas.length === 0}
                 >
-                  <option value="all">All provinces</option>
-                  {availableProvinces.map((province) => (
-                    <option key={province} value={province}>
-                      {province}
+                  <option value="all">All sub-areas</option>
+                  {availableSubAreas.map((subArea) => (
+                    <option key={subArea} value={subArea}>
+                      {subArea === AREA_LEVEL_FILTER_VALUE ? "None (Area level)" : subArea}
                     </option>
                   ))}
                 </select>
@@ -813,7 +855,7 @@ export default function CompetitorsDashboardPage() {
               <thead>
                 <tr className="text-xs uppercase tracking-[0.3em] text-slate-400">
                   <th className="pb-3 pr-6">Area</th>
-                  <th className="pb-3 pr-6">Province</th>
+                  <th className="pb-3 pr-6">Sub-area</th>
                   {companyList.map((company) => (
                     <th key={company.id} className="pb-3 pr-6">
                       {company.name}
@@ -824,9 +866,9 @@ export default function CompetitorsDashboardPage() {
               </thead>
               <tbody className="divide-y divide-white/5">
                 {detailRows.map((row) => (
-                  <tr key={`${row.area}-${row.province}`}>
+                  <tr key={`${row.area}-${row.subArea}`}>
                     <td className="py-3 pr-6">{row.area}</td>
-                    <td className="py-3 pr-6 text-slate-300">{row.province}</td>
+                    <td className="py-3 pr-6 text-slate-300">{row.subArea}</td>
                     {companyList.map((company) => (
                       <td
                         key={company.id}
@@ -856,38 +898,46 @@ export default function CompetitorsDashboardPage() {
               </h2>
             </div>
             <p className="text-sm text-slate-300">
-              Hover for long remarks to understand when each partner is
-              strongest.
+              Hover for long remarks to understand when each partner is strongest.
             </p>
           </div>
           <div className="mt-6 overflow-x-auto">
-            <table className="min-w-full text-left text-sm text-slate-200">
-              <thead>
-                <tr className="text-xs uppercase tracking-[0.3em] text-slate-400">
-                  <th className="pb-3 pr-6">Company</th>
-                  <th className="pb-3 pr-6">Price range</th>
-                  <th className="pb-3 pr-6">Strengths</th>
-                  <th className="pb-3 pr-6">Weaknesses</th>
-                  <th className="pb-3">Remark</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-white/5">
-                {companyDetails.length === 0 ? (
-                  <tr>
-                    <td className="py-3 text-center text-slate-400" colSpan={5}>
-                      No competitor profiles available yet.
-                    </td>
+            {companyDetails.length === 0 ? (
+              <div className="py-6 text-center text-slate-300">
+                No competitor profiles available yet.
+              </div>
+            ) : (
+              <table className="min-w-full text-left text-sm text-slate-200">
+                <thead>
+                  <tr className="text-xs uppercase tracking-[0.3em] text-slate-400">
+                    <th className="pb-3 pr-6">Company</th>
+                    <th className="pb-3 pr-6">Region</th>
+                    <th className="pb-3 pr-6">Price range</th>
+                    <th className="pb-3 pr-6">Strengths</th>
+                    <th className="pb-3 pr-6">Weaknesses</th>
+                    <th className="pb-3">Remark</th>
                   </tr>
-                ) : (
-                  companyDetails.map((detail) => (
-                    <tr key={detail.id}>
+                </thead>
+                <tbody className="divide-y divide-white/5">
+                  {companyDetails.map((detail) => (
+                    <tr key={detail.rowKey}>
                       <td className="py-3 pr-6">
                         <div className="flex items-center gap-3">
                           <span
                             className="h-2.5 w-2.5 rounded-full"
-                            style={{ backgroundColor: companyColorMap.get(detail.id) }}
+                            style={{ backgroundColor: companyColorMap.get(detail.competitorId) }}
                           />
                           <span className="font-semibold">{detail.name}</span>
+                        </div>
+                      </td>
+                      <td className="py-3 pr-6">
+                        <div className="flex flex-col text-slate-300">
+                          <span className="font-medium text-white">
+                            {detail.subAreaName ?? detail.areaName}
+                          </span>
+                          {detail.subAreaName && (
+                            <span className="text-xs text-slate-500">Area: {detail.areaName}</span>
+                          )}
                         </div>
                       </td>
                       <td className="py-3 pr-6">
@@ -925,10 +975,10 @@ export default function CompetitorsDashboardPage() {
                       </td>
                       <td className="py-3 text-slate-200">{detail.remark}</td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </div>
         </section>
       </div>

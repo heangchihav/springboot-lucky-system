@@ -19,7 +19,11 @@ interface ReportFormModalProps {
 }
 
 export const ReportFormModal = ({ editingReport, onSave, onClose, loading }: ReportFormModalProps) => {
-    const [reportDate, setReportDate] = useState(new Date().toISOString().split('T')[0]);
+    // Get yesterday's date
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    const [reportDate, setReportDate] = useState(yesterday.toISOString().split('T')[0]);
     const [reportItems, setReportItems] = useState<ReportItem[]>([
         { name: "ផែនការប្រចាំថ្ងៃ", values: ["• "] },
         { name: "លិទ្ធផលការងារសម្រេចបានប្រចាំថ្ងៃ", values: ["• "] },
@@ -38,7 +42,10 @@ export const ReportFormModal = ({ editingReport, onSave, onClose, loading }: Rep
                 { name: "ព័តមានអំពីដៃគូប្រកួតប្រជែង", values: ["• "] }
             ]);
         } else {
-            setReportDate(new Date().toISOString().split('T')[0]);
+            // For new reports, default to yesterday
+            const yesterday = new Date();
+            yesterday.setDate(yesterday.getDate() - 1);
+            setReportDate(yesterday.toISOString().split('T')[0]);
             setReportItems([
                 { name: "ផែនការប្រចាំថ្ងៃ", values: ["• "] },
                 { name: "លិទ្ធផលការងារសម្រេចបានប្រចាំថ្ងៃ", values: ["• "] },
@@ -214,8 +221,8 @@ export const ReportFormModal = ({ editingReport, onSave, onClose, loading }: Rep
                                                     <textarea
                                                         placeholder="Enter value (supports multiple lines)"
                                                         className={`flex-1 rounded-lg border bg-slate-900/60 px-4 text-base text-white placeholder:text-slate-400 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed resize-none transition-all duration-300 ease-in-out ${isFocused
-                                                                ? 'border-amber-400/60 ring-2 ring-amber-400/20 min-h-32 py-3'
-                                                                : 'border-white/20 min-h-10 hover:border-white/30 py-2'
+                                                            ? 'border-amber-400/60 ring-2 ring-amber-400/20 min-h-32 py-3'
+                                                            : 'border-white/20 min-h-10 hover:border-white/30 py-2'
                                                             }`}
                                                         value={value}
                                                         onChange={(e) => updateItemValue(itemIndex, valueIndex, e.target.value)}

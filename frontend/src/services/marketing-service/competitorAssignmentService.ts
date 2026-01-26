@@ -64,6 +64,7 @@ export type MarketingCompetitorAssignment = {
   createdAt: string;
   updatedAt?: string;
   createdBy?: number;
+  updatedBy?: number;
 };
 
 export type CompetitorProfilePayload = {

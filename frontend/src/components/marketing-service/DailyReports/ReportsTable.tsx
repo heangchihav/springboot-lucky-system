@@ -20,6 +20,11 @@ interface FilterOptions {
     createdBy: string;
 }
 
+interface UserInfo {
+    fullName: string;
+    phone: string;
+}
+
 const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString();
 };
@@ -80,10 +85,15 @@ const SubAreaCell = ({ createdBy }: { createdBy: string }) => {
 };
 
 export const ReportsTable = ({ reports, loading, onEdit, onDelete, onView }: ReportsTableProps) => {
+    // Set default date range to 1 week (from 7 days ago to today)
+    const today = new Date();
+    const oneWeekAgo = new Date();
+    oneWeekAgo.setDate(today.getDate() - 7);
+
     const [filters, setFilters] = useState<FilterOptions>({
         dateRange: {
-            start: new Date().toISOString().split('T')[0],
-            end: new Date().toISOString().split('T')[0],
+            start: oneWeekAgo.toISOString().split('T')[0],
+            end: today.toISOString().split('T')[0],
         },
         subArea: '',
         createdBy: '',
@@ -91,6 +101,7 @@ export const ReportsTable = ({ reports, loading, onEdit, onDelete, onView }: Rep
 
     const [allSubAreas, setAllSubAreas] = useState<string[]>([]);
     const [allCreators, setAllCreators] = useState<string[]>([]);
+    const [userInfoMap, setUserInfoMap] = useState<Record<string, UserInfo>>({});
     const [userSubAreaMap, setUserSubAreaMap] = useState<Record<string, string[]>>({});
 
     // Extract unique sub areas and creators from reports
@@ -99,13 +110,20 @@ export const ReportsTable = ({ reports, loading, onEdit, onDelete, onView }: Rep
             const subAreasSet = new Set<string>();
             const creatorsSet = new Set<string>();
             const subAreaMap: Record<string, string[]> = {};
+            const userInfo: Record<string, UserInfo> = {};
 
-            // Get unique creators
+            // Get unique creators and their info from reports
             reports.forEach(report => {
                 creatorsSet.add(report.createdBy);
+                // Store user info from the report data
+                userInfo[report.createdBy] = {
+                    fullName: report.createdByFullName || report.createdBy,
+                    phone: report.createdByPhone || ''
+                };
             });
 
             setAllCreators(Array.from(creatorsSet).sort());
+            setUserInfoMap(userInfo);
 
             // Get sub areas for each creator
             const subAreaPromises = Array.from(creatorsSet).map(async (creator) => {
@@ -243,11 +261,16 @@ export const ReportsTable = ({ reports, loading, onEdit, onDelete, onView }: Rep
                             className="w-full px-3 py-2.5 text-sm bg-slate-800/60 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-amber-400/50 focus:border-transparent transition-all"
                         >
                             <option value="" className="bg-slate-800">All Users</option>
-                            {allCreators.map(creator => (
-                                <option key={creator} value={creator} className="bg-slate-800">
-                                    {creator}
-                                </option>
-                            ))}
+                            {allCreators.map(creator => {
+                                const userInfo = userInfoMap[creator];
+                                const displayName = userInfo?.fullName || creator;
+                                const phoneInfo = userInfo?.phone ? ` (${userInfo.phone})` : '';
+                                return (
+                                    <option key={creator} value={creator} className="bg-slate-800">
+                                        {displayName}{phoneInfo}
+                                    </option>
+                                );
+                            })}
                         </select>
                     </div>
 
@@ -291,6 +314,7 @@ export const ReportsTable = ({ reports, loading, onEdit, onDelete, onView }: Rep
                             <tr className="bg-slate-800/60 border-b border-white/10">
                                 <th className="text-left py-4 px-4 text-sm font-semibold text-slate-200 whitespace-nowrap">Report Date</th>
                                 <th className="text-left py-4 px-4 text-sm font-semibold text-slate-200 whitespace-nowrap">Created By</th>
+                                <th className="text-left py-4 px-4 text-sm font-semibold text-slate-200 whitespace-nowrap">Phone Number</th>
                                 <th className="text-left py-4 px-4 text-sm font-semibold text-slate-200 whitespace-nowrap">Sub Area</th>
                                 <th className="text-left py-4 px-4 text-sm font-semibold text-slate-200 whitespace-nowrap">Item Name</th>
                                 <th className="text-left py-4 px-4 text-sm font-semibold text-slate-200 whitespace-nowrap w-[300px]">Values/Points</th>
@@ -312,7 +336,12 @@ export const ReportsTable = ({ reports, loading, onEdit, onDelete, onView }: Rep
                                                     <div className="text-white font-semibold whitespace-nowrap">{formatDate(report.reportDate)}</div>
                                                 </td>
                                                 <td className="py-4 px-4 align-top border-r border-white/5" rowSpan={itemCount}>
-                                                    <div className="text-slate-300 font-medium">{report.createdBy}</div>
+                                                    <div className="text-slate-300 font-medium">{report.createdByFullName || report.createdBy}</div>
+                                                </td>
+                                                <td className="py-4 px-4 align-top border-r border-white/5" rowSpan={itemCount}>
+                                                    <div className="text-sm text-slate-300">
+                                                        {report.createdByPhone || '-'}
+                                                    </div>
                                                 </td>
                                                 <td className="py-4 px-4 align-top border-r border-white/5" rowSpan={itemCount}>
                                                     <SubAreaCell createdBy={report.createdBy} />

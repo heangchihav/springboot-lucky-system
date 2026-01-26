@@ -124,6 +124,7 @@ public class UserController {
         if (user.isPresent()) {
             java.util.Map<String, String> response = new java.util.HashMap<>();
             response.put("fullName", user.get().getFullName());
+            response.put("phone", user.get().getPhone());
             return ResponseEntity.ok(response);
         }
         return ResponseEntity.notFound().build();

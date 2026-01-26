@@ -8,6 +8,7 @@ public class DailyReportDto {
     private String id;
     private String createdBy;
     private String createdByFullName;
+    private String createdByPhone;
     private String reportDate;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
@@ -17,12 +18,14 @@ public class DailyReportDto {
     public DailyReportDto() {
     }
 
-    public DailyReportDto(String id, String createdBy, String createdByFullName, String reportDate,
+    public DailyReportDto(String id, String createdBy, String createdByFullName, String createdByPhone,
+            String reportDate,
             LocalDateTime createdAt, LocalDateTime updatedAt,
             List<DailyReportItemDto> items) {
         this.id = id;
         this.createdBy = createdBy;
         this.createdByFullName = createdByFullName;
+        this.createdByPhone = createdByPhone;
         this.reportDate = reportDate;
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
@@ -52,6 +55,14 @@ public class DailyReportDto {
 
     public void setCreatedByFullName(String createdByFullName) {
         this.createdByFullName = createdByFullName;
+    }
+
+    public String getCreatedByPhone() {
+        return createdByPhone;
+    }
+
+    public void setCreatedByPhone(String createdByPhone) {
+        this.createdByPhone = createdByPhone;
     }
 
     public String getReportDate() {

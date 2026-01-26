@@ -19,6 +19,7 @@ public class MarketingCompetitorAssignmentResponse {
     private String createdAt;
     private String updatedAt;
     private Long createdBy;
+    private Long updatedBy;
 
     public MarketingCompetitorAssignmentResponse() {
     }
@@ -32,7 +33,8 @@ public class MarketingCompetitorAssignmentResponse {
             Map<Long, CompetitorProfileResponse> competitorProfiles,
             String createdAt,
             String updatedAt,
-            Long createdBy) {
+            Long createdBy,
+            Long updatedBy) {
         this.id = id;
         this.areaId = areaId;
         this.areaName = areaName;
@@ -42,6 +44,7 @@ public class MarketingCompetitorAssignmentResponse {
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
         this.createdBy = createdBy;
+        this.updatedBy = updatedBy;
     }
 
     public static MarketingCompetitorAssignmentResponse from(
@@ -74,7 +77,8 @@ public class MarketingCompetitorAssignmentResponse {
                 competitorProfiles,
                 entity.getCreatedAt() != null ? entity.getCreatedAt().toString() : null,
                 entity.getUpdatedAt() != null ? entity.getUpdatedAt().toString() : null,
-                entity.getCreatedBy());
+                entity.getCreatedBy(),
+                entity.getUpdatedBy());
     }
 
     // Getters and setters
@@ -149,6 +153,14 @@ public class MarketingCompetitorAssignmentResponse {
 
     public void setCreatedBy(Long createdBy) {
         this.createdBy = createdBy;
+    }
+
+    public Long getUpdatedBy() {
+        return updatedBy;
+    }
+
+    public void setUpdatedBy(Long updatedBy) {
+        this.updatedBy = updatedBy;
     }
 
     public static class CompetitorProfileResponse {

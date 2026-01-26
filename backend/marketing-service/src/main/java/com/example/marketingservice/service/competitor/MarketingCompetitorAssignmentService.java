@@ -59,10 +59,20 @@ public class MarketingCompetitorAssignmentService {
 
         return assignmentRepository.findAll().stream()
                 .filter(assignment -> {
+                    // If user has sub-area assignments, show assignments for those sub-areas
                     if (accessibleSubAreaIds != null && !accessibleSubAreaIds.isEmpty()) {
-                        return assignment.getSubArea() != null &&
-                                accessibleSubAreaIds.contains(assignment.getSubArea().getId());
+                        // If assignment has a sub-area, check if user has access to it
+                        if (assignment.getSubArea() != null) {
+                            return accessibleSubAreaIds.contains(assignment.getSubArea().getId());
+                        }
+                        // If assignment is area-level (subArea=null), check if user has access to the
+                        // area
+                        if (accessibleAreaIds != null && !accessibleAreaIds.isEmpty()) {
+                            return accessibleAreaIds.contains(assignment.getArea().getId());
+                        }
                     }
+                    // If user has area assignments (and no sub-area assignments), show assignments
+                    // for those areas
                     if (accessibleAreaIds != null && !accessibleAreaIds.isEmpty()) {
                         return accessibleAreaIds.contains(assignment.getArea().getId());
                     }
@@ -91,10 +101,20 @@ public class MarketingCompetitorAssignmentService {
 
         return assignmentRepository.findByAreaAndSubArea(areaId, subAreaId).stream()
                 .filter(assignment -> {
+                    // If user has sub-area assignments, show assignments for those sub-areas
                     if (accessibleSubAreaIds != null && !accessibleSubAreaIds.isEmpty()) {
-                        return assignment.getSubArea() != null &&
-                                accessibleSubAreaIds.contains(assignment.getSubArea().getId());
+                        // If assignment has a sub-area, check if user has access to it
+                        if (assignment.getSubArea() != null) {
+                            return accessibleSubAreaIds.contains(assignment.getSubArea().getId());
+                        }
+                        // If assignment is area-level (subArea=null), check if user has access to the
+                        // area
+                        if (accessibleAreaIds != null && !accessibleAreaIds.isEmpty()) {
+                            return accessibleAreaIds.contains(assignment.getArea().getId());
+                        }
                     }
+                    // If user has area assignments (and no sub-area assignments), show assignments
+                    // for those areas
                     if (accessibleAreaIds != null && !accessibleAreaIds.isEmpty()) {
                         return accessibleAreaIds.contains(assignment.getArea().getId());
                     }
@@ -214,6 +234,7 @@ public class MarketingCompetitorAssignmentService {
         existingAssignment.setArea(area);
         existingAssignment.setSubArea(subArea);
         existingAssignment.setCompetitorProfiles(competitorProfiles);
+        existingAssignment.setUpdatedBy(userId);
 
         MarketingCompetitorAssignment updatedAssignment = assignmentRepository.save(existingAssignment);
         return MarketingCompetitorAssignmentResponse.from(updatedAssignment);
@@ -268,14 +289,19 @@ public class MarketingCompetitorAssignmentService {
                     .collect(Collectors.toList());
         }
 
+        // If user has sub-area assignments, check if they have access to this specific
+        // sub-area
         if (accessibleSubAreaIds != null && accessibleSubAreaIds.contains(subAreaId)) {
             return assignmentRepository.findBySubArea(subAreaId).stream()
                     .map(MarketingCompetitorAssignmentResponse::from)
                     .collect(Collectors.toList());
         }
 
+        // If user has area assignments, check if they have access to the area that
+        // contains this sub-area
         if (accessibleAreaIds != null && !accessibleAreaIds.isEmpty()) {
             return assignmentRepository.findBySubArea(subAreaId).stream()
+                    .filter(assignment -> accessibleAreaIds.contains(assignment.getArea().getId()))
                     .map(MarketingCompetitorAssignmentResponse::from)
                     .collect(Collectors.toList());
         }

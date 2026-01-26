@@ -38,6 +38,9 @@ public class MarketingCompetitorAssignment {
     @Column(name = "created_by", updatable = false)
     private Long createdBy;
 
+    @Column(name = "updated_by")
+    private Long updatedBy;
+
     public MarketingCompetitorAssignment() {
     }
 
@@ -120,5 +123,13 @@ public class MarketingCompetitorAssignment {
 
     public void setCreatedBy(Long createdBy) {
         this.createdBy = createdBy;
+    }
+
+    public Long getUpdatedBy() {
+        return updatedBy;
+    }
+
+    public void setUpdatedBy(Long updatedBy) {
+        this.updatedBy = updatedBy;
     }
 }

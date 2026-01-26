@@ -4,27 +4,19 @@ import { useEffect, useMemo, useState } from "react";
 import React from "react";
 import { ModalPortal } from "@/components/ModalPortal";
 import { MarketingServiceGuard } from "@/components/marketing-service/MarketingServiceGuard";
-import { AreaSubAreaFilter } from "@/components/marketing-service/AreaSubAreaFilter";
 import { useMarketingData } from "@/hooks/useMarketingData";
 import { useToast } from "@/components/ui/Toast";
-import { PermissionGuard } from "@/components/layout/PermissionGuard";
 import {
-  marketingHierarchyService,
   type MarketingArea,
   type MarketingSubArea,
 } from "@/services/marketing-service/marketingHierarchyService";
 import {
-  competitorService,
-  type MarketingCompetitor,
-} from "@/services/marketing-service/competitorService";
-import {
   competitorAssignmentService,
   type MarketingCompetitorAssignment,
   type CompetitorAssignmentPayload,
-  type CompetitorPriceRange,
 } from "@/services/marketing-service/competitorAssignmentService";
-import { marketingUserAssignmentService, MarketingUserAssignment } from "@/services/marketingUserAssignmentService";
-import { API_BASE_URL } from "@/config/env";
+import { type MarketingCompetitor } from "@/services/marketing-service/competitorService";
+import { userService, type User } from "@/services/userService";
 
 // ============================================================================
 // REUSABLE COMPONENTS
@@ -139,31 +131,35 @@ const PriceRangeSection: React.FC<PriceRangeSectionProps> = ({ profile, readonly
     </div>
     {readonly ? (
       <p className="text-sm font-bold text-white text-center">
-        ${profile.priceRange.lowestPrice} - ${profile.priceRange.highestPrice}
+        ៛{profile.priceRange?.lowestPrice || 0} - ៛{profile.priceRange?.highestPrice || 0}
       </p>
     ) : (
       <div className="flex items-center gap-1.5">
-        <input
-          type="number"
-          value={profile.priceRange.lowestPrice}
-          onChange={(e) => onFieldChange?.('priceRange', {
-            ...profile.priceRange,
-            lowestPrice: parseInt(e.target.value) || 0
-          })}
-          className="flex-1 min-w-0 rounded border border-white/10 bg-slate-800/50 px-2 py-1 text-xs text-white text-center"
-          placeholder="Lowest"
-        />
+        <div className="flex-1 min-w-0 relative">
+          <input
+            type="text"
+            value={profile.priceRange?.lowestPrice || ''}
+            onChange={(e) => onFieldChange?.('priceRange', {
+              ...(profile.priceRange || {}),
+              lowestPrice: e.target.value
+            })}
+            className="w-full rounded border border-white/10 bg-slate-800/50 px-2 py-1 text-xs text-white text-center"
+            placeholder="5000៛"
+          />
+        </div>
         <span className="text-xs text-slate-400 shrink-0">-</span>
-        <input
-          type="number"
-          value={profile.priceRange.highestPrice}
-          onChange={(e) => onFieldChange?.('priceRange', {
-            ...profile.priceRange,
-            highestPrice: parseInt(e.target.value) || 0
-          })}
-          className="flex-1 min-w-0 rounded border border-white/10 bg-slate-800/50 px-2 py-1 text-xs text-white text-center"
-          placeholder="Highest"
-        />
+        <div className="flex-1 min-w-0 relative">
+          <input
+            type="text"
+            value={profile.priceRange?.highestPrice || ''}
+            onChange={(e) => onFieldChange?.('priceRange', {
+              ...(profile.priceRange || {}),
+              highestPrice: e.target.value
+            })}
+            className="w-full rounded border border-white/10 bg-slate-800/50 px-2 py-1 text-xs text-white text-center"
+            placeholder="10000៛"
+          />
+        </div>
       </div>
     )}
   </div>
@@ -191,11 +187,11 @@ const BranchCountSection: React.FC<BranchCountSectionProps> = ({ profile, readon
       </p>
     ) : (
       <input
-        type="number"
-        value={profile.branchCount}
+        type="text"
+        value={profile.branchCount ? profile.branchCount.toString() : ''}
         onChange={(e) => onFieldChange?.(parseInt(e.target.value) || 0)}
         className="w-full rounded border border-white/10 bg-slate-800/50 px-2 py-1 text-xs text-white text-center"
-        placeholder="Number of branches"
+        placeholder=""
       />
     )}
   </div>
@@ -365,7 +361,7 @@ const CompetitorCard: React.FC<CompetitorCardProps> = ({
   const id = parseInt(competitorId);
 
   return (
-    <div className="shrink-0 w-72 rounded-xl border border-white/10 bg-linear-to-br from-slate-800/60 to-slate-900/60 backdrop-blur-sm p-4 hover:border-amber-500/20 transition-all group">
+    <div className="w-full rounded-xl border border-white/10 bg-linear-to-br from-slate-800/60 to-slate-900/60 backdrop-blur-sm p-4 hover:border-amber-500/20 transition-all group">
       <CompetitorHeader competitor={competitor} competitorId={competitorId} />
 
       <div className="grid grid-cols-2 gap-2 mb-4">
@@ -430,39 +426,178 @@ const CompetitorProfileModal: React.FC<{
   assignment: MarketingCompetitorAssignment | null;
   competitors: MarketingCompetitor[];
   onClose: () => void;
-}> = ({ show, assignment, competitors, onClose }) => {
+  loadAssignments: () => Promise<void>;
+}> = ({ show, assignment, competitors, onClose, loadAssignments }) => {
+  const [editingProfiles, setEditingProfiles] = useState<Record<string, any>>({});
+  const [strengthInputs, setStrengthInputs] = useState<Record<string, string>>({});
+  const [weaknessInputs, setWeaknessInputs] = useState<Record<string, string>>({});
+  const [isSaving, setIsSaving] = useState(false);
+  const { showToast } = useToast();
+
+  // Initialize editing profiles when assignment changes
+  useEffect(() => {
+    if (assignment) {
+      setEditingProfiles({ ...assignment.competitorProfiles });
+      // Initialize strength/weakness inputs
+      const initialStrengths: Record<string, string> = {};
+      const initialWeaknesses: Record<string, string> = {};
+      Object.keys(assignment.competitorProfiles).forEach(competitorId => {
+        initialStrengths[competitorId] = '';
+        initialWeaknesses[competitorId] = '';
+      });
+      setStrengthInputs(initialStrengths);
+      setWeaknessInputs(initialWeaknesses);
+    }
+  }, [assignment]);
+
+  const handleFieldChange = (competitorId: string, field: string, value: any) => {
+    setEditingProfiles(prev => ({
+      ...prev,
+      [competitorId]: {
+        ...prev[competitorId],
+        [field]: value
+      }
+    }));
+  };
+
+  const handleStrengthInputChange = (competitorId: number, value: string) => {
+    setStrengthInputs(prev => ({
+      ...prev,
+      [competitorId]: value
+    }));
+  };
+
+  const handleWeaknessInputChange = (competitorId: number, value: string) => {
+    setWeaknessInputs(prev => ({
+      ...prev,
+      [competitorId]: value
+    }));
+  };
+
+  const handleAddStrength = (competitorId: number) => {
+    const input = strengthInputs[competitorId];
+    if (input && input.trim()) {
+      const currentStrengths = editingProfiles[competitorId]?.strengths || [];
+      handleFieldChange(competitorId.toString(), 'strengths', [...currentStrengths, input.trim()]);
+      setStrengthInputs(prev => ({
+        ...prev,
+        [competitorId]: ''
+      }));
+    }
+  };
+
+  const handleAddWeakness = (competitorId: number) => {
+    const input = weaknessInputs[competitorId];
+    if (input && input.trim()) {
+      const currentWeaknesses = editingProfiles[competitorId]?.weaknesses || [];
+      handleFieldChange(competitorId.toString(), 'weaknesses', [...currentWeaknesses, input.trim()]);
+      setWeaknessInputs(prev => ({
+        ...prev,
+        [competitorId]: ''
+      }));
+    }
+  };
+
+  const handleRemoveStrength = (competitorId: number, index: number) => {
+    const currentStrengths = editingProfiles[competitorId]?.strengths || [];
+    handleFieldChange(competitorId.toString(), 'strengths', currentStrengths.filter((_: any, i: number) => i !== index));
+  };
+
+  const handleRemoveWeakness = (competitorId: number, index: number) => {
+    const currentWeaknesses = editingProfiles[competitorId]?.weaknesses || [];
+    handleFieldChange(competitorId.toString(), 'weaknesses', currentWeaknesses.filter((_: any, i: number) => i !== index));
+  };
+
   if (!show || !assignment) return null;
 
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      // Update each competitor profile
+      for (const [competitorId, profile] of Object.entries(editingProfiles)) {
+        // Ensure the profile has all required fields and parse strings to numbers
+        const sanitizedProfile = {
+          priceRange: {
+            lowestPrice: parseInt(profile.priceRange?.lowestPrice) || 0,
+            highestPrice: parseInt(profile.priceRange?.highestPrice) || 0
+          },
+          strengths: Array.isArray(profile.strengths) ? profile.strengths : [],
+          weaknesses: Array.isArray(profile.weaknesses) ? profile.weaknesses : [],
+          remarks: profile.remarks || '',
+          branchCount: typeof profile.branchCount === 'number' ? profile.branchCount : parseInt(profile.branchCount) || 0
+        };
+
+        const payload = {
+          areaId: assignment.areaId,
+          subAreaId: assignment.subAreaId ?? undefined,
+          competitorProfiles: {
+            [parseInt(competitorId)]: sanitizedProfile
+          }
+        };
+
+        console.log('Sending payload:', JSON.stringify(payload, null, 2));
+        await competitorAssignmentService.updateAssignment(assignment.id, payload);
+      }
+
+      // Reload assignments to get the latest data
+      await loadAssignments();
+
+      showToast("Competitor profiles updated successfully", "success");
+      onClose();
+    } catch (error) {
+      console.error('Update error:', error);
+      showToast(
+        error instanceof Error ? error.message : "Failed to update competitor profiles",
+        "error"
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-6">
-      <div className="w-full max-w-7xl h-[85vh] overflow-hidden rounded-3xl border border-white/20 bg-linear-to-br from-slate-900 via-slate-900 to-slate-800 shadow-2xl flex flex-col">
-        <ModalHeader
-          title={assignment.areaName}
-          subtitle={assignment.subAreaName}
-          onClose={onClose}
-        />
+    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm overflow-y-auto">
+      <div className="min-h-full flex items-center justify-center p-6">
+        <div className="w-full max-w-xl rounded-3xl border border-white/20 bg-linear-to-br from-slate-900 via-slate-900 to-slate-800 shadow-2xl flex flex-col">
+          <ModalHeader
+            title={assignment.areaName}
+            subtitle={assignment.subAreaName}
+            onClose={onClose}
+          />
 
-        <div className="flex-1 overflow-y-auto overflow-x-auto p-4 scrollbar-hide">
-          <div className="flex gap-3 pb-2 min-w-max">
-            {Object.entries(assignment.competitorProfiles).map(([competitorId, profile]) => {
-              const competitor = competitors.find(c => c.id === parseInt(competitorId));
-              return (
-                <CompetitorCard
-                  key={competitorId}
-                  competitor={competitor}
-                  competitorId={competitorId}
-                  profile={profile}
-                  readonly
-                />
-              );
-            })}
+          <div className="flex-1 p-4">
+            <div className="w-full grid grid-cols-1 gap-4">
+              {Object.entries(assignment.competitorProfiles).map(([competitorId, profile]) => {
+                const competitor = competitors.find(c => c.id === parseInt(competitorId));
+                return (
+                  <CompetitorCard
+                    key={competitorId}
+                    competitor={competitor}
+                    competitorId={competitorId.toString()}
+                    profile={editingProfiles[competitorId] || profile}
+                    readonly={false}
+                    onFieldChange={(competitorIdNum, field, value) => handleFieldChange(competitorIdNum.toString(), field, value)}
+                    strengthInput={strengthInputs[competitorId] || ''}
+                    weaknessInput={weaknessInputs[competitorId] || ''}
+                    onStrengthInputChange={handleStrengthInputChange}
+                    onWeaknessInputChange={handleWeaknessInputChange}
+                    onAddStrength={handleAddStrength}
+                    onAddWeakness={handleAddWeakness}
+                    onRemoveStrength={handleRemoveStrength}
+                    onRemoveWeakness={handleRemoveWeakness}
+                  />
+                );
+              })}
+            </div>
           </div>
-        </div>
 
-        <ModalFooter
-          count={Object.keys(assignment.competitorProfiles).length}
-          onClose={onClose}
-        />
+          <ModalFooter
+            count={Object.keys(assignment.competitorProfiles).length}
+            onClose={onClose}
+            showSave={true}
+            onSave={handleSave}
+          />
+        </div>
       </div>
     </div>
   );
@@ -504,46 +639,48 @@ const CompetitorEditModal: React.FC<{
     if (!show || !assignment || !profiles || Object.keys(profiles).length === 0) return null;
 
     return (
-      <div className="fixed inset-0 z-9999 flex items-start justify-center bg-black/70 backdrop-blur-md p-6 pt-10">
-        <div className="w-full max-w-[95vw] max-h-[85vh] overflow-hidden rounded-2xl border border-white/10 bg-linear-to-br from-slate-900 via-slate-900 to-slate-800 shadow-2xl flex flex-col">
-          <ModalHeader
-            title={`${assignment.areaName}${assignment.subAreaName ? ` → ${assignment.subAreaName}` : ''}`}
-            subtitle="Edit all competitors in this assignment"
-            label="Edit Competitors"
-            onClose={onClose}
-          />
+      <div className="fixed inset-0 z-9999 bg-black/70 backdrop-blur-md overflow-y-auto">
+        <div className="min-h-full flex items-start justify-center p-6 pt-10">
+          <div className="w-full max-w-[95vw] rounded-2xl border border-white/10 bg-linear-to-br from-slate-900 via-slate-900 to-slate-800 shadow-2xl flex flex-col">
+            <ModalHeader
+              title={`${assignment.areaName}${assignment.subAreaName ? ` → ${assignment.subAreaName}` : ''}`}
+              subtitle="Edit all competitors in this assignment"
+              label="Edit Competitors"
+              onClose={onClose}
+            />
 
-          <div className="flex-1 overflow-y-auto overflow-x-auto p-6 scrollbar-hide">
-            <div className="flex gap-4 pb-2 min-w-max">
-              {Object.entries(profiles).map(([competitorId, profile]) => {
-                const competitor = competitors.find(c => c.id === parseInt(competitorId));
-                return (
-                  <CompetitorCard
-                    key={competitorId}
-                    competitor={competitor}
-                    competitorId={competitorId}
-                    profile={profile}
-                    strengthInput={strengthInputs[parseInt(competitorId)] || ''}
-                    weaknessInput={weaknessInputs[parseInt(competitorId)] || ''}
-                    onFieldChange={onFieldChange}
-                    onAddStrength={onAddStrength}
-                    onRemoveStrength={onRemoveStrength}
-                    onAddWeakness={onAddWeakness}
-                    onRemoveWeakness={onRemoveWeakness}
-                    onStrengthInputChange={onStrengthInputChange}
-                    onWeaknessInputChange={onWeaknessInputChange}
-                  />
-                );
-              })}
+            <div className="flex-1 p-6">
+              <div className="flex gap-4 pb-2 min-w-max overflow-x-auto">
+                {Object.entries(profiles).map(([competitorId, profile]) => {
+                  const competitor = competitors.find(c => c.id === parseInt(competitorId));
+                  return (
+                    <CompetitorCard
+                      key={competitorId}
+                      competitor={competitor}
+                      competitorId={competitorId}
+                      profile={profile}
+                      strengthInput={strengthInputs[parseInt(competitorId)] || ''}
+                      weaknessInput={weaknessInputs[parseInt(competitorId)] || ''}
+                      onFieldChange={onFieldChange}
+                      onAddStrength={onAddStrength}
+                      onRemoveStrength={onRemoveStrength}
+                      onAddWeakness={onAddWeakness}
+                      onRemoveWeakness={onRemoveWeakness}
+                      onStrengthInputChange={onStrengthInputChange}
+                      onWeaknessInputChange={onWeaknessInputChange}
+                    />
+                  );
+                })}
+              </div>
             </div>
-          </div>
 
-          <ModalFooter
-            count={Object.keys(profiles).length}
-            onClose={onClose}
-            showSave
-            onSave={onSave}
-          />
+            <ModalFooter
+              count={Object.keys(profiles).length}
+              onClose={onClose}
+              showSave
+              onSave={onSave}
+            />
+          </div>
         </div>
       </div>
     );
@@ -597,7 +734,8 @@ export default function CompetitorsPage() {
 
   // Table filter states
   const [tableFilterAreaId, setTableFilterAreaId] = useState<number | null>(null);
-  const [tableFilterSubAreaId, setTableFilterSubAreaId] = useState<number | null>(null);
+  const [tableFilterSubAreaId, setTableFilterSubAreaId] = useState<number | null | -1>(null);
+  const [tableFilterCompetitorId, setTableFilterCompetitorId] = useState<number | null>(null);
 
   // Profile forms
   const [competitorProfiles, setCompetitorProfiles] = useState<Record<number, CompetitorAssignmentPayload>>({});
@@ -606,12 +744,71 @@ export default function CompetitorsPage() {
 
   const { showToast } = useToast();
 
+  // User data for displaying created/updated by usernames
+  const [users, setUsers] = useState<User[]>([]);
+  const [usersLoading, setUsersLoading] = useState(false);
+
+  // Load users for displaying created/updated by information
+  const loadUsers = async () => {
+    if (usersLoading || users.length > 0) return; // Avoid reloading if already loaded or loading
+
+    setUsersLoading(true);
+    try {
+      const userList = await userService.getAllUsers();
+      setUsers(userList);
+    } catch (error) {
+      console.error("Failed to load users:", error);
+    } finally {
+      setUsersLoading(false);
+    }
+  };
+
+  // Create user lookup map
+  const userLookup = useMemo(() => {
+    const lookup: Record<number, string> = {};
+    users.forEach(user => {
+      lookup[user.id] = user.fullName || user.username;
+    });
+    return lookup;
+  }, [users]);
+
   // Local loading states for form operations
   const [isSaving, setIsSaving] = useState(false);
+
+  // Check for duplicate assignments
+  const checkForDuplicateAssignment = (areaId: number, subAreaId: number | null, competitorId?: number) => {
+    return assignments.some(assignment => {
+      // Only check for exact match (same area, same sub-area, AND same competitor)
+      // This allows the same competitor to be assigned to different sub-areas within the same area
+      if (assignment.areaId === areaId &&
+        assignment.subAreaId === subAreaId &&
+        competitorId && assignment.competitorProfiles?.[competitorId]) {
+        return true;
+      }
+
+      return false;
+    });
+  };
+
+  // Check if competitor should be disabled (already assigned in same area or sub-area)
+  const isCompetitorDisabled = (areaId: number, subAreaId: number | null, competitorId: number) => {
+    const targetSubArea = subAreaId ?? null;
+
+    return assignments.some(assignment => {
+      if (assignment.areaId !== areaId) return false;
+
+      const assignmentSubArea = assignment.subAreaId ?? null;
+      if (assignmentSubArea !== targetSubArea) return false;
+
+      return Boolean(competitorId && assignment.competitorProfiles?.[competitorId]);
+    });
+  };
 
   // Modal states
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [selectedAssignment, setSelectedAssignment] = useState<MarketingCompetitorAssignment | null>(null);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [activeCompetitorTab, setActiveCompetitorTab] = useState<number | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingAssignment, setEditingAssignment] = useState<MarketingCompetitorAssignment | null>(null);
   const [editCompetitorProfiles, setEditCompetitorProfiles] = useState<Record<number, any>>({});
@@ -696,12 +893,14 @@ export default function CompetitorsPage() {
         competitorProfiles: editCompetitorProfiles
       };
       await competitorAssignmentService.updateAssignment(editingAssignment.id, payload);
+
+      // Reload assignments to get the latest data
       await loadAssignments();
-      if (showProfileModal) {
-        const updated = assignments.find(a => a.id === editingAssignment.id);
-        if (updated) setSelectedAssignment(updated);
-      }
+
+      // Close the edit modal first
       handleCloseEditModal();
+
+      // Show success message
       showToast('Competitor profiles updated successfully', 'success');
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'Failed to update competitor profiles', 'error');
@@ -719,6 +918,31 @@ export default function CompetitorsPage() {
   };
 
   const handleCompetitorSelection = (competitorId: number) => {
+    // Check for duplicate before allowing selection
+    if (!selectedAreaId) {
+      showToast("Please select an area first", "error");
+      return;
+    }
+
+    // Check if competitor is disabled (already assigned in same area)
+    const isDisabled = isCompetitorDisabled(selectedAreaId, selectedSubAreaId, competitorId);
+    if (isDisabled) {
+      const competitor = competitors.find(c => c.id === competitorId);
+      const area = areas.find(a => a.id === selectedAreaId);
+      showToast(`Competitor "${competitor?.name}" already has an assignment in area "${area?.name}"`, "error");
+      return;
+    }
+
+    const isDuplicate = checkForDuplicateAssignment(selectedAreaId, selectedSubAreaId, competitorId);
+    if (isDuplicate) {
+      const competitor = competitors.find(c => c.id === competitorId);
+      const location = selectedSubAreaId
+        ? `sub-area "${subAreaLookup[selectedSubAreaId]}" in area "${areas.find(a => a.id === selectedAreaId)?.name}"`
+        : `area "${areas.find(a => a.id === selectedAreaId)?.name}"`;
+      showToast(`Competitor "${competitor?.name}" already has an assignment for this ${location}`, "error");
+      return;
+    }
+
     setSelectedCompetitorIds(prev => {
       const isSelected = prev.includes(competitorId);
       if (isSelected) {
@@ -732,6 +956,11 @@ export default function CompetitorsPage() {
         setCompetitorProfiles(newProfiles);
         setStrengthInputs(newStrengthInputs);
         setWeaknessInputs(newWeaknessInputs);
+        // If removing the active tab, switch to another available competitor
+        if (activeCompetitorTab === competitorId) {
+          const remainingCompetitors = prev.filter(id => id !== competitorId);
+          setActiveCompetitorTab(remainingCompetitors.length > 0 ? remainingCompetitors[0] : null);
+        }
         return newSelection;
       } else {
         setCompetitorProfiles(prev => ({
@@ -752,6 +981,8 @@ export default function CompetitorsPage() {
         }));
         setStrengthInputs(prev => ({ ...prev, [competitorId]: "" }));
         setWeaknessInputs(prev => ({ ...prev, [competitorId]: "" }));
+        // Set this competitor as the active tab
+        setActiveCompetitorTab(competitorId);
         return [...prev, competitorId];
       }
     });
@@ -864,6 +1095,20 @@ export default function CompetitorsPage() {
       return;
     }
 
+    // Check for duplicate assignments for each competitor
+    const duplicateCompetitors = selectedCompetitorIds.filter(competitorId =>
+      checkForDuplicateAssignment(selectedAreaId, selectedSubAreaId, competitorId)
+    );
+
+    if (duplicateCompetitors.length > 0) {
+      const competitor = competitors.find(c => c.id === duplicateCompetitors[0]);
+      const location = selectedSubAreaId
+        ? `sub-area "${subAreaLookup[selectedSubAreaId]}" in area "${areas.find(a => a.id === selectedAreaId)?.name}"`
+        : `area "${areas.find(a => a.id === selectedAreaId)?.name}"`;
+      showToast(`Competitor "${competitor?.name}" already has an assignment for this ${location}`, "error");
+      return;
+    }
+
     const invalidProfiles = selectedCompetitorIds.filter(id => {
       const profile = competitorProfiles[id]?.competitorProfiles?.[id];
       return !profile || profile.branchCount <= 0;
@@ -876,27 +1121,29 @@ export default function CompetitorsPage() {
 
     setIsSaving(true);
     try {
-      const payload: CompetitorAssignmentPayload = {
-        areaId: selectedAreaId,
-        subAreaId: selectedSubAreaId ?? undefined,
-        competitorProfiles: {},
-      };
-
-      selectedCompetitorIds.forEach(competitorId => {
+      // Create separate assignment for each competitor
+      for (const competitorId of selectedCompetitorIds) {
         const profile = competitorProfiles[competitorId]?.competitorProfiles?.[competitorId];
         if (profile) {
-          payload.competitorProfiles[competitorId] = {
-            priceRange: profile.priceRange,
-            strengths: profile.strengths,
-            weaknesses: profile.weaknesses,
-            remarks: profile.remarks,
-            branchCount: profile.branchCount,
+          const payload: CompetitorAssignmentPayload = {
+            areaId: selectedAreaId,
+            subAreaId: selectedSubAreaId ?? undefined,
+            competitorProfiles: {
+              [competitorId]: {
+                priceRange: profile.priceRange,
+                strengths: profile.strengths,
+                weaknesses: profile.weaknesses,
+                remarks: profile.remarks,
+                branchCount: profile.branchCount,
+              },
+            },
           };
-        }
-      });
 
-      await competitorAssignmentService.createAssignment(payload);
-      showToast("Competitor assignments created successfully");
+          await competitorAssignmentService.createAssignment(payload);
+        }
+      }
+
+      showToast(`Competitor assignment${selectedCompetitorIds.length > 1 ? 's' : ''} created successfully`);
 
       resetAll();
       await loadAssignments();
@@ -954,18 +1201,79 @@ export default function CompetitorsPage() {
     return assignment.subAreaName ?? subAreaLookup[assignment.subAreaId] ?? `Sub-area #${assignment.subAreaId}`;
   };
 
-  const filteredAssignments = assignments.filter(assignment => {
-    if (tableFilterAreaId && assignment.areaId !== tableFilterAreaId) {
-      return false;
-    }
-    if (tableFilterSubAreaId && assignment.subAreaId !== tableFilterSubAreaId) {
-      return false;
-    }
-    return true;
-  });
+  // Flatten assignments to individual competitor records and apply filters
+  const flattenedAssignments = useMemo(() => {
+    const records: Array<{
+      assignmentId: number;
+      competitorId: number;
+      competitorName: string;
+      areaId: number;
+      areaName: string;
+      subAreaId: number | null;
+      subAreaName: string | null;
+      profile: any;
+      createdBy?: number;
+      updatedBy?: number;
+      createdAt: string;
+      updatedAt?: string;
+    }> = [];
+
+    assignments.forEach(assignment => {
+      Object.entries(assignment.competitorProfiles).forEach(([competitorIdStr, profile]) => {
+        const competitorId = parseInt(competitorIdStr);
+        const competitor = competitors.find(c => c.id === competitorId);
+
+        records.push({
+          assignmentId: assignment.id,
+          competitorId,
+          competitorName: competitor?.name || `Competitor ${competitorId}`,
+          areaId: assignment.areaId,
+          areaName: assignment.areaName,
+          subAreaId: assignment.subAreaId ?? null,
+          subAreaName: assignment.subAreaName ?? null,
+          profile,
+          createdBy: assignment.createdBy,
+          updatedBy: assignment.updatedBy,
+          createdAt: assignment.createdAt,
+          updatedAt: assignment.updatedAt,
+        });
+      });
+    });
+
+    return records;
+  }, [assignments, competitors]);
+
+  const filteredAssignments = useMemo(() => {
+    return flattenedAssignments.filter(record => {
+      if (tableFilterAreaId && record.areaId !== tableFilterAreaId) {
+        return false;
+      }
+
+      // Handle sub-area filtering
+      if (tableFilterSubAreaId === -1) {
+        // "None" selected - show only area-level assignments (subAreaId is null)
+        if (record.subAreaId !== null) {
+          return false;
+        }
+      } else if (tableFilterSubAreaId && tableFilterSubAreaId !== -1) {
+        // Specific sub-area selected - show only that sub-area
+        if (record.subAreaId !== tableFilterSubAreaId) {
+          return false;
+        }
+      }
+      // If tableFilterSubAreaId is null/undefined, show all (area + sub-areas)
+
+      if (tableFilterCompetitorId && record.competitorId !== tableFilterCompetitorId) {
+        return false;
+      }
+
+      return true;
+    });
+  }, [flattenedAssignments, tableFilterAreaId, tableFilterSubAreaId, tableFilterCompetitorId]);
 
   useEffect(() => {
     void Promise.all([loadAreas(), loadCompetitors()]);
+    void loadUsers(); // Load users for displaying created/updated by information
   }, []);
 
   useEffect(() => {
@@ -1028,397 +1336,567 @@ export default function CompetitorsPage() {
             </p>
           </header>
 
-          {/* Filters */}
+          {/* Create Record Button */}
           <section className="rounded-3xl border border-white/10 bg-white/5 p-6">
-            <h2 className="mb-4 text-xl font-semibold text-white">Select Location</h2>
-            <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-              <div className="flex flex-col">
-                <label className="mb-2 text-sm text-slate-300">Area *</label>
-                <select
-                  className="rounded-2xl border border-white/20 bg-slate-900/60 px-4 py-2 text-sm text-white focus:border-amber-400/60 focus:outline-none"
-                  value={selectedAreaId ?? ""}
-                  onChange={(e) => {
-                    const value = e.target.value ? Number(e.target.value) : null;
-                    setSelectedAreaId(value);
-                  }}
-                >
-                  <option value="">Select area</option>
-                  {currentUserAssignments.length === 0 ? (
-                    areas.map((area) => (
-                      <option key={area.id} value={area.id}>
-                        {area.name}
-                      </option>
-                    ))
-                  ) : (
-                    filteredAreasForForm
-                      .filter(area => currentUserAssignments.some(a => a.areaId === area.id))
-                      .map((area) => (
-                        <option key={area.id} value={area.id}>
-                          {area.name}
-                        </option>
-                      ))
-                  )}
-                </select>
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-semibold text-white mb-2">Create New Assignment</h2>
+                <p className="text-sm text-slate-300">
+                  Add new competitor assignments to areas and sub-areas
+                </p>
               </div>
-              <div className="flex flex-col">
-                <label className="mb-2 text-sm text-slate-300">Sub-area</label>
-                <select
-                  className="rounded-2xl border border-white/20 bg-slate-900/60 px-4 py-2 text-sm text-white focus:border-amber-400/60 focus:outline-none"
-                  value={selectedSubAreaId ?? ""}
-                  onChange={(e) => {
-                    const value = e.target.value ? Number(e.target.value) : null;
-                    setSelectedSubAreaId(value);
-                  }}
-                  disabled={!selectedAreaId}
-                >
-                  <option value="">None (Area level)</option>
-                  {currentUserAssignments.length === 0 ? (
-                    filteredSubAreasForForm.map((subArea) => (
-                      <option key={subArea.id} value={subArea.id}>
-                        {subArea.name}
-                      </option>
-                    ))
-                  ) : (
-                    filteredSubAreasForForm
-                      .filter(subArea => currentUserAssignments.some(a => a.subAreaId === subArea.id))
-                      .map((subArea) => (
-                        <option key={subArea.id} value={subArea.id}>
-                          {subArea.name}
-                        </option>
-                      ))
-                  )}
-                </select>
-              </div>
-              <div className="flex items-end">
-                <button
-                  onClick={resetAll}
-                  className="w-full rounded-2xl border border-white/20 bg-slate-900/60 px-4 py-2 text-sm text-white hover:bg-slate-800/80"
-                >
-                  Clear All
-                </button>
-              </div>
+              <button
+                onClick={() => setShowCreateModal(true)}
+                className="rounded-2xl border border-green-500/30 bg-green-500/10 px-6 py-3 text-sm font-semibold text-green-300 hover:bg-green-500/20 transition-all flex items-center gap-2"
+              >
+                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                Create Record
+              </button>
             </div>
           </section>
 
-          {/* Competitor Selection */}
-          {selectedAreaId && (
-            <section className="rounded-3xl border border-white/10 bg-white/5 p-6">
-              <h2 className="mb-4 text-xl font-semibold text-white">Select Competitors</h2>
-              {dataLoading.competitors ? (
-                <div className="flex items-center justify-center py-8 text-slate-400">
-                  Loading competitors...
-                </div>
-              ) : competitors.length === 0 ? (
-                <div className="py-8 text-center text-slate-400">
-                  No competitors found. Please create competitors in the Setups page first.
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-                  {competitors.map((competitor) => {
-                    const isSelected = selectedCompetitorIds.includes(competitor.id);
-                    return (
-                      <div
-                        key={competitor.id}
-                        onClick={() => handleCompetitorSelection(competitor.id)}
-                        className={`cursor-pointer rounded-2xl border p-4 transition-colors ${isSelected
-                          ? "border-amber-400/60 bg-amber-400/10"
-                          : "border-white/10 bg-slate-900/40 hover:border-white/20"
-                          }`}
-                      >
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <h3 className="font-semibold text-white">{competitor.name}</h3>
-                            <p className="text-xs text-slate-400">
-                              Created: {formatDate(competitor.createdAt)}
-                            </p>
-                          </div>
-                          <div
-                            className={`h-5 w-5 rounded-full border-2 ${isSelected
-                              ? "border-amber-400 bg-amber-400"
-                              : "border-white/30 bg-transparent"
-                              }`}
+          {/* Create Assignment Modal */}
+          <ModalPortal show={showCreateModal}>
+            <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 overflow-y-auto">
+              <div className="min-h-full flex items-center justify-center p-4">
+                <div className="bg-slate-900 rounded-3xl border border-white/10 w-full max-w-3xl flex flex-col">
+                  <ModalHeader
+                    title="Create Competitor Assignment"
+                    subtitle="Select location and competitors to create new assignments"
+                    onClose={() => setShowCreateModal(false)}
+                  />
+
+                  <div className="p-6 flex-1">
+                    {/* Location Selection */}
+                    <div className="mb-6">
+                      <h3 className="text-lg font-semibold text-white mb-4">Select Location</h3>
+                      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+                        <div className="flex flex-col">
+                          <label className="mb-2 text-sm text-slate-300">Area *</label>
+                          <select
+                            className="rounded-2xl border border-white/20 bg-slate-900/60 px-4 py-2 text-sm text-white focus:border-amber-400/60 focus:outline-none"
+                            value={selectedAreaId ?? ""}
+                            onChange={(e) => {
+                              const value = e.target.value ? Number(e.target.value) : null;
+                              setSelectedAreaId(value);
+                              setSelectedSubAreaId(null);
+                            }}
                           >
-                            {isSelected && (
-                              <svg
-                                className="h-full w-full text-white"
-                                fill="currentColor"
-                                viewBox="0 0 20 20"
-                              >
-                                <path
-                                  fillRule="evenodd"
-                                  d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                                  clipRule="evenodd"
-                                />
-                              </svg>
-                            )}
-                          </div>
+                            <option value="">Select area</option>
+                            {(currentUserAssignments.length === 0
+                              ? areas
+                              : areas.filter((area) =>
+                                currentUserAssignments.some((assignment) => assignment.areaId === area.id)
+                              )
+                            ).map((area) => (
+                              <option key={area.id} value={area.id}>
+                                {area.name}
+                              </option>
+                            ))}
+                          </select>
                         </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </section>
-          )}
-
-          {/* Profile Forms for Selected Competitors */}
-          {selectedCompetitorIds.length > 0 && (
-            <section className="rounded-3xl border border-white/10 bg-white/5 p-6">
-              <h2 className="mb-4 text-xl font-semibold text-white">
-                Competitor Profiles ({selectedCompetitorIds.length})
-              </h2>
-              <div className="space-y-8">
-                {selectedCompetitorIds.map((competitorId) => {
-                  const competitor = competitors.find((c) => c.id === competitorId);
-                  const profile = competitorProfiles[competitorId]?.competitorProfiles?.[competitorId];
-                  if (!competitor || !profile) return null;
-
-                  return (
-                    <div
-                      key={competitorId}
-                      className="rounded-2xl border border-white/10 bg-slate-900/40 p-6"
-                    >
-                      <h3 className="mb-4 text-lg font-semibold text-white">
-                        {competitor.name}
-                      </h3>
-
-                      <div className="space-y-4">
-                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                          <div>
-                            <label className="mb-1 block text-sm font-medium text-slate-300">
-                              Lowest Price
-                            </label>
-                            <input
-                              type="number"
-                              className="w-full rounded-xl border border-white/20 bg-slate-900/60 px-3 py-2 text-white focus:border-amber-400/60 focus:outline-none"
-                              value={profile.priceRange.lowestPrice}
-                              onChange={(e) =>
-                                updateCompetitorProfile(competitorId, {
-                                  competitorProfiles: {
-                                    [competitorId]: {
-                                      ...profile,
-                                      priceRange: {
-                                        ...profile.priceRange,
-                                        lowestPrice: parseInt(e.target.value) || 0,
-                                      },
-                                    },
-                                  },
-                                })
-                              }
-                            />
-                          </div>
-                          <div>
-                            <label className="mb-1 block text-sm font-medium text-slate-300">
-                              Highest Price
-                            </label>
-                            <input
-                              type="number"
-                              className="w-full rounded-xl border border-white/20 bg-slate-900/60 px-3 py-2 text-white focus:border-amber-400/60 focus:outline-none"
-                              value={profile.priceRange.highestPrice}
-                              onChange={(e) =>
-                                updateCompetitorProfile(competitorId, {
-                                  competitorProfiles: {
-                                    [competitorId]: {
-                                      ...profile,
-                                      priceRange: {
-                                        ...profile.priceRange,
-                                        highestPrice: parseInt(e.target.value) || 0,
-                                      },
-                                    },
-                                  },
-                                })
-                              }
-                            />
-                          </div>
-                        </div>
-
-                        <div className="sm:col-span-2">
-                          <label className="mb-1 block text-sm font-medium text-slate-300">
-                            Branch Count
-                          </label>
-                          <input
-                            type="number"
-                            className="w-full rounded-xl border border-white/20 bg-slate-900/60 px-3 py-2 text-white focus:border-amber-400/60 focus:outline-none"
-                            value={profile.branchCount}
-                            onChange={(e) =>
-                              updateCompetitorProfile(competitorId, {
-                                competitorProfiles: {
-                                  [competitorId]: {
-                                    ...profile,
-                                    branchCount: parseInt(e.target.value) || 0,
-                                  },
-                                },
-                              })
-                            }
-                          />
-                        </div>
-
-                        <div>
-                          <label className="mb-2 block text-sm font-medium text-slate-300">
-                            Strengths
-                          </label>
-                          <div className="flex flex-col gap-2 sm:flex-row">
-                            <input
-                              type="text"
-                              className="flex-1 rounded-2xl border border-white/20 bg-slate-900/60 px-4 py-2 text-sm text-white focus:border-amber-400/60 focus:outline-none"
-                              value={strengthInputs[competitorId] || ""}
-                              onChange={(e) =>
-                                setStrengthInputs((prev) => ({
-                                  ...prev,
-                                  [competitorId]: e.target.value,
-                                }))
-                              }
-                              onKeyPress={(e) =>
-                                e.key === "Enter" &&
-                                (e.preventDefault(), handleAddStrength(competitorId))
-                              }
-                              placeholder="Add strength"
-                            />
-                            <button
-                              onClick={() => handleAddStrength(competitorId)}
-                              className="rounded-2xl border border-white/20 bg-slate-900/60 px-4 py-2 text-sm text-white hover:bg-slate-800/80"
-                            >
-                              Add
-                            </button>
-                          </div>
-                          {profile.strengths && profile.strengths.length > 0 && (
-                            <div className="mt-2 flex flex-wrap gap-2">
-                              {profile.strengths.map((strength, index) => (
-                                <span
-                                  key={index}
-                                  className="flex items-center gap-1 rounded-full border border-white/20 bg-slate-900/60 px-3 py-1 text-xs text-white"
-                                >
-                                  {strength}
-                                  <button
-                                    onClick={() => handleRemoveStrength(competitorId, index)}
-                                    className="text-slate-400 hover:text-white"
-                                  >
-                                    ×
-                                  </button>
-                                </span>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-
-                        <div>
-                          <label className="mb-2 block text-sm font-medium text-slate-300">
-                            Weaknesses
-                          </label>
-                          <div className="flex flex-col gap-2 sm:flex-row">
-                            <input
-                              type="text"
-                              className="flex-1 rounded-2xl border border-white/20 bg-slate-900/60 px-4 py-2 text-sm text-white focus:border-amber-400/60 focus:outline-none"
-                              value={weaknessInputs[competitorId] || ""}
-                              onChange={(e) =>
-                                setWeaknessInputs((prev) => ({
-                                  ...prev,
-                                  [competitorId]: e.target.value,
-                                }))
-                              }
-                              onKeyPress={(e) =>
-                                e.key === "Enter" &&
-                                (e.preventDefault(), handleAddWeakness(competitorId))
-                              }
-                              placeholder="Add weakness"
-                            />
-                            <button
-                              onClick={() => handleAddWeakness(competitorId)}
-                              className="rounded-2xl border border-white/20 bg-slate-900/60 px-4 py-2 text-sm text-white hover:bg-slate-800/80"
-                            >
-                              Add
-                            </button>
-                          </div>
-                          {profile.weaknesses && profile.weaknesses.length > 0 && (
-                            <div className="mt-2 flex flex-wrap gap-2">
-                              {profile.weaknesses.map((weakness, index) => (
-                                <span
-                                  key={index}
-                                  className="flex items-center gap-1 rounded-full border border-white/20 bg-slate-900/60 px-3 py-1 text-xs text-white"
-                                >
-                                  {weakness}
-                                  <button
-                                    onClick={() => handleRemoveWeakness(competitorId, index)}
-                                    className="text-slate-400 hover:text-white"
-                                  >
-                                    ×
-                                  </button>
-                                </span>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-
-                        <div>
-                          <label className="mb-2 block text-sm font-medium text-slate-300">
-                            Remarks
-                          </label>
-                          <textarea
-                            className="w-full rounded-2xl border border-white/20 bg-slate-900/60 px-3 py-2 text-sm text-white focus:border-amber-400/60 focus:outline-none resize-none"
-                            rows={3}
-                            value={profile.remarks ?? ""}
-                            onChange={(e) =>
-                              updateCompetitorProfile(competitorId, {
-                                competitorProfiles: {
-                                  [competitorId]: {
-                                    ...profile,
-                                    remarks: e.target.value,
-                                  },
-                                },
-                              })
-                            }
-                            placeholder="Add any additional notes for this competitor..."
-                          />
+                        <div className="flex flex-col">
+                          <label className="mb-2 text-sm text-slate-300">Sub-area</label>
+                          <select
+                            className="rounded-2xl border border-white/20 bg-slate-900/60 px-4 py-2 text-sm text-white focus:border-amber-400/60 focus:outline-none"
+                            value={selectedSubAreaId ?? ""}
+                            onChange={(e) => {
+                              const value = e.target.value ? Number(e.target.value) : null;
+                              setSelectedSubAreaId(value);
+                            }}
+                            disabled={!selectedAreaId}
+                          >
+                            <option value="">None (Area level)</option>
+                            {(currentUserAssignments.length === 0
+                              ? filteredSubAreasForForm
+                              : filteredSubAreasForForm.filter((subArea) =>
+                                currentUserAssignments.some((assignment) => assignment.subAreaId === subArea.id)
+                              )
+                            ).map((subArea) => (
+                              <option key={subArea.id} value={subArea.id}>
+                                {subArea.name}
+                              </option>
+                            ))}
+                          </select>
                         </div>
                       </div>
                     </div>
-                  );
-                })}
-              </div>
 
-              <div className="mt-6 flex gap-3">
-                <button
-                  onClick={handleSaveAllAssignments}
-                  disabled={isSaving}
-                  className="rounded-2xl bg-amber-400/20 px-6 py-2 text-sm font-medium text-amber-300 hover:bg-amber-400/30 disabled:opacity-50"
-                >
-                  {isSaving ? "Saving..." : `Save ${selectedCompetitorIds.length} Assignments`}
-                </button>
-                <button
-                  onClick={() => {
-                    setSelectedCompetitorIds([]);
-                    setCompetitorProfiles({});
-                    setStrengthInputs({});
-                    setWeaknessInputs({});
-                  }}
-                  className="rounded-2xl border border-white/20 bg-slate-900/60 px-6 py-2 text-sm text-white hover:bg-slate-800/80"
-                >
-                  Clear Selection
-                </button>
+                    {/* Competitor Selection */}
+                    {selectedAreaId && (
+                      <>
+                        <div className="mb-6 space-y-6">
+                          <div>
+                            <h3 className="text-lg font-semibold text-white mb-4">Select Competitors</h3>
+                            {dataLoading.competitors ? (
+                              <div className="flex items-center justify-center py-8 text-slate-400">
+                                Loading competitors...
+                              </div>
+                            ) : competitors.length === 0 ? (
+                              <div className="py-8 text-center text-slate-400">
+                                No competitors available
+                              </div>
+                            ) : (
+                              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                                {competitors.map((competitor) => {
+                                  const isSelected = selectedCompetitorIds.includes(competitor.id);
+                                  const isDisabled = selectedAreaId && isCompetitorDisabled(selectedAreaId, selectedSubAreaId, competitor.id);
+
+                                  return (
+                                    <div
+                                      key={competitor.id}
+                                      onClick={() => !isDisabled && handleCompetitorSelection(competitor.id)}
+                                      className={`rounded-xl border p-3 transition-colors ${isDisabled
+                                        ? "border-gray-600/30 bg-gray-800/40 cursor-not-allowed opacity-50"
+                                        : isSelected
+                                          ? "border-amber-400/60 bg-amber-400/10 cursor-pointer"
+                                          : "border-white/10 bg-slate-900/40 cursor-pointer hover:border-white/20"
+                                        }`}
+                                    >
+                                      <div className="flex items-center justify-between">
+                                        <div className="flex-1 min-w-0">
+                                          <h3 className="font-semibold text-white text-sm truncate">{competitor.name}</h3>
+                                          {isDisabled && (
+                                            <p className="text-xs text-gray-400 mt-1">Already assigned in this area</p>
+                                          )}
+                                        </div>
+                                        <div
+                                          className={`h-4 w-4 rounded-full border-2 shrink-0 ml-2 ${isDisabled
+                                            ? "border-gray-500 bg-gray-600"
+                                            : isSelected
+                                              ? "border-amber-400 bg-amber-400"
+                                              : "border-white/30 bg-transparent"
+                                            }`}
+                                        >
+                                          {isSelected && !isDisabled && (
+                                            <svg
+                                              className="h-full w-full text-white"
+                                              fill="currentColor"
+                                              viewBox="0 0 20 20"
+                                            >
+                                              <path
+                                                fillRule="evenodd"
+                                                d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                                                clipRule="evenodd"
+                                              />
+                                            </svg>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Individual Competitor Profile Forms */}
+                          {selectedCompetitorIds.length > 0 && (
+                            <div>
+                              <h3 className="text-lg font-semibold text-white mb-4">Competitor Profiles</h3>
+
+                              {/* Competitor Tabs */}
+                              <div className="flex flex-wrap gap-2 mb-6 border-b border-white/10 pb-4">
+                                {selectedCompetitorIds.map((competitorId) => {
+                                  const competitor = competitors.find((c) => c.id === competitorId);
+                                  if (!competitor) return null;
+                                  const isActive = activeCompetitorTab === competitorId;
+
+                                  return (
+                                    <button
+                                      key={competitorId}
+                                      onClick={() => setActiveCompetitorTab(competitorId)}
+                                      className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${isActive
+                                        ? "bg-amber-500/20 border border-amber-500/30 text-amber-300"
+                                        : "bg-slate-800/50 border border-white/10 text-slate-400 hover:border-white/20 hover:text-white"
+                                        }`}
+                                    >
+                                      {competitor.name}
+                                      <span
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setSelectedCompetitorIds(prev => prev.filter(id => id !== competitorId));
+                                          const newProfiles = { ...competitorProfiles };
+                                          delete newProfiles[competitorId];
+                                          setCompetitorProfiles(newProfiles);
+                                          const newStrengthInputs = { ...strengthInputs };
+                                          delete newStrengthInputs[competitorId];
+                                          setStrengthInputs(newStrengthInputs);
+                                          const updatedWeaknessInputs = { ...weaknessInputs };
+                                          delete updatedWeaknessInputs[competitorId];
+                                          setWeaknessInputs(updatedWeaknessInputs);
+                                          // If removing the active tab, switch to first available
+                                          if (activeCompetitorTab === competitorId && selectedCompetitorIds.length > 1) {
+                                            const remainingIds = selectedCompetitorIds.filter(id => id !== competitorId);
+                                            if (remainingIds.length > 0) {
+                                              setActiveCompetitorTab(remainingIds[0]);
+                                            }
+                                          }
+                                        }}
+                                        className="ml-2 text-xs hover:text-red-400 transition-colors cursor-pointer"
+                                      >
+                                        ×
+                                      </span>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+
+                              {/* Active Competitor Profile Form */}
+                              {selectedCompetitorIds.map((competitorId) => {
+                                if (competitorId !== activeCompetitorTab) return null;
+
+                                const competitor = competitors.find((c) => c.id === competitorId);
+                                const profile = competitorProfiles[competitorId]?.competitorProfiles?.[competitorId];
+                                if (!competitor) return null;
+
+                                return (
+                                  <div key={competitorId} className="mb-6">
+                                    <h3 className="text-lg font-semibold text-white mb-4">Competitor Profile</h3>
+                                    <div className="mb-4 flex items-center justify-between">
+                                      <h2 className="text-xl font-semibold text-white">
+                                        Competitor Profile: {competitor.name}
+                                      </h2>
+                                      <button
+                                        onClick={() => {
+                                          setSelectedCompetitorIds(prev => prev.filter(id => id !== competitorId));
+                                          const newProfiles = { ...competitorProfiles };
+                                          delete newProfiles[competitorId];
+                                          setCompetitorProfiles(newProfiles);
+                                          const newStrengthInputs = { ...strengthInputs };
+                                          delete newStrengthInputs[competitorId];
+                                          setStrengthInputs(newStrengthInputs);
+                                          const newWeaknessInputs = { ...weaknessInputs };
+                                          delete newWeaknessInputs[competitorId];
+                                          setWeaknessInputs(newWeaknessInputs);
+                                        }}
+                                        className="rounded-full border border-red-500/30 bg-red-500/10 px-3 py-1 text-xs text-red-300 hover:bg-red-500/20"
+                                      >
+                                        Remove
+                                      </button>
+                                    </div>
+
+                                    {!profile && (
+                                      <button
+                                        onClick={() => handleCompetitorSelection(competitorId)}
+                                        className="w-full rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm font-medium text-amber-300 hover:bg-amber-500/20"
+                                      >
+                                        Create Profile for {competitor.name}
+                                      </button>
+                                    )}
+
+                                    {profile && (
+                                      <div className="space-y-4">
+                                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                                          <div className="relative">
+                                            <label className="mb-1 block text-sm font-medium text-slate-300">
+                                              Lowest Price
+                                            </label>
+                                            <input
+                                              type="text"
+                                              className="w-full rounded-xl border border-white/20 bg-slate-900/60 px-3 py-2 text-white focus:border-amber-400/60 focus:outline-none"
+                                              value={profile.priceRange?.lowestPrice || ''}
+                                              onChange={(e) =>
+                                                updateCompetitorProfile(competitorId, {
+                                                  competitorProfiles: {
+                                                    [competitorId]: {
+                                                      ...profile,
+                                                      priceRange: {
+                                                        ...profile.priceRange,
+                                                        lowestPrice: parseInt(e.target.value) || 0,
+                                                      },
+                                                    },
+                                                  },
+                                                })
+                                              }
+                                              placeholder="5000៛"
+                                            />
+                                          </div>
+                                          <div className="relative">
+                                            <label className="mb-1 block text-sm font-medium text-slate-300">
+                                              Highest Price
+                                            </label>
+                                            <input
+                                              type="text"
+                                              className="w-full rounded-xl border border-white/20 bg-slate-900/60 px-3 py-2 text-white focus:border-amber-400/60 focus:outline-none"
+                                              value={profile.priceRange?.highestPrice || ''}
+                                              onChange={(e) =>
+                                                updateCompetitorProfile(competitorId, {
+                                                  competitorProfiles: {
+                                                    [competitorId]: {
+                                                      ...profile,
+                                                      priceRange: {
+                                                        ...profile.priceRange,
+                                                        highestPrice: parseInt(e.target.value) || 0,
+                                                      },
+                                                    },
+                                                  },
+                                                })
+                                              }
+                                              placeholder="10000៛"
+                                            />
+                                          </div>
+                                        </div>
+
+                                        <div className="sm:col-span-2">
+                                          <label className="mb-1 block text-sm font-medium text-slate-300">
+                                            Branch Count
+                                          </label>
+                                          <input
+                                            type="text"
+                                            className="w-full rounded-xl border border-white/20 bg-slate-900/60 px-3 py-2 text-white focus:border-amber-400/60 focus:outline-none"
+                                            value={profile.branchCount ? profile.branchCount.toString() : ''}
+                                            onChange={(e) =>
+                                              updateCompetitorProfile(competitorId, {
+                                                competitorProfiles: {
+                                                  [competitorId]: {
+                                                    ...profile,
+                                                    branchCount: parseInt(e.target.value) || 0,
+                                                  },
+                                                },
+                                              })
+                                            }
+                                            placeholder=""
+                                          />
+                                        </div>
+
+                                        <div>
+                                          <label className="mb-2 block text-sm font-medium text-slate-300">
+                                            Strengths
+                                          </label>
+                                          <div className="flex flex-col gap-2 sm:flex-row">
+                                            <input
+                                              type="text"
+                                              className="flex-1 rounded-2xl border border-white/20 bg-slate-900/60 px-4 py-2 text-sm text-white focus:border-amber-400/60 focus:outline-none"
+                                              value={strengthInputs[competitorId] || ""}
+                                              onChange={(e) =>
+                                                setStrengthInputs((prev) => ({
+                                                  ...prev,
+                                                  [competitorId]: e.target.value,
+                                                }))
+                                              }
+                                              onKeyPress={(e) =>
+                                                e.key === "Enter" &&
+                                                (e.preventDefault(), handleAddStrength(competitorId))
+                                              }
+                                              placeholder="Add strength"
+                                            />
+                                            <button
+                                              onClick={() => handleAddStrength(competitorId)}
+                                              className="rounded-2xl border border-white/20 bg-slate-900/60 px-4 py-2 text-sm text-white hover:bg-slate-800/80"
+                                            >
+                                              Add
+                                            </button>
+                                          </div>
+                                          {profile.strengths && profile.strengths.length > 0 && (
+                                            <div className="mt-2 flex flex-wrap gap-2">
+                                              {profile.strengths.map((strength: string, idx: number) => (
+                                                <span
+                                                  key={idx}
+                                                  className="inline-flex items-center gap-1 rounded-full bg-blue-500/10 px-2 py-1 text-xs text-blue-300"
+                                                >
+                                                  {strength}
+                                                  <button
+                                                    onClick={() => handleRemoveStrength(competitorId, idx)}
+                                                    className="text-slate-400 hover:text-white"
+                                                  >
+                                                    ×
+                                                  </button>
+                                                </span>
+                                              ))}
+                                            </div>
+                                          )}
+                                        </div>
+
+                                        <div>
+                                          <label className="mb-2 block text-sm font-medium text-slate-300">
+                                            Weaknesses
+                                          </label>
+                                          <div className="flex flex-col gap-2 sm:flex-row">
+                                            <input
+                                              type="text"
+                                              className="flex-1 rounded-2xl border border-white/20 bg-slate-900/60 px-4 py-2 text-sm text-white focus:border-amber-400/60 focus:outline-none"
+                                              value={weaknessInputs[competitorId] || ""}
+                                              onChange={(e) =>
+                                                setWeaknessInputs((prev) => ({
+                                                  ...prev,
+                                                  [competitorId]: e.target.value,
+                                                }))
+                                              }
+                                              onKeyPress={(e) =>
+                                                e.key === "Enter" &&
+                                                (e.preventDefault(), handleAddWeakness(competitorId))
+                                              }
+                                              placeholder="Add weakness"
+                                            />
+                                            <button
+                                              onClick={() => handleAddWeakness(competitorId)}
+                                              className="rounded-2xl border border-white/20 bg-slate-900/60 px-4 py-2 text-sm text-white hover:bg-slate-800/80"
+                                            >
+                                              Add
+                                            </button>
+                                          </div>
+                                          {profile.weaknesses && profile.weaknesses.length > 0 && (
+                                            <div className="mt-2 flex flex-wrap gap-2">
+                                              {profile.weaknesses.map((weakness: string, idx: number) => (
+                                                <span
+                                                  key={idx}
+                                                  className="inline-flex items-center gap-1 rounded-full bg-rose-500/10 px-2 py-1 text-xs text-rose-300"
+                                                >
+                                                  {weakness}
+                                                  <button
+                                                    onClick={() => handleRemoveWeakness(competitorId, idx)}
+                                                    className="text-slate-400 hover:text-white"
+                                                  >
+                                                    ×
+                                                  </button>
+                                                </span>
+                                              ))}
+                                            </div>
+                                          )}
+                                        </div>
+
+                                        <div>
+                                          <label className="mb-2 block text-sm font-medium text-slate-300">
+                                            Remarks
+                                          </label>
+                                          <textarea
+                                            className="w-full rounded-2xl border border-white/20 bg-slate-900/60 px-3 py-2 text-sm text-white focus:border-amber-400/60 focus:outline-none resize-none"
+                                            rows={3}
+                                            value={profile.remarks ?? ""}
+                                            onChange={(e) =>
+                                              updateCompetitorProfile(competitorId, {
+                                                competitorProfiles: {
+                                                  [competitorId]: {
+                                                    ...profile,
+                                                    remarks: e.target.value,
+                                                  },
+                                                },
+                                              })
+                                            }
+                                            placeholder="Add any additional notes for this competitor..."
+                                          />
+                                        </div>
+
+                                        <div className="mt-6 flex gap-3">
+                                          <button
+                                            onClick={handleSaveAllAssignments}
+                                            disabled={isSaving}
+                                            className="rounded-2xl bg-amber-400/20 px-6 py-2 text-sm font-medium text-amber-300 hover:bg-amber-400/30 disabled:opacity-50"
+                                          >
+                                            {isSaving ? "Saving..." : "Save Assignment"}
+                                          </button>
+                                          <button
+                                            onClick={() => {
+                                              setSelectedCompetitorIds(prev => prev.filter(id => id !== competitorId));
+                                              const newProfiles = { ...competitorProfiles };
+                                              delete newProfiles[competitorId];
+                                              setCompetitorProfiles(newProfiles);
+                                              const newStrengthInputs = { ...strengthInputs };
+                                              delete newStrengthInputs[competitorId];
+                                              setStrengthInputs(newStrengthInputs);
+                                              const newWeaknessInputs = { ...weaknessInputs };
+                                              delete newWeaknessInputs[competitorId];
+                                              setWeaknessInputs(newWeaknessInputs);
+                                            }}
+                                            className="rounded-2xl border border-white/20 bg-slate-900/60 px-6 py-2 text-sm text-white hover:bg-slate-800/80"
+                                          >
+                                            Cancel
+                                          </button>
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+
+                        <ModalFooter
+                          count={selectedCompetitorIds.length}
+                          onClose={() => setShowCreateModal(false)}
+                          showSave={selectedCompetitorIds.length > 0}
+                          onSave={handleSaveAllAssignments}
+                        />
+                      </>
+                    )}
+                  </div>
+                </div>
               </div>
-            </section>
-          )}
+            </div>
+          </ModalPortal>
 
           {/* Existing Records */}
           <section className="rounded-3xl border border-white/10 bg-white/5 p-6">
             <div className="mb-4">
               <h2 className="text-xl font-semibold text-white">
-                All Records ({filteredAssignments.length} of {assignments.length})
+                All Records ({filteredAssignments.length} of {flattenedAssignments.length})
               </h2>
-              <div className="mt-4">
-                <AreaSubAreaFilter
-                  areas={filteredAreasForForm}
-                  subAreas={filteredSubAreasForForm}
-                  currentUserAssignments={currentUserAssignments}
-                  selectedAreaId={tableFilterAreaId}
-                  selectedSubAreaId={tableFilterSubAreaId}
-                  onAreaChange={setTableFilterAreaId}
-                  onSubAreaChange={setTableFilterSubAreaId}
-                  onClearFilters={() => {
+              <div className="mt-4 space-y-4">
+                <div className="flex flex-wrap gap-4">
+                  <div className="flex-1 min-w-48">
+                    <label className="mb-2 block text-sm font-medium text-slate-300">Filter by Area</label>
+                    <select
+                      className="w-full rounded-2xl border border-white/20 bg-slate-900/60 px-4 py-2 text-sm text-white focus:border-amber-400/60 focus:outline-none"
+                      value={tableFilterAreaId ?? ""}
+                      onChange={(e) => setTableFilterAreaId(e.target.value ? Number(e.target.value) : null)}
+                    >
+                      <option value="">All areas</option>
+                      {areas.map((area) => (
+                        <option key={area.id} value={area.id}>
+                          {area.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="flex-1 min-w-48">
+                    <label className="mb-2 block text-sm font-medium text-slate-300">Filter by Sub-area</label>
+                    <select
+                      className="w-full rounded-2xl border border-white/20 bg-slate-900/60 px-4 py-2 text-sm text-white focus:border-amber-400/60 focus:outline-none"
+                      value={tableFilterSubAreaId ?? ""}
+                      onChange={(e) => setTableFilterSubAreaId(e.target.value ? Number(e.target.value) : null)}
+                      disabled={!tableFilterAreaId}
+                    >
+                      <option value="">All sub-areas</option>
+                      <option value="-1">None (area only)</option>
+                      {tableFilterAreaId && subAreas
+                        .filter(subArea => subArea.areaId === tableFilterAreaId)
+                        .map((subArea) => (
+                          <option key={subArea.id} value={subArea.id}>
+                            {subArea.name}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+                  <div className="flex-1 min-w-48">
+                    <label className="mb-2 block text-sm font-medium text-slate-300">Filter by Competitor</label>
+                    <select
+                      className="w-full rounded-2xl border border-white/20 bg-slate-900/60 px-4 py-2 text-sm text-white focus:border-amber-400/60 focus:outline-none"
+                      value={tableFilterCompetitorId ?? ""}
+                      onChange={(e) => setTableFilterCompetitorId(e.target.value ? Number(e.target.value) : null)}
+                    >
+                      <option value="">All competitors</option>
+                      {competitors.map((competitor) => (
+                        <option key={competitor.id} value={competitor.id}>
+                          {competitor.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
                     setTableFilterAreaId(null);
                     setTableFilterSubAreaId(null);
+                    setTableFilterCompetitorId(null);
                   }}
-                />
+                  className="rounded-2xl border border-white/20 bg-slate-900/60 px-4 py-2 text-sm text-white hover:bg-slate-800/80"
+                >
+                  Clear All Filters
+                </button>
               </div>
             </div>
             {dataLoading.assignments ? (
@@ -1427,201 +1905,129 @@ export default function CompetitorsPage() {
               </div>
             ) : filteredAssignments.length === 0 ? (
               <div className="py-8 text-center text-slate-400">
-                {assignments.length === 0 ? "No assignments found." : "No assignments match the current filters."}
+                {flattenedAssignments.length === 0 ? "No assignments found." : "No assignments match the current filters."}
               </div>
             ) : (
-              <div className="space-y-3">
-                {filteredAssignments.map((assignment) => {
-                  const competitorIds = Object.keys(assignment.competitorProfiles).map(id => parseInt(id));
-                  const subAreaLabel = getSubAreaLabel(assignment);
-                  const hasSubArea = Boolean(assignment.subAreaId);
-                  const competitorRows = competitorIds
-                    .map((competitorId) => {
-                      const competitor = competitors.find(c => c.id === competitorId);
-                      const profile = assignment.competitorProfiles[competitorId];
-                      if (!profile) return null;
-                      return {
-                        competitorId,
-                        profile,
-                        name: competitor?.name || `Competitor ${competitorId}`
-                      };
-                    })
-                    .filter((row): row is { competitorId: number; profile: typeof assignment.competitorProfiles[number]; name: string } => row !== null);
-                  return (
-                    <div
-                      key={assignment.id}
-                      className="rounded-xl border border-white/10 bg-slate-900/30 p-3 hover:bg-slate-900/50 transition-colors"
-                    >
-                      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                        <div
-                          className="flex-1 cursor-pointer"
-                          onClick={() => handleOpenProfileModal(assignment)}
-                        >
-                          <div className="mb-2 flex items-center gap-4">
-                            <h3 className="text-lg font-semibold text-white">
-                              Information Competitor for {assignment.areaName}
-                              {hasSubArea && (
-                                <span className="text-slate-300"> → {subAreaLabel}</span>
-                              )}
-                            </h3>
-                            <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-xs text-amber-300">
-                              {competitorIds.length} competitor{competitorIds.length !== 1 ? 's' : ''}
-                            </span>
-                          </div>
-
-                          <div className="mb-3 flex flex-wrap items-center gap-2 text-xs text-slate-300">
-                            <div className="flex items-center gap-1 rounded-full border border-white/10 bg-slate-800/40 px-2.5 py-1">
-                              <span className="text-[9px] uppercase tracking-[0.3em] text-slate-500">Area</span>
-                              <span className="text-white font-semibold">{assignment.areaName}</span>
-                            </div>
-                            <div className="flex items-center gap-1 rounded-full border border-white/10 bg-slate-800/40 px-2.5 py-1">
-                              <span className="text-[9px] uppercase tracking-[0.3em] text-slate-500">Sub-area</span>
-                              <span className="text-white font-semibold">{subAreaLabel}</span>
-                            </div>
-                          </div>
-
-                          <div className="mb-3 rounded-xl border border-white/10 bg-slate-900/40 p-3">
-                            <div className="flex items-center justify-between text-sm text-slate-300">
-                              <span className="font-semibold text-white">Competitors</span>
-                              <span className="text-[11px] uppercase tracking-[0.3em] text-slate-500">
-                                Table View
-                              </span>
-                            </div>
-                            <div className="mt-2 space-y-2">
-                              <div className="hidden md:block overflow-x-auto">
-                                <div className="md:min-w-130 rounded-lg border border-white/5 bg-slate-900/25">
-                                  <div className="grid grid-cols-[1.6fr_1fr_1fr_1fr] border-b border-white/5 text-[9px] uppercase tracking-[0.25em] text-slate-500">
-                                    <div className="px-3 py-2">Competitor</div>
-                                    <div className="px-3 py-2">Price Range</div>
-                                    <div className="px-3 py-2">Branches</div>
-                                    <div className="px-3 py-2">Sub-area</div>
-                                  </div>
-                                  {competitorRows.map(({ competitorId, name, profile }) => (
-                                    <div
-                                      key={competitorId}
-                                      className="grid grid-cols-[1.6fr_1fr_1fr_1fr] border-b border-white/5 text-xs text-slate-200 last:border-b-0"
-                                    >
-                                      <div className="px-3 py-2 font-semibold text-white">
-                                        {name}
-                                      </div>
-                                      <div className="px-3 py-2 text-slate-300">
-                                        ${profile.priceRange.lowestPrice} - ${profile.priceRange.highestPrice}
-                                      </div>
-                                      <div className="px-3 py-2 text-slate-300">
-                                        {profile.branchCount}
-                                      </div>
-                                      <div className="px-3 py-2 text-amber-300">
-                                        {subAreaLabel}
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-white/10">
+                      <th className="text-left py-3 px-4 font-semibold text-white text-xs uppercase tracking-wider">No</th>
+                      <th className="text-left py-3 px-4 font-semibold text-white text-xs uppercase tracking-wider">Competitor</th>
+                      <th className="text-left py-3 px-4 font-semibold text-white text-xs uppercase tracking-wider">Area</th>
+                      <th className="text-left py-3 px-4 font-semibold text-white text-xs uppercase tracking-wider">Sub-area</th>
+                      <th className="text-left py-3 px-4 font-semibold text-white text-xs uppercase tracking-wider">Price Range</th>
+                      <th className="text-left py-3 px-4 font-semibold text-white text-xs uppercase tracking-wider">Branches</th>
+                      <th className="text-left py-3 px-4 font-semibold text-white text-xs uppercase tracking-wider">Strengths</th>
+                      <th className="text-left py-3 px-4 font-semibold text-white text-xs uppercase tracking-wider">Weaknesses</th>
+                      <th className="text-left py-3 px-4 font-semibold text-white text-xs uppercase tracking-wider">Remarks</th>
+                      <th className="text-left py-3 px-4 font-semibold text-white text-xs uppercase tracking-wider">Created By</th>
+                      <th className="text-left py-3 px-4 font-semibold text-white text-xs uppercase tracking-wider">Created At</th>
+                      <th className="text-left py-3 px-4 font-semibold text-white text-xs uppercase tracking-wider">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5">
+                    {filteredAssignments.map((record, index) => {
+                      const subAreaLabel = record.subAreaName || "Area level";
+                      return (
+                        <tr key={`${record.assignmentId}-${record.competitorId}`} className="hover:bg-white/5 transition-colors">
+                          <td className="py-3 px-4 text-white font-medium">{index + 1}</td>
+                          <td className="py-3 px-4">
+                            <div className="flex items-center gap-3">
+                              <div className="flex h-8 w-8 items-center justify-center rounded-full border border-amber-500/30 bg-linear-to-br from-amber-500/20 to-amber-600/10">
+                                <span className="text-xs font-bold text-amber-300">
+                                  {record.competitorName?.charAt(0).toUpperCase() || 'C'}
+                                </span>
                               </div>
-                              <div className="space-y-2 md:hidden">
-                                {competitorRows.map(({ competitorId, name, profile }) => (
-                                  <div
-                                    key={competitorId}
-                                    className="rounded-lg border border-white/10 bg-slate-900/30 p-3 text-xs text-slate-200"
-                                  >
-                                    <div className="mb-2 flex items-center justify-between">
-                                      <span className="font-semibold text-white">{name}</span>
-                                      <span className="text-[9px] uppercase tracking-[0.3em] text-amber-300">
-                                        {subAreaLabel}
-                                      </span>
-                                    </div>
-                                    <div className="grid grid-cols-2 gap-2">
-                                      <div>
-                                        <p className="text-[10px] uppercase tracking-[0.25em] text-slate-500">Price</p>
-                                        <p className="font-medium text-white">
-                                          ${profile.priceRange.lowestPrice} - ${profile.priceRange.highestPrice}
-                                        </p>
-                                      </div>
-                                      <div>
-                                        <p className="text-[10px] uppercase tracking-[0.25em] text-slate-500">Branches</p>
-                                        <p className="font-medium text-white">{profile.branchCount}</p>
-                                      </div>
-                                      {profile.remarks && (
-                                        <div className="col-span-2">
-                                          <p className="text-[10px] uppercase tracking-[0.25em] text-slate-500">Notes</p>
-                                          <p className="text-slate-300">{profile.remarks}</p>
-                                        </div>
-                                      )}
-                                    </div>
-                                  </div>
-                                ))}
+                              <div>
+                                <p className="text-white font-medium text-sm">
+                                  {record.competitorName}
+                                </p>
+                                <p className="text-slate-500 text-xs font-mono">#{record.competitorId}</p>
                               </div>
                             </div>
-                          </div>
-                          <div className="text-[11px] text-slate-500">
-                            Created: {formatDate(assignment.createdAt)}
-                          </div>
-                        </div>
-                        <div className="flex flex-wrap gap-2 md:ml-4 md:flex-col md:items-end">
-                          <PermissionGuard
-                            permission="competitor.edit"
-                            serviceContext="marketing-service"
-                            fallback={
+                          </td>
+                          <td className="py-3 px-4 text-white text-sm">{record.areaName}</td>
+                          <td className="py-3 px-4 text-white text-sm">{subAreaLabel}</td>
+                          <td className="py-3 px-4 text-white text-sm">
+                            ៛{record.profile.priceRange.lowestPrice} - ៛{record.profile.priceRange.highestPrice}
+                          </td>
+                          <td className="py-3 px-4 text-white text-sm">{record.profile.branchCount}</td>
+                          <td className="py-3 px-4">
+                            <div className="flex flex-wrap gap-1 max-w-xs">
+                              {(record.profile.strengths || []).map((strength: string, idx: number) => (
+                                <span key={idx} className="inline-flex items-center gap-1 rounded-full bg-blue-500/10 px-2 py-1 text-xs text-blue-300">
+                                  {strength}
+                                </span>
+                              ))}
+                            </div>
+                          </td>
+                          <td className="py-3 px-4">
+                            <div className="flex flex-wrap gap-1 max-w-xs">
+                              {(record.profile.weaknesses || []).map((weakness: string, idx: number) => (
+                                <span key={idx} className="inline-flex items-center gap-1 rounded-full bg-rose-500/10 px-2 py-1 text-xs text-rose-300">
+                                  {weakness}
+                                </span>
+                              ))}
+                            </div>
+                          </td>
+                          <td className="py-3 px-4 text-white text-sm max-w-xs">
+                            <p className="truncate" title={record.profile.remarks || 'No remarks'}>
+                              {record.profile.remarks || 'No remarks'}
+                            </p>
+                          </td>
+                          <td className="py-3 px-4 text-white text-sm">
+                            {userLookup[record.createdBy || 0] || 'Unknown'}
+                          </td>
+                          <td className="py-3 px-4 text-white text-sm">
+                            {new Date(record.createdAt).toLocaleDateString()}
+                          </td>
+                          <td className="py-3 px-4">
+                            <div className="flex gap-2">
                               <button
-                                disabled
-                                className="rounded-xl border border-white/20 bg-slate-800/50 px-3 py-1 text-xs text-slate-500 cursor-not-allowed"
+                                onClick={() => handleOpenProfileModal({
+                                  id: record.assignmentId,
+                                  areaId: record.areaId,
+                                  areaName: record.areaName,
+                                  subAreaId: record.subAreaId ?? undefined,
+                                  subAreaName: record.subAreaName ?? undefined,
+                                  competitorProfiles: { [record.competitorId]: record.profile },
+                                  createdBy: 0,
+                                  createdAt: new Date().toISOString(),
+                                })}
+                                className="rounded border border-blue-500/30 bg-blue-500/10 px-2 py-1 text-xs font-semibold text-blue-300 hover:bg-blue-500/20 transition-all"
                               >
                                 Edit
                               </button>
-                            }
-                          >
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleOpenEditModal(assignment);
-                              }}
-                              className="rounded-xl border border-white/20 bg-slate-800/50 px-3 py-1 text-xs text-white hover:bg-slate-700/50"
-                            >
-                              Edit
-                            </button>
-                          </PermissionGuard>
-                          <PermissionGuard
-                            permission="competitor.delete"
-                            serviceContext="marketing-service"
-                            fallback={
                               <button
-                                disabled
-                                className="rounded-xl border border-white/20 bg-slate-800/50 px-3 py-1 text-xs text-slate-500 cursor-not-allowed"
+                                onClick={() => handleDeleteAssignment(record.assignmentId)}
+                                className="rounded border border-red-500/30 bg-red-500/10 px-2 py-1 text-xs font-semibold text-red-300 hover:bg-red-500/20 transition-all"
                               >
                                 Delete
                               </button>
-                            }
-                          >
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDeleteAssignment(assignment.id);
-                              }}
-                              className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-1 text-xs text-red-300 hover:bg-red-500/20"
-                            >
-                              Delete
-                            </button>
-                          </PermissionGuard>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             )}
           </section>
 
-        </div>
-      </MarketingServiceGuard>
-
-      {/* Profile Modal Popup */}
-      <ModalPortal show={showProfileModal}>
-        <CompetitorProfileModal
-          show={showProfileModal}
-          assignment={selectedAssignment}
-          competitors={competitors}
-          onClose={handleCloseProfileModal}
-        />
-      </ModalPortal>
-    </React.Fragment>
+          {/* Profile Modal Popup */}
+          <ModalPortal show={showProfileModal}>
+            <CompetitorProfileModal
+              show={showProfileModal}
+              assignment={selectedAssignment}
+              competitors={competitors}
+              onClose={handleCloseProfileModal}
+              loadAssignments={loadAssignments}
+            />
+          </ModalPortal>
+        </div >
+      </MarketingServiceGuard >
+    </React.Fragment >
   );
 }

@@ -219,6 +219,42 @@ public class MarketingAuthorizationService {
                 .toList();
     }
 
+    // New method to get accessible area IDs for users with branch assignments
+    public List<Long> getAccessibleAreaIdsIncludingBranches(Long userId) {
+        if (isRootUser(userId)) {
+            return null;
+        }
+
+        List<MarketingUserAssignment> assignments = assignmentRepository.findActiveByUserId(userId);
+        if (assignments.isEmpty()) {
+            return null;
+        }
+
+        return assignments.stream()
+                .filter(assignment -> assignment.getArea() != null) // Include area, sub-area, and branch assignments
+                .map(assignment -> assignment.getArea().getId())
+                .distinct()
+                .toList();
+    }
+
+    // New method to get accessible sub-area IDs for users with branch assignments
+    public List<Long> getAccessibleSubAreaIdsIncludingBranches(Long userId) {
+        if (isRootUser(userId)) {
+            return null;
+        }
+
+        List<MarketingUserAssignment> assignments = assignmentRepository.findActiveByUserId(userId);
+        if (assignments.isEmpty()) {
+            return null;
+        }
+
+        return assignments.stream()
+                .filter(assignment -> assignment.getSubArea() != null) // Include sub-area and branch assignments
+                .map(assignment -> assignment.getSubArea().getId())
+                .distinct()
+                .toList();
+    }
+
     public List<Long> getAccessibleBranchIds(Long userId) {
         if (isRootUser(userId)) {
             return null;

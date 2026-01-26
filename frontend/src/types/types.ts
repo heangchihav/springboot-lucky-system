@@ -7,6 +7,7 @@ export interface DailyReport {
     id: string;
     createdBy: string;
     createdByFullName: string;
+    createdByPhone: string;
     reportDate: string;
     createdAt: string;
     updatedAt: string;
