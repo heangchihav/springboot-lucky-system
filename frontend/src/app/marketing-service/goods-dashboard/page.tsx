@@ -726,7 +726,11 @@ export default function GoodsDashboardPage() {
     // Generate dates EXACTLY from start to end, no extra dates
     const currentDate = new Date(startDate);
     while (currentDate <= endDate) {
-      dates.push(currentDate.toISOString().split('T')[0]);
+      // Use local date methods to avoid timezone issues
+      const year = currentDate.getFullYear();
+      const month = String(currentDate.getMonth() + 1).padStart(2, '0');
+      const day = String(currentDate.getDate()).padStart(2, '0');
+      dates.push(`${year}-${month}-${day}`);
       currentDate.setDate(currentDate.getDate() + 1);
     }
 
@@ -737,8 +741,15 @@ export default function GoodsDashboardPage() {
     // Generate complete date range based on filter for daily view
     const dateRange = generateDailyDateRange(startDate, endDate);
 
+    // Debug: Log the generated date range
+    console.log('=== DAILY GOODS TREND DEBUG ===');
+    console.log('Filter dates:', startDate, 'to', endDate);
+    console.log('Generated date range:', dateRange);
+    console.log('Number of days in range:', dateRange.length);
+
     if (!dashboardStats || dashboardStats.dailyTrends.length === 0) {
       // No backend data - show all dates with 0
+      console.log('No backend data, showing all dates with 0');
       return dateRange.map(date => ({
         date,
         label: formatDate(date),
@@ -746,15 +757,33 @@ export default function GoodsDashboardPage() {
       }));
     }
 
-    // Create a map of existing backend data
-    const dataMap = new Map(dashboardStats.dailyTrends.map(trend => [trend.date, trend.totalGoods]));
+    // Debug: Log backend data
+    console.log('Backend daily trends count:', dashboardStats.dailyTrends.length);
+    console.log('Backend daily trends:', dashboardStats.dailyTrends);
+
+    // Create a map of existing backend data, but ONLY include dates within filter range
+    const dataMap = new Map();
+    dashboardStats.dailyTrends.forEach(trend => {
+      // Only include backend data if it's within our filter range
+      if (trend.date >= startDate && trend.date <= endDate) {
+        dataMap.set(trend.date, trend.totalGoods);
+        console.log('✓ Including backend data for date:', trend.date, 'value:', trend.totalGoods);
+      } else {
+        console.log('✗ Excluding backend data for date outside filter:', trend.date);
+      }
+    });
 
     // Generate complete date range and fill missing dates with 0
-    return dateRange.map(date => ({
+    const result = dateRange.map(date => ({
       date,
       label: formatDate(date),
       total: dataMap.get(date) || 0,
     }));
+
+    console.log('Final result count:', result.length);
+    console.log('Final result:', result);
+    console.log('=== END DEBUG ===');
+    return result;
   }, [dashboardStats, startDate, endDate]);
 
   const weeklyGoodsTrend = useMemo(() => {
