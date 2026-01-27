@@ -717,108 +717,41 @@ export default function GoodsDashboardPage() {
     }));
   }, [dashboardStats]);
 
-  // Helper function to generate date range
-  const generateDateRange = (start: string, end: string, view: TrendView) => {
-    const startDate = parseIsoDate(start);
-    const endDate = parseIsoDate(end);
-    const dates: string[] = [];
-
-    if (view === "day") {
-      const currentDate = new Date(startDate);
-      while (currentDate <= endDate) {
-        dates.push(currentDate.toISOString().split('T')[0]);
-        currentDate.setDate(currentDate.getDate() + 1);
-      }
-    } else if (view === "week") {
-      const currentDate = new Date(startDate);
-      // Start from the beginning of the week
-      currentDate.setDate(currentDate.getDate() - currentDate.getDay());
-
-      while (currentDate <= endDate) {
-        const weekNum = getIsoWeekNumber(currentDate);
-        const year = currentDate.getFullYear();
-        dates.push(`Week ${weekNum}, ${year}`);
-        currentDate.setDate(currentDate.getDate() + 7);
-      }
-    } else if (view === "month") {
-      const currentDate = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
-      while (currentDate <= endDate) {
-        dates.push(formatMonthLabel(currentDate));
-        currentDate.setMonth(currentDate.getMonth() + 1);
-      }
-    }
-
-    return dates;
-  };
-
   const dailyGoodsTrend = useMemo(() => {
     if (!dashboardStats || dashboardStats.dailyTrends.length === 0) {
-      // Generate empty trend data with 0 values for all dates in range
-      const dateRange = generateDateRange(startDate, endDate, "day");
-      return dateRange.map(date => ({
-        date,
-        label: formatDate(date),
-        total: 0,
-      }));
+      return [];
     }
 
-    // Create a map of existing data
-    const dataMap = new Map(dashboardStats.dailyTrends.map(trend => [trend.date, trend.totalGoods]));
-
-    // Generate complete date range and fill missing dates with 0
-    const dateRange = generateDateRange(startDate, endDate, "day");
-    return dateRange.map(date => ({
-      date,
-      label: formatDate(date),
-      total: dataMap.get(date) || 0,
+    return dashboardStats.dailyTrends.map(trend => ({
+      date: trend.date,
+      label: formatDate(trend.date),
+      total: trend.totalGoods,
     }));
-  }, [dashboardStats, startDate, endDate]);
+  }, [dashboardStats]);
 
   const weeklyGoodsTrend = useMemo(() => {
     if (!dashboardStats || dashboardStats.weeklyTrends.length === 0) {
-      // Generate empty trend data with 0 values for all weeks in range
-      const dateRange = generateDateRange(startDate, endDate, "week");
-      return dateRange.map(label => ({
-        date: label,
-        label,
-        total: 0,
-      }));
+      return [];
     }
 
-    // Create a map of existing data
-    const dataMap = new Map(dashboardStats.weeklyTrends.map(trend => [trend.label, trend.totalGoods]));
-
-    // Generate complete week range and fill missing weeks with 0
-    const dateRange = generateDateRange(startDate, endDate, "week");
-    return dateRange.map(label => ({
-      date: label,
-      label,
-      total: dataMap.get(label) || 0,
+    return dashboardStats.weeklyTrends.map(trend => ({
+      date: trend.label,
+      label: trend.label,
+      total: trend.totalGoods,
     }));
-  }, [dashboardStats, startDate, endDate]);
+  }, [dashboardStats]);
 
   const monthlyGoodsTrend = useMemo(() => {
     if (!dashboardStats || dashboardStats.monthlyTrends.length === 0) {
-      // Generate empty trend data with 0 values for all months in range
-      const dateRange = generateDateRange(startDate, endDate, "month");
-      return dateRange.map(label => ({
-        date: label,
-        label,
-        total: 0,
-      }));
+      return [];
     }
 
-    // Create a map of existing data
-    const dataMap = new Map(dashboardStats.monthlyTrends.map(trend => [trend.label, trend.totalGoods]));
-
-    // Generate complete month range and fill missing months with 0
-    const dateRange = generateDateRange(startDate, endDate, "month");
-    return dateRange.map(label => ({
-      date: label,
-      label,
-      total: dataMap.get(label) || 0,
+    return dashboardStats.monthlyTrends.map(trend => ({
+      date: trend.label,
+      label: trend.label,
+      total: trend.totalGoods,
     }));
-  }, [dashboardStats, startDate, endDate]);
+  }, [dashboardStats]);
 
   const trendData = useMemo(() => {
     switch (trendView) {
