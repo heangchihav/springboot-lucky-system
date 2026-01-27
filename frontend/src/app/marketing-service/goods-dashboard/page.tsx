@@ -717,23 +717,52 @@ export default function GoodsDashboardPage() {
     }));
   }, [dashboardStats]);
 
-  const dailyGoodsTrend = useMemo(() => {
-    if (!dashboardStats || dashboardStats.dailyTrends.length === 0) {
-      return [];
+  // Helper function to generate complete date range for daily view only
+  const generateDailyDateRange = (start: string, end: string) => {
+    const startDate = parseIsoDate(start);
+    const endDate = parseIsoDate(end);
+    const dates: string[] = [];
+
+    // Generate dates EXACTLY from start to end, no extra dates
+    const currentDate = new Date(startDate);
+    while (currentDate <= endDate) {
+      dates.push(currentDate.toISOString().split('T')[0]);
+      currentDate.setDate(currentDate.getDate() + 1);
     }
 
-    return dashboardStats.dailyTrends.map(trend => ({
-      date: trend.date,
-      label: formatDate(trend.date),
-      total: trend.totalGoods,
+    return dates;
+  };
+
+  const dailyGoodsTrend = useMemo(() => {
+    // Generate complete date range based on filter for daily view
+    const dateRange = generateDailyDateRange(startDate, endDate);
+
+    if (!dashboardStats || dashboardStats.dailyTrends.length === 0) {
+      // No backend data - show all dates with 0
+      return dateRange.map(date => ({
+        date,
+        label: formatDate(date),
+        total: 0,
+      }));
+    }
+
+    // Create a map of existing backend data
+    const dataMap = new Map(dashboardStats.dailyTrends.map(trend => [trend.date, trend.totalGoods]));
+
+    // Generate complete date range and fill missing dates with 0
+    return dateRange.map(date => ({
+      date,
+      label: formatDate(date),
+      total: dataMap.get(date) || 0,
     }));
-  }, [dashboardStats]);
+  }, [dashboardStats, startDate, endDate]);
 
   const weeklyGoodsTrend = useMemo(() => {
     if (!dashboardStats || dashboardStats.weeklyTrends.length === 0) {
       return [];
     }
 
+    // Only show weeks that the backend returns, no extra weeks
     return dashboardStats.weeklyTrends.map(trend => ({
       date: trend.label,
       label: trend.label,
@@ -746,6 +775,7 @@ export default function GoodsDashboardPage() {
       return [];
     }
 
+    // Only show months that the backend returns, no extra months
     return dashboardStats.monthlyTrends.map(trend => ({
       date: trend.label,
       label: trend.label,
