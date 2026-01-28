@@ -7,7 +7,8 @@ import java.util.Map;
 public class CallReportResponse {
 
     private Long id;
-    private LocalDate reportDate;
+    private LocalDate calledAt;
+    private LocalDate arrivedAt;
     private Long branchId;
     private String branchName;
     private String createdBy;
@@ -17,9 +18,11 @@ public class CallReportResponse {
     public CallReportResponse() {
     }
 
-    public CallReportResponse(Long id, LocalDate reportDate, Long branchId, String branchName, String createdBy, LocalDateTime createdAt, Map<String, Integer> entries) {
+    public CallReportResponse(Long id, LocalDate calledAt, LocalDate arrivedAt, Long branchId, String branchName,
+            String createdBy, LocalDateTime createdAt, Map<String, Integer> entries) {
         this.id = id;
-        this.reportDate = reportDate;
+        this.calledAt = calledAt;
+        this.arrivedAt = arrivedAt;
         this.branchId = branchId;
         this.branchName = branchName;
         this.createdBy = createdBy;
@@ -33,6 +36,22 @@ public class CallReportResponse {
 
     public void setId(Long id) {
         this.id = id;
+    }
+
+    public LocalDate getCalledAt() {
+        return calledAt;
+    }
+
+    public void setCalledAt(LocalDate calledAt) {
+        this.calledAt = calledAt;
+    }
+
+    public LocalDate getArrivedAt() {
+        return arrivedAt;
+    }
+
+    public void setArrivedAt(LocalDate arrivedAt) {
+        this.arrivedAt = arrivedAt;
     }
 
     public Long getBranchId() {
@@ -49,14 +68,6 @@ public class CallReportResponse {
 
     public void setBranchName(String branchName) {
         this.branchName = branchName;
-    }
-
-    public LocalDate getReportDate() {
-        return reportDate;
-    }
-
-    public void setReportDate(LocalDate reportDate) {
-        this.reportDate = reportDate;
     }
 
     public String getCreatedBy() {

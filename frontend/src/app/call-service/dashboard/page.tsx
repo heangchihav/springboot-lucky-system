@@ -25,17 +25,21 @@ import {
 } from "recharts";
 import type { PieLabelRenderProps } from "recharts";
 import { API_BASE_URL } from "@/config/env";
+import { areaBranchService, type Area as AreaType, type Subarea, type Branch } from "@/services/areaBranchService";
 
 const STATUS_COLORS = [
-  "#08BDBA", // teal
-  "#FF6B6B", // coral
-  "#FFD166", // amber
-  "#06D6A0", // green
-  "#4C6EF5", // blue
-  "#9B5DE5", // purple
-  "#F2C94C", // gold
-  "#EF476F", // magenta
-  "#8338EC", // violet
+  "#f97316", // orange (primary)
+  "#22d3ee", // cyan 
+  "#34d399", // green
+  "#fb923c", // amber
+  "#facc15", // yellow
+  "#06b6d4", // blue
+  "#8b5cf6", // purple
+  "#ec4899", // pink
+  "#f87171", // red
+  "#a78bfa", // indigo
+  "#60a5fa", // light blue
+  "#34d399", // emerald
 ];
 
 const DEFAULT_STATUS_LABELS: Record<string, string> = {
@@ -76,23 +80,25 @@ const getISOWeekInfo = (date: Date) => {
   };
 };
 
-type BranchResponse = {
-  id: number;
-  name: string;
-  code?: string;
-  active: boolean;
-};
-
 type CallStatusResponse = {
   key: string;
   label: string;
 };
 
 type CallReportSummaryResponse = {
-  reportDate: string;
+  calledAt: string;
   branchId: number | null;
   branchName: string;
   statusTotals: Record<string, number>;
+  arrivedAt?: string;
+};
+
+type ArrivalType = "all" | "new-arrival" | "recall";
+
+const ARRIVAL_TYPE_LABELS: Record<ArrivalType, string> = {
+  "all": "ទាំងអស់",
+  "new-arrival": "អីវ៉ាន់ចូលថ្មី (New Arrival)",
+  "recall": "Re-Call",
 };
 
 const formatDateInput = (date: Date) => date.toISOString().slice(0, 10);
@@ -158,19 +164,27 @@ function CallDashboard() {
   const [summaryError, setSummaryError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
-  const [branches, setBranches] = useState<BranchResponse[]>([]);
+  const [branches, setBranches] = useState<Branch[]>([]);
   const [branchesLoading, setBranchesLoading] = useState(false);
+  const [areasData, setAreasData] = useState<AreaType[]>([]);
+  const [areasLoading, setAreasLoading] = useState(false);
+  const [subareasData, setSubareasData] = useState<Subarea[]>([]);
+  const [subareasLoading, setSubareasLoading] = useState(false);
 
   const [statusOptions, setStatusOptions] = useState<CallStatusResponse[]>([]);
   const [statusesLoading, setStatusesLoading] = useState(false);
 
   const [selectedBranchId, setSelectedBranchId] = useState<string>("all");
+  const [selectedArea, setSelectedArea] = useState<string>("all");
+  const [selectedSubArea, setSelectedSubArea] = useState<string>("all");
   const [selectedStatusKeys, setSelectedStatusKeys] = useState<string[]>([]);
+  const [selectedArrivalType, setSelectedArrivalType] = useState<ArrivalType>("all");
   const [statusDragging, setStatusDragging] = useState(false);
   const [startDate, setStartDate] = useState<string>(() => defaultStartDate());
   const [endDate, setEndDate] = useState<string>(() => defaultEndDate());
   const [chartGranularity, setChartGranularity] =
     useState<ChartGranularity>("daily");
+  const [chartViewMode, setChartViewMode] = useState<"total" | "byStatus">("byStatus");
 
   const statusLabelMap = useMemo(() => {
     const map: Record<string, string> = { ...DEFAULT_STATUS_LABELS };
@@ -179,6 +193,41 @@ function CallDashboard() {
     });
     return map;
   }, [statusOptions]);
+
+  // Get unique areas from areas data
+  const areaOptions = useMemo(() => {
+    return areasData.filter((area: AreaType) => area.active).sort((a: AreaType, b: AreaType) => a.name.localeCompare(b.name));
+  }, [areasData]);
+
+  // Get unique sub-areas from subareas data
+  const subareaOptions = useMemo(() => {
+    if (selectedArea === "all") {
+      // When no area selected, show all subareas
+      return subareasData
+        .filter((subarea: Subarea) => subarea.active)
+        .sort((a: Subarea, b: Subarea) => a.name.localeCompare(b.name));
+    }
+    // When area is selected, show only subareas within that area
+    return subareasData
+      .filter((subarea: Subarea) => {
+        return subarea.areaId === Number(selectedArea) && subarea.active;
+      })
+      .sort((a: Subarea, b: Subarea) => a.name.localeCompare(b.name));
+  }, [subareasData, selectedArea]);
+
+  // Filter branches based on selected area and sub-area
+  const filteredBranches = useMemo(() => {
+    if (selectedSubArea === "all") {
+      // When no subarea selected, show all active branches
+      return branches.filter((branch: Branch) => branch.active)
+        .sort((a: Branch, b: Branch) => a.name.localeCompare(b.name));
+    }
+    // When subarea is selected, show only branches within that subarea
+    return branches.filter((branch: Branch) => {
+      if (!branch.active) return false;
+      return branch.subareaId === Number(selectedSubArea);
+    }).sort((a: Branch, b: Branch) => a.name.localeCompare(b.name));
+  }, [branches, selectedSubArea]);
 
   const loadStatuses = useCallback(async () => {
     setStatusesLoading(true);
@@ -200,6 +249,32 @@ function CallDashboard() {
     }
   }, []);
 
+  const loadAreas = useCallback(async () => {
+    setAreasLoading(true);
+    try {
+      const data = await areaBranchService.getAreas();
+      setAreasData(data);
+    } catch (error) {
+      console.error("Failed to fetch areas", error);
+      setAreasData([]);
+    } finally {
+      setAreasLoading(false);
+    }
+  }, []);
+
+  const loadSubareas = useCallback(async () => {
+    setSubareasLoading(true);
+    try {
+      const data = await areaBranchService.getSubareas();
+      setSubareasData(data);
+    } catch (error) {
+      console.error("Failed to fetch subareas", error);
+      setSubareasData([]);
+    } finally {
+      setSubareasLoading(false);
+    }
+  }, []);
+
   const loadFallbackBranches = useCallback(async () => {
     const response = await fetch(`${API_BASE_URL}/api/calls/branches/active`, {
       headers: buildAuthHeaders(),
@@ -210,7 +285,7 @@ function CallDashboard() {
       throw new Error("Failed to load fallback branches");
     }
 
-    const allBranches: BranchResponse[] = await response.json();
+    const allBranches: Branch[] = await response.json();
     const activeBranches = allBranches.filter((branch) => branch.active);
     setBranches(activeBranches);
   }, []);
@@ -218,53 +293,11 @@ function CallDashboard() {
   const loadBranches = useCallback(async () => {
     setBranchesLoading(true);
     try {
-      const cachedUserId = getStoredUserId() ?? (await fetchAndCacheUserId());
-      if (!cachedUserId) {
-        await loadFallbackBranches();
-        return;
-      }
-
-      const response = await fetch(
-        `${API_BASE_URL}/api/calls/user-branches/user/${cachedUserId}`,
-        {
-          headers: buildAuthHeaders(),
-          credentials: "include",
-        },
-      );
-
-      if (!response.ok) {
-        throw new Error("Failed to load user branches");
-      }
-
-      const assignments: {
-        branchId: number;
-        branchName: string;
-        active: boolean;
-      }[] = await response.json();
-
-      const activeAssignments = assignments.filter(
-        (assignment) => assignment.active,
-      );
-      if (activeAssignments.length > 0) {
-        const mappedBranches = activeAssignments.map<BranchResponse>(
-          (assignment) => ({
-            id: assignment.branchId,
-            name: assignment.branchName,
-            active: assignment.active,
-          }),
-        );
-        setBranches(mappedBranches);
-      } else {
-        await loadFallbackBranches();
-      }
+      const data = await areaBranchService.getBranches();
+      setBranches(data);
     } catch (error) {
       console.error("Failed to fetch branches", error);
-      try {
-        await loadFallbackBranches();
-      } catch (fallbackError) {
-        console.error("Failed to fetch fallback branches", fallbackError);
-        setBranches([]);
-      }
+      await loadFallbackBranches();
     } finally {
       setBranchesLoading(false);
     }
@@ -284,6 +317,12 @@ function CallDashboard() {
       }
       if (selectedBranchId !== "all") {
         params.append("branchIds", selectedBranchId);
+      }
+      if (selectedArea !== "all") {
+        params.append("areaIds", selectedArea);
+      }
+      if (selectedSubArea !== "all") {
+        params.append("subareaIds", selectedSubArea);
       }
       selectedStatusKeys.forEach((key) => params.append("statusKeys", key));
 
@@ -309,12 +348,14 @@ function CallDashboard() {
     } finally {
       setSummaryLoading(false);
     }
-  }, [endDate, selectedBranchId, selectedStatusKeys, startDate]);
+  }, [endDate, selectedBranchId, selectedArea, selectedSubArea, selectedStatusKeys, selectedArrivalType, startDate]);
 
   useEffect(() => {
     loadStatuses();
+    loadAreas();
+    loadSubareas();
     loadBranches();
-  }, [loadBranches, loadStatuses]);
+  }, [loadStatuses, loadAreas, loadSubareas, loadBranches]);
 
   useEffect(() => {
     fetchSummary();
@@ -344,6 +385,9 @@ function CallDashboard() {
   }, [summaryData]);
 
   const chartStatusKeys = useMemo(() => {
+    if (chartViewMode === "total") {
+      return ["total"];
+    }
     if (selectedStatusKeys.length > 0) {
       return selectedStatusKeys;
     }
@@ -351,7 +395,7 @@ function CallDashboard() {
       return statusKeysInData;
     }
     return statusOptions.map((status) => status.key);
-  }, [selectedStatusKeys, statusKeysInData, statusOptions]);
+  }, [selectedStatusKeys, statusKeysInData, statusOptions, chartViewMode]);
 
   const statusScrollRef = useRef<HTMLDivElement | null>(null);
   const statusDragState = useRef({
@@ -404,15 +448,29 @@ function CallDashboard() {
     [],
   );
 
+  const classifyArrivalType = (summary: CallReportSummaryResponse): ArrivalType => {
+    if (!summary.arrivedAt) {
+      return "new-arrival"; // No arrivedAt means it's a new arrival
+    }
+    return summary.calledAt === summary.arrivedAt ? "new-arrival" : "recall";
+  };
+
+  const filteredSummaryData = useMemo(() => {
+    if (selectedArrivalType === "all") {
+      return summaryData;
+    }
+    return summaryData.filter(summary => classifyArrivalType(summary) === selectedArrivalType);
+  }, [summaryData, selectedArrivalType]);
+
   const totalsByStatus = useMemo(() => {
     const totals: Record<string, number> = {};
-    summaryData.forEach((summary) => {
+    filteredSummaryData.forEach((summary) => {
       Object.entries(summary.statusTotals).forEach(([statusKey, value]) => {
         totals[statusKey] = (totals[statusKey] ?? 0) + value;
       });
     });
     return totals;
-  }, [summaryData]);
+  }, [filteredSummaryData]);
 
   const grandTotal = useMemo(() => {
     return Object.values(totalsByStatus).reduce((sum, value) => sum + value, 0);
@@ -441,8 +499,8 @@ function CallDashboard() {
 
   const dateSeries = useMemo(() => {
     const map = new Map<string, Record<string, string | number>>();
-    summaryData.forEach((summary) => {
-      const entry = map.get(summary.reportDate) ?? { date: summary.reportDate };
+    filteredSummaryData.forEach((summary) => {
+      const entry = map.get(summary.calledAt) ?? { date: summary.calledAt };
       Object.entries(summary.statusTotals).forEach(([statusKey, value]) => {
         const current =
           typeof entry[statusKey] === "number"
@@ -450,23 +508,47 @@ function CallDashboard() {
             : 0;
         entry[statusKey] = current + value;
       });
-      map.set(summary.reportDate, entry);
+      map.set(summary.calledAt, entry);
     });
     return Array.from(map.values()).sort((a, b) =>
       String(a.date).localeCompare(String(b.date)),
     );
-  }, [summaryData]);
+  }, [filteredSummaryData]);
 
   const chartSeries = useMemo(() => {
     if (dateSeries.length === 0) {
       return [];
     }
 
+    // Get all possible status keys to ensure consistent data structure
+    const allStatusKeys = statusOptions.map((status) => status.key);
+
     if (chartGranularity === "daily") {
-      return dateSeries.map((entry) => ({
-        ...entry,
-        label: String(entry.date),
-      }));
+      return dateSeries.map((entry) => {
+        const completeEntry: Record<string, any> = {
+          ...entry,
+          label: String(entry.date),
+        };
+
+        if (chartViewMode === "total") {
+          // Calculate total for this entry
+          let total = 0;
+          allStatusKeys.forEach((statusKey) => {
+            const value = typeof entry[statusKey] === "number" ? entry[statusKey] : Number(entry[statusKey]) || 0;
+            total += value;
+          });
+          completeEntry.total = total;
+        } else {
+          // Ensure all status keys exist with zero values if missing
+          allStatusKeys.forEach((statusKey) => {
+            if (!(statusKey in completeEntry)) {
+              completeEntry[statusKey] = 0;
+            }
+          });
+        }
+
+        return completeEntry;
+      });
     }
 
     const grouped = new Map<string, Record<string, string | number>>();
@@ -507,10 +589,34 @@ function CallDashboard() {
       grouped.set(groupKey, existing);
     });
 
-    return Array.from(grouped.values()).sort((a, b) =>
+    // Ensure all grouped entries have all status keys or calculate total
+    const result = Array.from(grouped.values()).map((entry) => {
+      const completeEntry = { ...entry };
+
+      if (chartViewMode === "total") {
+        // Calculate total for this grouped entry
+        let total = 0;
+        allStatusKeys.forEach((statusKey) => {
+          const value = typeof entry[statusKey] === "number" ? entry[statusKey] : Number(entry[statusKey]) || 0;
+          total += value;
+        });
+        completeEntry.total = total;
+      } else {
+        // Ensure all status keys exist with zero values if missing
+        allStatusKeys.forEach((statusKey) => {
+          if (!(statusKey in completeEntry)) {
+            completeEntry[statusKey] = 0;
+          }
+        });
+      }
+
+      return completeEntry;
+    });
+
+    return result.sort((a, b) =>
       String(a.sortKey).localeCompare(String(b.sortKey)),
     );
-  }, [chartGranularity, dateSeries]);
+  }, [chartGranularity, dateSeries, statusOptions, chartViewMode]);
 
   const branchSeries = useMemo(() => {
     const map = new Map<string, { branch: string; total: number }>();
@@ -650,7 +756,10 @@ function CallDashboard() {
 
   const resetFilters = () => {
     setSelectedBranchId("all");
+    setSelectedArea("all");
+    setSelectedSubArea("all");
     setSelectedStatusKeys([]);
+    setSelectedArrivalType("all");
     setStartDate(defaultStartDate());
     setEndDate(defaultEndDate());
   };
@@ -659,13 +768,13 @@ function CallDashboard() {
 
   return (
     <>
-      <div className="relative min-h-screen overflow-hidden px-4 py-8">
+      <div className="relative min-h-screen overflow-hidden py-8">
         <div className="fixed inset-0 -z-10">
           <div className="absolute top-0 -left-4 w-96 h-96 bg-orange-600 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
           <div className="absolute top-0 -right-4 w-96 h-96 bg-blue-700 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
           <div className="absolute -bottom-8 left-20 w-96 h-96 bg-orange-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000"></div>
         </div>
-        <div className="relative z-10 space-y-8 max-w-6xl mx-auto">
+        <div className="relative z-10 space-y-8 px-4 sm:px-6 lg:px-8">
           <header className="">
             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
               <div>
@@ -731,121 +840,162 @@ function CallDashboard() {
               </div>
             </div>
 
-            <div className="mt-6 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-              <label className="space-y-2 text-sm text-slate-300">
-                Start date
-                <input
-                  type="date"
-                  value={startDate}
-                  max={endDate}
-                  onChange={(event) => setStartDate(event.target.value)}
-                  className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-white outline-none transition focus:border-cyan-400 focus:bg-slate-900/50"
-                />
-              </label>
-              <label className="space-y-2 text-sm text-slate-300">
-                End date
-                <input
-                  type="date"
-                  value={endDate}
-                  min={startDate}
-                  max={defaultEndDate()}
-                  onChange={(event) => setEndDate(event.target.value)}
-                  className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-white outline-none transition focus:border-cyan-400 focus:bg-slate-900/50"
-                />
-              </label>
-              <label className="space-y-2 text-sm text-slate-300">
-                Branch
-                <select
-                  value={selectedBranchId}
-                  onChange={(event) => setSelectedBranchId(event.target.value)}
-                  className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-white outline-none transition focus:border-cyan-400 focus:bg-slate-900/50"
-                  disabled={branchesLoading}
-                >
-                  <option value="all">All branches</option>
-                  {branches.map((branch) => (
-                    <option key={branch.id} value={branch.id}>
-                      {branch.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-          </section>
+            <div className="mt-6 grid gap-6 lg:grid-cols-2">
+              {/* Left Column: Hierarchy Filters */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="h-px bg-gradient-to-r from-orange-500 to-cyan-500 flex-1"></div>
+                  <span className="text-xs font-medium text-slate-500 uppercase tracking-wider">Location</span>
+                  <div className="h-px bg-gradient-to-r from-cyan-500 to-green-500 flex-1"></div>
+                </div>
 
-          {/* Status Cards Section */}
-          <section
-            className="glass-card animate-fade-in-up"
-            style={{ animationDelay: "300ms" }}
-          >
-            <div className="flex items-center gap-2 mb-5">
-              <div className="w-1 h-6 bg-linear-to-b from-orange-500 to-orange-600 rounded-full"></div>
-              <h2 className="text-2xl font-bold bg-linear-to-r from-orange-400 to-orange-600 bg-clip-text text-transparent">
-                Status Statistics
-              </h2>
-            </div>
+                {/* Hierarchy Level 1: Area */}
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <div className="h-2 w-2 rounded-full bg-orange-500"></div>
+                    <label className="text-sm font-medium text-slate-300">
+                      Area
+                    </label>
+                  </div>
+                  <select
+                    value={selectedArea}
+                    onChange={(event) => {
+                      setSelectedArea(event.target.value);
+                      setSelectedSubArea("all"); // Reset sub-area when area changes
+                      setSelectedBranchId("all"); // Reset branch when area changes
+                    }}
+                    className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-white outline-none transition focus:border-orange-400 focus:bg-slate-900/50 pl-8"
+                    disabled={areasLoading}
+                  >
+                    <option value="all">All areas</option>
+                    {areaOptions.map((area: AreaType) => (
+                      <option key={area.id} value={area.id.toString()}>
+                        {area.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
-            <div className="mb-4 flex items-center justify-between">
-              <p className="text-xs text-slate-400">
-                Total calls across all statuses
-              </p>
-              <div className="text-2xl font-bold bg-linear-to-r from-orange-400 to-orange-600 bg-clip-text text-transparent">
-                {grandTotal.toLocaleString()}
+                {/* Hierarchy Level 2: Sub-Area - Only show when area is selected */}
+                {selectedArea !== "all" && (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <div className="h-2 w-2 rounded-full bg-cyan-500"></div>
+                      <label className="text-sm font-medium text-slate-300">
+                        Sub-Area
+                      </label>
+                      <span className="text-xs text-slate-500">
+                        (within {areaOptions.find(a => a.id.toString() === selectedArea)?.name || 'selected area'})
+                      </span>
+                    </div>
+                    <select
+                      value={selectedSubArea}
+                      onChange={(event) => {
+                        setSelectedSubArea(event.target.value);
+                        setSelectedBranchId("all"); // Reset branch when sub-area changes
+                      }}
+                      className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-white outline-none transition focus:border-cyan-400 focus:bg-slate-900/50 pl-8"
+                      disabled={subareasLoading}
+                    >
+                      <option value="all">All sub-areas</option>
+                      {subareaOptions.map((subarea: Subarea) => (
+                        <option key={subarea.id} value={subarea.id.toString()}>
+                          {subarea.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {/* Hierarchy Level 3: Branch - Only show when sub-area is selected */}
+                {selectedArea !== "all" && selectedSubArea !== "all" && (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <div className="h-2 w-2 rounded-full bg-green-500"></div>
+                      <label className="text-sm font-medium text-slate-300">
+                        Branch
+                      </label>
+                      <span className="text-xs text-slate-500">
+                        (within {subareaOptions.find(s => s.id.toString() === selectedSubArea)?.name || 'selected sub-area'})
+                      </span>
+                    </div>
+                    <select
+                      value={selectedBranchId}
+                      onChange={(event) => setSelectedBranchId(event.target.value)}
+                      className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-white outline-none transition focus:border-green-400 focus:bg-slate-900/50 pl-8"
+                      disabled={branchesLoading}
+                    >
+                      <option value="all">All branches</option>
+                      {filteredBranches.map((branch: Branch) => (
+                        <option key={branch.id} value={branch.id}>
+                          {branch.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
+
+              {/* Right Column: Date and View By Filters */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="h-px bg-gradient-to-r from-blue-500 to-purple-500 flex-1"></div>
+                  <span className="text-xs font-medium text-slate-500 uppercase tracking-wider">Filters</span>
+                  <div className="h-px bg-gradient-to-r from-purple-500 to-pink-500 flex-1"></div>
+                </div>
+
+                {/* Date Range Section */}
+                <div className="space-y-4">
+                  <div className="grid gap-4">
+                    <label className="space-y-2 text-sm text-slate-300">
+                      Start date
+                      <input
+                        type="date"
+                        value={startDate}
+                        max={endDate}
+                        onChange={(event) => setStartDate(event.target.value)}
+                        className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-white outline-none transition focus:border-cyan-400 focus:bg-slate-900/50"
+                      />
+                    </label>
+                    <label className="space-y-2 text-sm text-slate-300">
+                      End date
+                      <input
+                        type="date"
+                        value={endDate}
+                        min={startDate}
+                        onChange={(event) => setEndDate(event.target.value)}
+                        className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-white outline-none transition focus:border-cyan-400 focus:bg-slate-900/50"
+                      />
+                    </label>
+                  </div>
+                </div>
+
+                {/* View By Section */}
+                <div className="space-y-2">
+                  <label className="text-sm text-slate-300">
+                    View By
+                  </label>
+                  <div className="flex gap-2 flex-nowrap">
+                    {(Object.keys(ARRIVAL_TYPE_LABELS) as ArrivalType[]).map((type) => (
+                      <button
+                        key={type}
+                        type="button"
+                        onClick={() => setSelectedArrivalType(type)}
+                        className={`flex-1 rounded-lg border px-3 py-2 text-sm font-medium transition whitespace-nowrap ${selectedArrivalType === type
+                          ? "border-cyan-400 bg-cyan-400/20 text-cyan-300"
+                          : "border-white/10 bg-white/5 text-white hover:border-white/20 hover:bg-white/10"
+                          }`}
+                      >
+                        {ARRIVAL_TYPE_LABELS[type]}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
             </div>
-
-            <div
-              ref={statusScrollRef}
-              className={`flex flex-nowrap gap-3 overflow-x-auto pb-2 -mx-2 px-2 ${
-                statusDragging ? "cursor-grabbing" : "cursor-grab"
-              }`}
-              style={{ touchAction: "pan-x", WebkitOverflowScrolling: "touch" }}
-              onWheel={handleStatusWheel}
-              onMouseDown={handleStatusMouseDown}
-              onMouseMove={handleStatusMouseMove}
-              onMouseLeave={endStatusDrag}
-              onMouseUp={endStatusDrag}
-            >
-              {Object.entries(totalsByStatus).map(
-                ([statusKey, count], index) => {
-                  const color =
-                    statusColorMap[statusKey] ??
-                    STATUS_COLORS[index % STATUS_COLORS.length];
-                  const statusLabel = statusLabelMap[statusKey] ?? statusKey;
-
-                  return (
-                    <div
-                      key={statusKey}
-                      className="entry-card group relative flex w-56 shrink-0 flex-col overflow-hidden"
-                      style={{
-                        animationDelay: `${index * 50}ms`,
-                        borderLeft: `3px solid ${color}`,
-                      }}
-                    >
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-2">
-                          <span
-                            className="inline-block h-3 w-3 rounded-full"
-                            style={{ backgroundColor: color }}
-                          />
-                          <h3 className="text-lg font-semibold text-white">
-                            {statusLabel}
-                          </h3>
-                        </div>
-                      </div>
-
-                      <div className="text-3xl font-bold text-white mb-1">
-                        {count.toLocaleString()}
-                      </div>
-
-                      <div className="text-xs text-slate-400">Total calls</div>
-
-                      <div className="pointer-events-none absolute inset-0 rounded-2xl bg-linear-to-r from-orange-500/0 via-orange-500/0 to-orange-600/0 group-hover:from-orange-500/5 group-hover:via-orange-500/5 group-hover:to-orange-600/5 transition-all duration-500"></div>
-                    </div>
-                  );
-                },
-              )}
-            </div>
           </section>
+
+
           {summaryError && (
             <div className="rounded-2xl border border-red-500/40 bg-red-500/10 p-4 text-red-100">
               {summaryError}
@@ -866,21 +1016,38 @@ function CallDashboard() {
                     Status trend
                   </p>
                   <p className="text-xs text-slate-400">
-                    {GRANULARITY_LABELS[chartGranularity]} volumes per call
-                    status
+                    {chartViewMode === "total" ? "Total" : "By status"} {GRANULARITY_LABELS[chartGranularity].toLowerCase()} volumes
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
+                  <div className="flex rounded-lg border border-white/10 bg-white/5 p-1">
+                    <button
+                      onClick={() => setChartViewMode("byStatus")}
+                      className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${chartViewMode === "byStatus"
+                        ? "bg-orange-500 text-white shadow-sm"
+                        : "text-white/70 hover:text-white hover:bg-white/10"
+                        }`}
+                    >
+                      By Status
+                    </button>
+                    <button
+                      onClick={() => setChartViewMode("total")}
+                      className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${chartViewMode === "total"
+                        ? "bg-orange-500 text-white shadow-sm"
+                        : "text-white/70 hover:text-white hover:bg-white/10"
+                        }`}
+                    >
+                      Total
+                    </button>
+                  </div>
                   {GRANULARITY_ORDER.map((option) => (
                     <button
                       key={option}
-                      type="button"
                       onClick={() => setChartGranularity(option)}
-                      className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
-                        chartGranularity === option
-                          ? "border-white/0 bg-white text-slate-900 shadow"
-                          : "border-white/10 bg-white/5 text-white/70 hover:border-white/40"
-                      }`}
+                      className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${chartGranularity === option
+                        ? "bg-orange-500 text-white shadow-sm"
+                        : "border-white/10 bg-white/5 text-white/70 hover:border-white/40"
+                        }`}
                     >
                       {GRANULARITY_LABELS[option]}
                     </button>
@@ -894,11 +1061,16 @@ function CallDashboard() {
                   </div>
                 ) : (
                   <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={chartSeries}>
+                    <AreaChart
+                      data={chartSeries}
+                      margin={{ top: 20, right: 30, left: 10, bottom: 20 }}
+                      key={`area-chart-${selectedArrivalType}-${selectedBranchId}-${selectedArea}-${selectedSubArea}-${chartSeries.length}`}
+                    >
                       <defs>
                         {chartStatusKeys.map((statusKey, index) => {
-                          const color =
-                            statusColorMap[statusKey] ??
+                          const color = chartViewMode === "total"
+                            ? "#f97316" // Orange for total
+                            : statusColorMap[statusKey] ??
                             STATUS_COLORS[index % STATUS_COLORS.length];
                           return (
                             <linearGradient
@@ -908,33 +1080,39 @@ function CallDashboard() {
                               y1="0"
                               x2="0"
                               y2="1"
+                              gradientUnits="userSpaceOnUse"
                             >
-                              <stop
-                                offset="10%"
-                                stopColor={color}
-                                stopOpacity={0.7}
-                              />
-                              <stop
-                                offset="95%"
-                                stopColor={color}
-                                stopOpacity={0.05}
-                              />
+                              <stop offset="5%" stopColor={color} stopOpacity={0.8} />
+                              <stop offset="95%" stopColor={color} stopOpacity={0.1} />
                             </linearGradient>
                           );
                         })}
                       </defs>
                       <CartesianGrid
                         strokeDasharray="3 3"
-                        stroke="rgba(255,255,255,0.08)"
+                        stroke="rgba(255,255,255,0.06)"
                       />
-                      <XAxis dataKey="label" stroke="#94a3b8" />
-                      <YAxis stroke="#94a3b8" />
+                      <XAxis
+                        dataKey="date"
+                        stroke="#64748b"
+                        tick={{ fill: '#94a3b8', fontSize: 11 }}
+                        axisLine={{ stroke: 'rgba(255,255,255,0.1)' }}
+                      />
+                      <YAxis
+                        stroke="#64748b"
+                        tick={{ fill: '#94a3b8', fontSize: 11 }}
+                        axisLine={{ stroke: 'rgba(255,255,255,0.1)' }}
+                      />
                       <Tooltip
                         contentStyle={{
-                          backgroundColor: "#0f172a",
-                          borderColor: "rgba(255,255,255,0.15)",
+                          backgroundColor: "rgba(15, 23, 42, 0.95)",
+                          borderColor: "rgba(251, 146, 60, 0.3)",
+                          borderWidth: 1,
+                          borderRadius: 12,
+                          backdropFilter: "blur(12px)",
+                          boxShadow: "0 10px 40px rgba(0,0,0,0.3)"
                         }}
-                        labelStyle={{ color: "#e2e8f0" }}
+                        labelStyle={{ color: "#f8fafc", fontWeight: 600 }}
                         formatter={(value, name) => [
                           formatNumber(value as number),
                           getStatusLabel(name as string),
@@ -942,23 +1120,31 @@ function CallDashboard() {
                         labelFormatter={(label) => String(label)}
                       />
                       <Legend
-                        wrapperStyle={{ color: "#cbd5f5" }}
-                        formatter={(value) => getStatusLabel(value as string)}
+                        wrapperStyle={{ color: "#cbd5f5", paddingTop: "20px" }}
+                        formatter={(value) => chartViewMode === "total" ? "Total Calls" : getStatusLabel(value as string)}
                       />
                       {chartStatusKeys.map((statusKey, index) => {
-                        const color =
-                          statusColorMap[statusKey] ??
+                        const color = chartViewMode === "total"
+                          ? "#f97316" // Orange for total
+                          : statusColorMap[statusKey] ??
                           STATUS_COLORS[index % STATUS_COLORS.length];
                         return (
                           <Area
                             key={statusKey}
                             type="monotone"
                             dataKey={statusKey}
-                            stackId="1"
                             stroke={color}
                             fill={`url(#gradient-${statusKey})`}
-                            strokeWidth={2}
-                            activeDot={{ r: 4 }}
+                            strokeWidth={3}
+                            activeDot={{
+                              r: 6,
+                              fill: color,
+                              stroke: '#fff',
+                              strokeWidth: 2
+                            }}
+                            animationBegin={index * 100}
+                            animationDuration={1400}
+                            animationEasing="ease-out"
                           />
                         );
                       })}
@@ -987,7 +1173,7 @@ function CallDashboard() {
                   </p>
                 </div>
               </div>
-              <div className="mt-6 grid gap-6 lg:grid-cols-[1.15fr,0.85fr]">
+              <div className="mt-6 grid gap-6 grid-cols-1 lg:grid-cols-2">
                 <div className="h-90">
                   {statusDistribution.length === 0 ? (
                     <div className="flex h-full items-center justify-center text-sm text-slate-400">
@@ -998,26 +1184,41 @@ function CallDashboard() {
                       <ResponsiveContainer width="100%" height="100%">
                         <PieChart
                           margin={{
-                            top: 32,
-                            right: 110,
-                            bottom: 32,
-                            left: 110,
+                            top: 40,
+                            right: 120,
+                            bottom: 40,
+                            left: 120,
                           }}
                         >
                           <defs>
                             <filter
                               id="pieShadow"
-                              x="-20%"
-                              y="-20%"
-                              width="140%"
-                              height="140%"
+                              x="-50%"
+                              y="-50%"
+                              width="200%"
+                              height="200%"
                             >
-                              <feDropShadow
-                                dx="0"
-                                dy="12"
-                                stdDeviation="8"
-                                floodOpacity="0.35"
-                              />
+                              <feGaussianBlur in="SourceAlpha" stdDeviation="3" />
+                              <feOffset dx="0" dy="4" result="offsetblur" />
+                              <feFlood floodColor="#000000" floodOpacity="0.2" />
+                              <feComposite in2="offsetblur" operator="in" />
+                              <feMerge>
+                                <feMergeNode />
+                                <feMergeNode in="SourceGraphic" />
+                              </feMerge>
+                            </filter>
+                            <filter
+                              id="pieGlow"
+                              x="-50%"
+                              y="-50%"
+                              width="200%"
+                              height="200%"
+                            >
+                              <feGaussianBlur stdDeviation="2" result="coloredBlur" />
+                              <feMerge>
+                                <feMergeNode in="coloredBlur" />
+                                <feMergeNode in="SourceGraphic" />
+                              </feMerge>
                             </filter>
                             {statusDistribution.map((entry, index) => {
                               const color =
@@ -1028,23 +1229,24 @@ function CallDashboard() {
                                   key={`radial-${entry.statusKey}`}
                                   id={`radial-${entry.statusKey}`}
                                   cx="50%"
-                                  cy="50%"
-                                  r="70%"
+                                  cy="40%"
+                                  r="60%"
+                                  gradientUnits="userSpaceOnUse"
                                 >
                                   <stop
-                                    offset="10%"
+                                    offset="0%"
                                     stopColor="#ffffff"
-                                    stopOpacity="0.25"
+                                    stopOpacity={0.4}
                                   />
                                   <stop
-                                    offset="60%"
+                                    offset="30%"
                                     stopColor={color}
-                                    stopOpacity="0.95"
+                                    stopOpacity={0.9}
                                   />
                                   <stop
-                                    offset="95%"
+                                    offset="100%"
                                     stopColor={color}
-                                    stopOpacity="1"
+                                    stopOpacity={1}
                                   />
                                 </radialGradient>
                               );
@@ -1052,28 +1254,52 @@ function CallDashboard() {
                           </defs>
                           <Tooltip
                             contentStyle={{
-                              backgroundColor: "#0f172a",
-                              borderColor: "rgba(255,255,255,0.15)",
+                              backgroundColor: "rgba(15, 23, 42, 0.98)",
+                              borderColor: "rgba(251, 146, 60, 0.4)",
+                              borderWidth: 1.5,
+                              borderRadius: 16,
+                              backdropFilter: "blur(16px)",
+                              boxShadow: "0 20px 60px rgba(0,0,0,0.4)",
+                              padding: "12px 16px"
                             }}
-                            labelStyle={{ color: "#e2e8f0" }}
-                            itemStyle={{ color: "#f8fafc" }}
-                            formatter={(value: number, name) => [
-                              `${formatNumber(value)} calls`,
-                              getStatusLabel(name as string),
-                            ]}
+                            labelStyle={{
+                              color: "#f8fafc",
+                              fontWeight: 700,
+                              fontSize: "13px",
+                              marginBottom: "4px"
+                            }}
+                            itemStyle={{
+                              color: "#cbd5e1",
+                              fontSize: "12px",
+                              lineHeight: "1.4"
+                            }}
+                            formatter={(value: number, name: any, props: any) => {
+                              const percentage = grandTotal > 0
+                                ? ((value / grandTotal) * 100).toFixed(1)
+                                : "0.0";
+                              return [
+                                `${getStatusLabel(name as string)}`,
+                                `${formatNumber(value)} calls (${percentage}%)`
+                              ];
+                            }}
                           />
                           <Pie
+                            key={`pie-${selectedArrivalType}-${selectedBranchId}-${selectedArea}-${selectedSubArea}-${statusDistribution.length}`}
                             data={statusDistribution}
                             dataKey="value"
-                            nameKey="label"
-                            innerRadius={75}
-                            outerRadius={120}
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={70}
+                            outerRadius={110}
+                            animationBegin={300}
+                            animationDuration={1400}
+                            animationEasing="ease-in-out"
                             startAngle={90}
                             endAngle={-270}
-                            paddingAngle={2}
-                            cornerRadius={8}
-                            stroke="rgba(15,23,42,0.6)"
-                            strokeWidth={2}
+                            paddingAngle={4}
+                            cornerRadius={16}
+                            stroke="rgba(15,23,42,0.9)"
+                            strokeWidth={4}
                             labelLine={false}
                             label={renderStatusPieLabel}
                             filter="url(#pieShadow)"
@@ -1169,110 +1395,87 @@ function CallDashboard() {
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart
                         data={branchStatusSeries}
-                        margin={{ top: 10, right: 20, left: 0, bottom: 20 }}
+                        margin={{ top: 20, right: 30, left: 10, bottom: 30 }}
+                        key={`bar-chart-${selectedArrivalType}-${selectedBranchId}-${selectedArea}-${selectedSubArea}-${branchStatusSeries.length}`}
                       >
+                        <defs>
+                          <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#f97316" stopOpacity={0.9} />
+                            <stop offset="95%" stopColor="#fb923c" stopOpacity={0.7} />
+                          </linearGradient>
+                        </defs>
                         <CartesianGrid
                           strokeDasharray="3 3"
-                          stroke="rgba(255,255,255,0.08)"
+                          stroke="rgba(255,255,255,0.06)"
                         />
                         <XAxis
                           dataKey="branch"
-                          stroke="#94a3b8"
+                          stroke="#64748b"
+                          tick={{ fill: '#94a3b8', fontSize: 11 }}
                           interval={0}
-                          angle={-20}
+                          angle={-25}
                           textAnchor="end"
-                          height={60}
+                          height={70}
+                          axisLine={{ stroke: 'rgba(255,255,255,0.1)' }}
                         />
-                        <YAxis stroke="#94a3b8" />
+                        <YAxis
+                          stroke="#64748b"
+                          tick={{ fill: '#94a3b8', fontSize: 11 }}
+                          axisLine={{ stroke: 'rgba(255,255,255,0.1)' }}
+                        />
                         <Tooltip
+                          cursor={{ fill: "rgba(255,255,255,0.05)" }}
                           contentStyle={{
                             backgroundColor: "#0f172a",
-                            borderColor: "rgba(255,255,255,0.15)",
+                            borderRadius: 12,
+                            border: "1px solid rgba(255,255,255,0.15)",
                           }}
-                          labelStyle={{ color: "#e2e8f0" }}
-                          formatter={(value: number, name) => [
-                            formatNumber(value),
-                            getStatusLabel(name as string),
-                          ]}
+                          labelStyle={{
+                            color: "#f8fafc",
+                            fontSize: 12,
+                            letterSpacing: "0.12em",
+                            textTransform: "uppercase"
+                          }}
+                          itemStyle={{
+                            color: "#e2e8f0",
+                          }}
+                          formatter={(value: number, name: any, props: any) => {
+                            const data = props.payload;
+                            const total = data.total || 0;
+
+                            // Build detailed breakdown
+                            const details = [
+                              `Total: ${formatNumber(total)}`,
+                              ...chartStatusKeys
+                                .filter(key => (data[key] as number) > 0)
+                                .map(key => `${getStatusLabel(key)}: ${formatNumber(data[key] as number)}`)
+                            ];
+
+                            return [details.join("\n"), data.branch || name];
+                          }}
                         />
                         <Legend
                           wrapperStyle={{ color: "#cbd5f5" }}
-                          formatter={(value) => getStatusLabel(value as string)}
+                          formatter={() => "Total Calls"}
                         />
-                        {chartStatusKeys.map((statusKey, index) => {
-                          const color =
-                            statusColorMap[statusKey] ??
-                            STATUS_COLORS[index % STATUS_COLORS.length];
-                          return (
-                            <Bar
-                              key={`branch-bar-${statusKey}`}
-                              dataKey={statusKey}
-                              stackId="branches"
-                              fill={color}
-                              barSize={50}
-                            />
-                          );
-                        })}
+                        <Bar
+                          dataKey="total"
+                          fill="url(#barGradient)"
+                          barSize={45}
+                          radius={[8, 8, 0, 0]}
+                          animationBegin={100}
+                          animationDuration={1500}
+                          animationEasing="ease-out"
+                          maxBarSize={60}
+                        />
                       </BarChart>
                     </ResponsiveContainer>
                   )}
                 </div>
               </div>
 
-              <div className="flex items-center justify-between gap-4">
-                <div>
-                  <p className="text-sm font-semibold text-slate-300">
-                    Branch leaders
-                  </p>
-                  <p className="text-xs text-slate-400">
-                    Swipe through branches to compare total call volume
-                  </p>
-                </div>
-                <span className="text-[10px] uppercase tracking-[0.3em] text-slate-500">
-                  {branchSeries.length} branches
-                </span>
-              </div>
-              <div className="mt-4 flex gap-3 overflow-x-auto pb-2">
-                {branchSeries.length === 0 ? (
-                  <div className="flex h-32 w-full items-center justify-center text-sm text-slate-400">
-                    No branch aggregates yet.
-                  </div>
-                ) : (
-                  branchSeries.map((branch, index) => (
-                    <div
-                      key={branch.branch}
-                      className="entry-card relative flex w-64 shrink-0 flex-col gap-3 overflow-hidden"
-                      style={{ animationDelay: `${index * 40}ms` }}
-                    >
-                      <div className="flex items-center justify-between text-xs uppercase tracking-[0.2em] text-slate-400">
-                        <span>BRANCH</span>
-                        <span className="text-[10px] text-slate-500">
-                          #{index + 1}
-                        </span>
-                      </div>
-                      <div>
-                        <p className="text-lg font-semibold text-white">
-                          {branch.branch}
-                        </p>
-                        <p className="text-xs text-slate-400">Total calls</p>
-                      </div>
-                      <div className="text-3xl font-bold text-white">
-                        {formatNumber(branch.total)}
-                      </div>
-                      <div className="h-1 rounded-full bg-white/10">
-                        <div
-                          className="h-full rounded-full bg-cyan-400"
-                          style={{
-                            width: branchSeries[0]?.total
-                              ? `${Math.max((branch.total / branchSeries[0].total) * 100, 2)}%`
-                              : "0%",
-                          }}
-                        />
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
+
+
             </div>
           </section>
 
@@ -1283,138 +1486,6 @@ function CallDashboard() {
           )}
         </div>
       </div>
-
-      <style jsx global>{`
-      @keyframes fade-in-up {
-        from {
-          opacity: 0;
-          transform: translateY(12px);
-        }
-        to {
-          opacity: 1;
-          transform: translateY(0);
-        }
-      }
-
-      @keyframes aurora {
-        0% {
-          transform: translate3d(-20%, -20%, 0) scale(1);
-        }
-        50% {
-          transform: translate3d(-10%, -25%, 0) scale(1.05);
-        }
-        100% {
-          transform: translate3d(-20%, -20%, 0) scale(1);
-        }
-      }
-
-      .glass-card {
-        background: rgba(15, 23, 42, 0.8);
-        border: 1px solid rgba(255, 255, 255, 0.05);
-        border-radius: 28px;
-        padding: 2.25rem;
-        backdrop-filter: blur(30px);
-        box-shadow:
-          0 30px 60px rgba(2, 6, 23, 0.65),
-          inset 0 1px 0 rgba(255, 255, 255, 0.08);
-        position: relative;
-        overflow: visible;
-      }
-
-      .glass-card::after {
-        content: '';
-        position: absolute;
-        inset: 0;
-        background: radial-gradient(circle at top left, rgba(59, 130, 246, 0.16), transparent 40%);
-        opacity: 0;
-        transition: opacity 0.4s ease;
-        pointer-events: none;
-      }
-
-      .glass-card:hover::after {
-        opacity: 1;
-      }
-
-      .entry-card {
-        background: rgba(15, 23, 42, 0.65);
-        border: 1px solid rgba(255, 255, 255, 0.08);
-        border-radius: 20px;
-        padding: 1.25rem;
-        backdrop-filter: blur(18px);
-        transition: all 0.35s ease;
-        animation: fade-in-up 0.45s ease-out backwards;
-        position: relative;
-      }
-
-      .dashboard-blob-3 {
-        bottom: -15%;
-        left: 15%;
-        width: 460px;
-        height: 460px;
-        background: rgba(124, 58, 237, 0.35);
-        animation-delay: 4s;
-      }
-
-      .entry-card::after {
-        content: '';
-        position: absolute;
-        inset: 1px;
-        border-radius: 18px;
-        border: 1px solid rgba(255, 255, 255, 0.03);
-        pointer-events: none;
-      }
-
-      .entry-card:hover {
-        border-color: rgba(59, 130, 246, 0.4);
-        box-shadow:
-          0 20px 35px rgba(2, 6, 23, 0.55),
-          inset 0 1px 0 rgba(255, 255, 255, 0.08);
-        transform: translateY(-4px) scale(1.01);
-      }
-
-      .dashboard-blobs {
-        position: absolute;
-        inset: 0;
-        overflow: hidden;
-        opacity: 0.7;
-        pointer-events: none;
-      }
-
-      .dashboard-blob {
-        position: absolute;
-        border-radius: 999px;
-        filter: blur(120px);
-        mix-blend-mode: screen;
-        animation: aurora 18s ease-in-out infinite alternate;
-      }
-
-      .dashboard-blob-1 {
-        top: -10%;
-        left: -5%;
-        width: 380px;
-        height: 380px;
-        background: rgba(14, 165, 233, 0.35);
-        animation-delay: 0s;
-      }
-
-      .dashboard-blob-2 {
-        top: 5%;
-        right: -10%;
-        width: 420px;
-        height: 420px;
-        background: rgba(240, 132, 40, 0.35);
-        animation-delay: 2s;
-      }
-
-      .dashboard-blob-3 {
-        bottom: -15%;
-        left: 15%;
-        width: 460px;
-        height: 460px;
-        background: rgba(124, 58, 237, 0.35);
-        animation-delay: 4s;
-      }
-    `}</style>
     </>
   );
 }

@@ -49,20 +49,22 @@ public class CallReportController extends BaseController {
         Map<String, String> creatorNames = resolveCreatorNames(reports);
 
         List<CallReportResponse> response = reports.stream()
-            .map(report -> toResponse(report, creatorNames))
-            .collect(Collectors.toList());
+                .map(report -> toResponse(report, creatorNames))
+                .collect(Collectors.toList());
         return ResponseEntity.ok(response);
     }
 
     @GetMapping("/summary")
     public ResponseEntity<List<CallReportSummaryResponse>> summarizeReports(
-        HttpServletRequest request,
-        @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
-        @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
-        @RequestParam(required = false) List<Long> branchIds,
-        @RequestParam(required = false) List<String> statusKeys
-    ) {
-        ResponseEntity<List<CallReportSummaryResponse>> permissionCheck = checkPermissionAndReturn(request, "menu.3.view");
+            HttpServletRequest request,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @RequestParam(required = false) List<Long> branchIds,
+            @RequestParam(required = false) List<Long> areaIds,
+            @RequestParam(required = false) List<Long> subareaIds,
+            @RequestParam(required = false) List<String> statusKeys) {
+        ResponseEntity<List<CallReportSummaryResponse>> permissionCheck = checkPermissionAndReturn(request,
+                "menu.3.view");
         if (permissionCheck != null) {
             return permissionCheck;
         }
@@ -77,19 +79,22 @@ public class CallReportController extends BaseController {
 
         if (!isRootUser) {
             List<Long> accessibleBranchIds = callReportService.findAccessibleBranchIdsForUser(userId);
+            // If user has no branch assignments, allow them to see all data they request
             if (accessibleBranchIds.isEmpty()) {
-                return ResponseEntity.ok(List.of());
-            }
-
-            if (branchIds != null && !branchIds.isEmpty()) {
-                effectiveBranchIds = branchIds.stream()
-                    .filter(accessibleBranchIds::contains)
-                    .collect(Collectors.toList());
-                if (effectiveBranchIds.isEmpty()) {
-                    return ResponseEntity.ok(List.of());
-                }
+                // User has no assignments - allow access to any branch they request
+                effectiveBranchIds = branchIds; // Pass through the user's selection
             } else {
-                effectiveBranchIds = accessibleBranchIds;
+                // User has assignments - restrict to their assigned branches
+                if (branchIds != null && !branchIds.isEmpty()) {
+                    effectiveBranchIds = branchIds.stream()
+                            .filter(accessibleBranchIds::contains)
+                            .collect(Collectors.toList());
+                    if (effectiveBranchIds.isEmpty()) {
+                        return ResponseEntity.ok(List.of());
+                    }
+                } else {
+                    effectiveBranchIds = accessibleBranchIds;
+                }
             }
         } else if (branchIds != null && !branchIds.isEmpty()) {
             effectiveBranchIds = branchIds;
@@ -98,17 +103,19 @@ public class CallReportController extends BaseController {
         List<String> effectiveStatusKeys = (statusKeys == null || statusKeys.isEmpty()) ? null : statusKeys;
 
         List<CallReportSummaryResponse> summaries = callReportService.summarizeReports(
-            startDate,
-            endDate,
-            effectiveBranchIds,
-            effectiveStatusKeys
-        );
+                startDate,
+                endDate,
+                effectiveBranchIds,
+                areaIds,
+                subareaIds,
+                effectiveStatusKeys);
 
         return ResponseEntity.ok(summaries);
     }
 
     @PostMapping
-    public ResponseEntity<CallReportResponse> createReport(@Valid @RequestBody CallReportRequest request, HttpServletRequest httpRequest) {
+    public ResponseEntity<CallReportResponse> createReport(@Valid @RequestBody CallReportRequest request,
+            HttpServletRequest httpRequest) {
         ResponseEntity<CallReportResponse> permissionCheck = checkPermissionAndReturn(httpRequest, "menu.3.view");
         if (permissionCheck != null) {
             return permissionCheck;
@@ -125,7 +132,8 @@ public class CallReportController extends BaseController {
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<CallReportResponse> updateReport(@PathVariable Long id, @Valid @RequestBody CallReportRequest request, HttpServletRequest httpRequest) {
+    public ResponseEntity<CallReportResponse> updateReport(@PathVariable Long id,
+            @Valid @RequestBody CallReportRequest request, HttpServletRequest httpRequest) {
         ResponseEntity<CallReportResponse> permissionCheck = checkPermissionAndReturn(httpRequest, "menu.3.view");
         if (permissionCheck != null) {
             return permissionCheck;
@@ -157,14 +165,14 @@ public class CallReportController extends BaseController {
 
     private CallReportResponse toResponse(CallReport callReport, Map<String, String> creatorNames) {
         return new CallReportResponse(
-            callReport.getId(),
-            callReport.getReportDate(),
-            callReport.getBranch() != null ? callReport.getBranch().getId() : null,
-            callReport.getBranch() != null ? callReport.getBranch().getName() : "No Branch",
-            creatorNames.getOrDefault(callReport.getCreatedBy(), callReport.getCreatedBy()),
-            callReport.getCreatedAt(),
-            callReport.getEntries()
-        );
+                callReport.getId(),
+                callReport.getCalledAt(),
+                callReport.getArrivedAt(),
+                callReport.getBranch() != null ? callReport.getBranch().getId() : null,
+                callReport.getBranch() != null ? callReport.getBranch().getName() : "No Branch",
+                creatorNames.getOrDefault(callReport.getCreatedBy(), callReport.getCreatedBy()),
+                callReport.getCreatedAt(),
+                callReport.getEntries());
     }
 
     private Map<String, String> resolveCreatorNames(List<CallReport> reports) {

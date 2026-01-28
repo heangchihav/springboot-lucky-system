@@ -3,14 +3,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { apiFetch } from "@/services/httpClient";
 
-const defaultStatuses = [
-  { key: "not-called-yet", label: "មិនទាន់តេ" },
-  { key: "called", label: "តេរួច" },
-  { key: "no-answer", label: "តេមិនលើក" },
-  { key: "call-not-connected", label: "តេមិនចូល" },
-  { key: "delivered-to-customer", label: "ដឹកដល់ផ្អះ" },
-];
-
 type CallStatusResponse = {
   key: string;
   label: string;
@@ -42,7 +34,8 @@ type UserBranchResponse = {
 
 type CallReportResponse = {
   id: number;
-  reportDate: string;
+  calledAt: string;
+  arrivedAt?: string;
   branchId: number;
   branchName: string;
   createdBy: string;
@@ -112,14 +105,13 @@ const buildAuthHeaders = () => {
 };
 
 function Page() {
-  const [statuses, setStatuses] = useState(defaultStatuses);
-  const [selectedStatus, setSelectedStatus] = useState(defaultStatuses[0].key);
+  const [statuses, setStatuses] = useState<CallStatusResponse[]>([]);
+  const [selectedStatus, setSelectedStatus] = useState<string>("");
   const [branches, setBranches] = useState<BranchResponse[]>([]);
   const [selectedBranchId, setSelectedBranchId] = useState<number | null>(null);
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
-  const [entries, setEntries] = useState<Record<string, number>>(
-    Object.fromEntries(defaultStatuses.map((s) => [s.key, 0])),
-  );
+  const [arrivedAt, setArrivedAt] = useState<string>("");
+  const [entries, setEntries] = useState<Record<string, number>>({});
   const [reports, setReports] = useState<ReportRecord[]>([]);
   const [editingReportId, setEditingReportId] = useState<number | null>(null);
   const [reportSearch, setReportSearch] = useState("");
@@ -192,7 +184,7 @@ function Page() {
       const createdStatus: CallStatusResponse = await response.json();
       setStatuses((prev) => [
         ...prev,
-        { key: createdStatus.key, label: createdStatus.label },
+        createdStatus,
       ]);
       setEntries((prev) => ({
         ...prev,
@@ -260,7 +252,7 @@ function Page() {
       setStatuses((prev) =>
         prev.map((status) =>
           status.key === updated.key
-            ? { ...status, label: updated.label }
+            ? updated
             : status,
         ),
       );
@@ -330,7 +322,7 @@ function Page() {
       const serverReports: CallReportResponse[] = await response.json();
       const mappedReports: ReportRecord[] = serverReports.map((report) => ({
         id: report.id,
-        date: report.reportDate,
+        date: report.calledAt,
         createdAt: report.createdAt,
         createdBy: report.createdBy,
         branchId: report.branchId,
@@ -364,21 +356,18 @@ function Page() {
         return;
       }
 
-      const mapped = serverStatuses.map(({ key, label }) => ({ key, label }));
-      setStatuses((prev) => {
-        return mapped;
-      });
+      setStatuses(serverStatuses);
 
       setEntries((prev) =>
         Object.fromEntries(
-          mapped.map((status) => [status.key, prev[status.key] ?? 0]),
+          serverStatuses.map((status) => [status.key, prev[status.key] ?? 0]),
         ),
       );
 
       setSelectedStatus((prev) =>
-        mapped.some((status) => status.key === prev)
+        serverStatuses.some((status) => status.key === prev)
           ? prev
-          : (mapped[0]?.key ?? prev),
+          : (serverStatuses[0]?.key ?? prev),
       );
     } catch (error) {
       console.error("Failed to fetch statuses", error);
@@ -496,7 +485,8 @@ function Page() {
         method,
         headers: buildAuthHeaders(),
         body: JSON.stringify({
-          reportDate: date,
+          calledAt: date,
+          arrivedAt: arrivedAt || null,
           branchId: selectedBranchId,
           entries,
         }),
@@ -511,6 +501,7 @@ function Page() {
 
       await loadReports();
       setEntries(Object.fromEntries(statuses.map((status) => [status.key, 0])));
+      setArrivedAt("");
       setEditingReportId(null);
     } catch (error) {
       console.error(
@@ -577,15 +568,7 @@ function Page() {
   return (
     <>
       <div className="min-h-screen px-4 py-8 relative overflow-hidden">
-        {/* Animated Background Gradients */}
-        <div className="fixed inset-0 -z-10">
-          <div className="absolute top-0 -left-4 w-96 h-96 bg-orange-600 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
-          <div className="absolute top-0 -right-4 w-96 h-96 bg-blue-700 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
-          <div className="absolute -bottom-8 left-20 w-96 h-96 bg-orange-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000"></div>
-          {/* <div className="absolute inset-0 bg-gradient-to-br from-slate-950 via-blue-950 to-slate-950"></div> */}
-        </div>
-
-        <div className="mx-auto flex max-w-6xl flex-col gap-8 relative z-10">
+        <div className="mx-auto flex w-full flex-col gap-8 relative z-10">
           {/* Status Management Section */}
           <section className="hidden glass-card animate-fade-in-up">
             <div className="flex items-center justify-between gap-4 mb-5">
@@ -752,12 +735,23 @@ function Page() {
             <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between mb-6">
               <div className="flex-1">
                 <label className="block text-xs font-medium text-slate-400 mb-2 uppercase tracking-wider">
-                  Report Date
+                  Called Date
                 </label>
                 <input
                   type="date"
                   value={date}
                   onChange={(event) => setDate(event.target.value)}
+                  className="glass-input w-full text-sm"
+                />
+              </div>
+              <div className="flex-1">
+                <label className="block text-xs font-medium text-slate-400 mb-2 uppercase tracking-wider">
+                  Arrived At (Optional)
+                </label>
+                <input
+                  type="date"
+                  value={arrivedAt}
+                  onChange={(event) => setArrivedAt(event.target.value)}
                   className="glass-input w-full text-sm"
                 />
               </div>

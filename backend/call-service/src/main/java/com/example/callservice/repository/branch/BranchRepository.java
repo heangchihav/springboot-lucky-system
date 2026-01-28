@@ -63,4 +63,10 @@ public interface BranchRepository extends JpaRepository<Branch, Long> {
     boolean existsByNameAndSubareaId(String name, Long subareaId);
 
     boolean existsByNameAndAreaId(String name, Long areaId);
+
+    @Query("SELECT b.area.id FROM Branch b WHERE b.id = :branchId")
+    Long findAreaIdById(@Param("branchId") Long branchId);
+
+    @Query("SELECT b.subarea.id FROM Branch b WHERE b.id = :branchId")
+    Long findSubareaIdById(@Param("branchId") Long branchId);
 }

@@ -4,7 +4,9 @@ import java.time.LocalDate;
 
 public interface CallReportSummaryProjection {
 
-    LocalDate getReportDate();
+    LocalDate getCalledAt();
+
+    LocalDate getArrivedAt();
 
     Long getBranchId();
 

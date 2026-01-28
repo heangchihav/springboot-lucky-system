@@ -7,8 +7,10 @@ import java.util.Map;
 
 public class CallReportRequest {
 
-    private LocalDate reportDate;
-    
+    private LocalDate calledAt;
+
+    private LocalDate arrivedAt;
+
     private Long branchId;
 
     @NotNull
@@ -23,12 +25,20 @@ public class CallReportRequest {
         this.branchId = branchId;
     }
 
-    public LocalDate getReportDate() {
-        return reportDate;
+    public LocalDate getCalledAt() {
+        return calledAt;
     }
 
-    public void setReportDate(LocalDate reportDate) {
-        this.reportDate = reportDate;
+    public void setCalledAt(LocalDate calledAt) {
+        this.calledAt = calledAt;
+    }
+
+    public LocalDate getArrivedAt() {
+        return arrivedAt;
+    }
+
+    public void setArrivedAt(LocalDate arrivedAt) {
+        this.arrivedAt = arrivedAt;
     }
 
     public Map<String, Integer> getEntries() {

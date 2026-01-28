@@ -6,7 +6,8 @@ import java.util.Map;
 
 public class CallReportSummaryResponse {
 
-    private LocalDate reportDate;
+    private LocalDate calledAt;
+    private LocalDate arrivedAt;
     private Long branchId;
     private String branchName;
     private Map<String, Long> statusTotals = new HashMap<>();
@@ -14,19 +15,29 @@ public class CallReportSummaryResponse {
     public CallReportSummaryResponse() {
     }
 
-    public CallReportSummaryResponse(LocalDate reportDate, Long branchId, String branchName, Map<String, Long> statusTotals) {
-        this.reportDate = reportDate;
+    public CallReportSummaryResponse(LocalDate calledAt, LocalDate arrivedAt, Long branchId, String branchName,
+            Map<String, Long> statusTotals) {
+        this.calledAt = calledAt;
+        this.arrivedAt = arrivedAt;
         this.branchId = branchId;
         this.branchName = branchName;
         this.statusTotals = statusTotals;
     }
 
-    public LocalDate getReportDate() {
-        return reportDate;
+    public LocalDate getCalledAt() {
+        return calledAt;
     }
 
-    public void setReportDate(LocalDate reportDate) {
-        this.reportDate = reportDate;
+    public void setCalledAt(LocalDate calledAt) {
+        this.calledAt = calledAt;
+    }
+
+    public LocalDate getArrivedAt() {
+        return arrivedAt;
+    }
+
+    public void setArrivedAt(LocalDate arrivedAt) {
+        this.arrivedAt = arrivedAt;
     }
 
     public Long getBranchId() {

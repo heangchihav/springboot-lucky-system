@@ -18,13 +18,16 @@ public class CallReport {
     private Long id;
 
     @NotNull
-    @Column(name = "report_date", nullable = false)
-    private LocalDate reportDate;
-    
+    @Column(name = "called_at", nullable = false)
+    private LocalDate calledAt;
+
+    @Column(name = "arrived_at")
+    private LocalDate arrivedAt;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "branch_id")
     private Branch branch;
-    
+
     @NotBlank
     @Column(name = "created_by", nullable = false)
     private String createdBy;
@@ -41,8 +44,8 @@ public class CallReport {
     public CallReport() {
     }
 
-    public CallReport(LocalDate reportDate, Branch branch, String createdBy, Map<String, Integer> entries) {
-        this.reportDate = reportDate;
+    public CallReport(LocalDate calledAt, Branch branch, String createdBy, Map<String, Integer> entries) {
+        this.calledAt = calledAt;
         this.branch = branch;
         this.createdBy = createdBy;
         this.entries = entries;
@@ -69,12 +72,20 @@ public class CallReport {
         this.branch = branch;
     }
 
-    public LocalDate getReportDate() {
-        return reportDate;
+    public LocalDate getCalledAt() {
+        return calledAt;
     }
 
-    public void setReportDate(LocalDate reportDate) {
-        this.reportDate = reportDate;
+    public void setCalledAt(LocalDate calledAt) {
+        this.calledAt = calledAt;
+    }
+
+    public LocalDate getArrivedAt() {
+        return arrivedAt;
+    }
+
+    public void setArrivedAt(LocalDate arrivedAt) {
+        this.arrivedAt = arrivedAt;
     }
 
     public String getCreatedBy() {
