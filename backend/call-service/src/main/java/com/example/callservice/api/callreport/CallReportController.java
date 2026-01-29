@@ -172,7 +172,9 @@ public class CallReportController extends BaseController {
                 callReport.getBranch() != null ? callReport.getBranch().getName() : "No Branch",
                 creatorNames.getOrDefault(callReport.getCreatedBy(), callReport.getCreatedBy()),
                 callReport.getCreatedAt(),
-                callReport.getEntries());
+                callReport.getEntriesAsMap(),
+                callReport.getRemarksAsMap(),
+                callReport.getRemark());
     }
 
     private Map<String, String> resolveCreatorNames(List<CallReport> reports) {

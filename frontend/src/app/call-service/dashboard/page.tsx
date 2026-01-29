@@ -101,6 +101,25 @@ const ARRIVAL_TYPE_LABELS: Record<ArrivalType, string> = {
   "recall": "Re-Call",
 };
 
+const normalizeDateForArrival = (value?: string | null) => {
+  if (!value) return null;
+
+  // Support formats like yyyy-mm-dd, dd/mm/yyyy, and ISO timestamps
+  const isoMatch = value.match(/(\d{4})-(\d{2})-(\d{2})/);
+  if (isoMatch) {
+    const [, year, month, day] = isoMatch;
+    return `${year}-${month}-${day}`;
+  }
+
+  const slashMatch = value.match(/(\d{2})\/(\d{2})\/(\d{4})/);
+  if (slashMatch) {
+    const [, day, month, year] = slashMatch;
+    return `${year}-${month}-${day}`;
+  }
+
+  return value;
+};
+
 const formatDateInput = (date: Date) => date.toISOString().slice(0, 10);
 const LOOKBACK_DAYS = 6;
 const defaultStartDate = () =>
@@ -449,10 +468,14 @@ function CallDashboard() {
   );
 
   const classifyArrivalType = (summary: CallReportSummaryResponse): ArrivalType => {
-    if (!summary.arrivedAt) {
-      return "new-arrival"; // No arrivedAt means it's a new arrival
+    const normalizedArrived = normalizeDateForArrival(summary.arrivedAt);
+    const normalizedCalled = normalizeDateForArrival(summary.calledAt);
+
+    if (normalizedArrived && normalizedCalled && normalizedArrived === normalizedCalled) {
+      return "new-arrival";
     }
-    return summary.calledAt === summary.arrivedAt ? "new-arrival" : "recall";
+
+    return "recall";
   };
 
   const filteredSummaryData = useMemo(() => {

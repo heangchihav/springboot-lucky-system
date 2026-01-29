@@ -14,12 +14,15 @@ public class CallReportResponse {
     private String createdBy;
     private LocalDateTime createdAt;
     private Map<String, Integer> entries;
+    private Map<String, String> remarks;
+    private String remark;
 
     public CallReportResponse() {
     }
 
     public CallReportResponse(Long id, LocalDate calledAt, LocalDate arrivedAt, Long branchId, String branchName,
-            String createdBy, LocalDateTime createdAt, Map<String, Integer> entries) {
+            String createdBy, LocalDateTime createdAt, Map<String, Integer> entries, Map<String, String> remarks,
+            String remark) {
         this.id = id;
         this.calledAt = calledAt;
         this.arrivedAt = arrivedAt;
@@ -28,6 +31,8 @@ public class CallReportResponse {
         this.createdBy = createdBy;
         this.createdAt = createdAt;
         this.entries = entries;
+        this.remarks = remarks;
+        this.remark = remark;
     }
 
     public Long getId() {
@@ -92,5 +97,21 @@ public class CallReportResponse {
 
     public void setEntries(Map<String, Integer> entries) {
         this.entries = entries;
+    }
+
+    public Map<String, String> getRemarks() {
+        return remarks;
+    }
+
+    public void setRemarks(Map<String, String> remarks) {
+        this.remarks = remarks;
+    }
+
+    public String getRemark() {
+        return remark;
+    }
+
+    public void setRemark(String remark) {
+        this.remark = remark;
     }
 }

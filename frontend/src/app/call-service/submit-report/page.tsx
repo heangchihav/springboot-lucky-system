@@ -1,7 +1,11 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { apiFetch } from "@/services/httpClient";
+import { ExcelDataProcessor } from "@/components/ExcelDataProcessor";
+import { processExcelData } from "@/utils/excelDataProcessor";
+import { useToast } from "@/components/ui/Toast";
 
 type CallStatusResponse = {
   key: string;
@@ -41,16 +45,21 @@ type CallReportResponse = {
   createdBy: string;
   createdAt: string;
   entries: Record<string, number>;
+  remarks?: Record<string, string>;
+  remark?: string;
 };
 
 type ReportRecord = {
   id: number;
   date: string;
+  arrivedAt?: string;
   createdAt: string;
   createdBy: string;
   branchId: number;
   branchName: string;
   entries: Record<string, number>;
+  remarks: Record<string, string>;
+  remark?: string;
 };
 
 const getStoredUserId = (): number | null => {
@@ -81,12 +90,24 @@ const fetchAndCacheUserId = async (): Promise<number | null> => {
       return null;
     }
 
-    const user = await response.json();
-    if (user?.id && typeof window !== "undefined") {
-      window.localStorage.setItem("user", JSON.stringify(user));
-      return user.id;
+    // Check if response has content before trying to parse JSON
+    const text = await response.text();
+    if (!text.trim()) {
+      return null;
     }
-    return user?.id ?? null;
+
+    try {
+      const user = JSON.parse(text);
+      if (user?.id && typeof window !== "undefined") {
+        window.localStorage.setItem("user", JSON.stringify(user));
+        return user.id;
+      }
+      return user?.id ?? null;
+    } catch (jsonError) {
+      console.error("Failed to parse user response as JSON:", jsonError);
+      console.error("Response text:", text);
+      return null;
+    }
   } catch (error) {
     console.error("Failed to fetch current user info", error);
     return null;
@@ -104,14 +125,260 @@ const buildAuthHeaders = () => {
   return headers;
 };
 
+// Custom date input component for dd/mm/yyyy format with calendar
+const CustomDateInput = ({
+  value,
+  onChange,
+  placeholder = "DD/MM/YYYY",
+  className = ""
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  className?: string;
+}) => {
+  const [inputValue, setInputValue] = useState(value);
+  const [showCalendar, setShowCalendar] = useState(false);
+  const [calendarDate, setCalendarDate] = useState<Date>(new Date());
+  const wrapperRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
+        setShowCalendar(false);
+      }
+    };
+
+    if (showCalendar) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [showCalendar]);
+
+  useEffect(() => {
+    setInputValue(value);
+    // Update calendar date when value changes
+    if (value) {
+      const dateMatch = value.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+      if (dateMatch) {
+        const [, day, month, year] = dateMatch;
+        setCalendarDate(new Date(parseInt(year), parseInt(month) - 1, parseInt(day)));
+      }
+    }
+  }, [value]);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let newValue = e.target.value;
+
+    // Auto-format as user types
+    const numbersOnly = newValue.replace(/[^\d]/g, '');
+
+    if (numbersOnly.length <= 2) {
+      newValue = numbersOnly;
+    } else if (numbersOnly.length <= 4) {
+      newValue = `${numbersOnly.slice(0, 2)}/${numbersOnly.slice(2)}`;
+    } else if (numbersOnly.length <= 8) {
+      newValue = `${numbersOnly.slice(0, 2)}/${numbersOnly.slice(2, 4)}/${numbersOnly.slice(4)}`;
+    } else {
+      newValue = `${numbersOnly.slice(0, 2)}/${numbersOnly.slice(2, 4)}/${numbersOnly.slice(4, 8)}`;
+    }
+
+    setInputValue(newValue);
+
+    // Validate and call onChange if valid
+    const dateMatch = newValue.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    if (dateMatch) {
+      const [, day, month, year] = dateMatch;
+      // Basic validation
+      const dayNum = parseInt(day);
+      const monthNum = parseInt(month);
+      const yearNum = parseInt(year);
+
+      if (dayNum >= 1 && dayNum <= 31 && monthNum >= 1 && monthNum <= 12 && yearNum >= 1900 && yearNum <= 2100) {
+        onChange(newValue);
+      }
+    } else if (newValue === '') {
+      onChange('');
+    }
+  };
+
+  const handleCalendarSelect = (date: Date) => {
+    const day = date.getDate().toString().padStart(2, '0');
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const year = date.getFullYear();
+    const formattedDate = `${day}/${month}/${year}`;
+
+    setInputValue(formattedDate);
+    onChange(formattedDate);
+    setShowCalendar(false);
+  };
+
+  const getDaysInMonth = (date: Date) => {
+    return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+  };
+
+  const getFirstDayOfMonth = (date: Date) => {
+    return new Date(date.getFullYear(), date.getMonth(), 1).getDay();
+  };
+
+  const renderCalendar = () => {
+    const today = new Date();
+    const daysInMonth = getDaysInMonth(calendarDate);
+    const firstDay = getFirstDayOfMonth(calendarDate);
+    const days = [];
+
+    // Add empty cells for days before month starts
+    for (let i = 0; i < firstDay; i++) {
+      days.push(<div key={`empty-${i}`} className="p-2"></div>);
+    }
+
+    // Add days of the month
+    for (let day = 1; day <= daysInMonth; day++) {
+      const currentDate = new Date(calendarDate.getFullYear(), calendarDate.getMonth(), day);
+      const isSelected = value === `${day.toString().padStart(2, '0')}/${(calendarDate.getMonth() + 1).toString().padStart(2, '0')}/${calendarDate.getFullYear()}`;
+      const isToday =
+        day === today.getDate() &&
+        calendarDate.getMonth() === today.getMonth() &&
+        calendarDate.getFullYear() === today.getFullYear();
+
+      days.push(
+        <button
+          key={day}
+          onClick={() => handleCalendarSelect(currentDate)}
+          className={`p-2 text-sm rounded transition-colors relative ${isSelected
+            ? 'bg-orange-500 text-white shadow-[0_0_10px_rgba(249,115,22,0.45)]'
+            : isToday
+              ? 'text-white border border-sky-400 bg-sky-500/30'
+              : 'text-slate-300 hover:bg-orange-500 hover:text-white'
+            }`}
+        >
+          {day}
+          {isToday && !isSelected && (
+            <span className="absolute inset-0 rounded pointer-events-none border border-sky-300/40 animate-pulse"></span>
+          )}
+        </button>
+      );
+    }
+
+    return days;
+  };
+
+  const changeMonth = (increment: number) => {
+    setCalendarDate(new Date(calendarDate.getFullYear(), calendarDate.getMonth() + increment, 1));
+  };
+
+  return (
+    <div className="relative" ref={wrapperRef}>
+      <div className="flex gap-2">
+        <input
+          type="text"
+          value={inputValue}
+          onChange={handleInputChange}
+          placeholder={placeholder}
+          className={`${className} flex-1`}
+          maxLength={10}
+        />
+        <button
+          type="button"
+          onClick={() => setShowCalendar(!showCalendar)}
+          className="px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white hover:bg-slate-600 transition-colors"
+        >
+          <svg
+            className="w-4 h-4"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+            />
+          </svg>
+        </button>
+      </div>
+
+      {showCalendar && (
+        <div className="absolute top-full mt-1 z-50 bg-slate-800 border border-slate-600 rounded-lg shadow-xl p-3">
+          <div className="flex items-center justify-between mb-3">
+            <button
+              type="button"
+              onClick={() => changeMonth(-1)}
+              className="p-1 text-slate-400 hover:text-white"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
+            <div className="text-sm font-medium text-white">
+              {calendarDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+            </div>
+            <button
+              type="button"
+              onClick={() => changeMonth(1)}
+              className="p-1 text-slate-400 hover:text-white"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </button>
+          </div>
+
+          <div className="grid grid-cols-7 gap-1 text-xs text-slate-400 mb-2">
+            {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(day => (
+              <div key={day} className="p-2 text-center font-medium">{day}</div>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-7 gap-1">
+            {renderCalendar()}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 function Page() {
   const [statuses, setStatuses] = useState<CallStatusResponse[]>([]);
   const [selectedStatus, setSelectedStatus] = useState<string>("");
   const [branches, setBranches] = useState<BranchResponse[]>([]);
   const [selectedBranchId, setSelectedBranchId] = useState<number | null>(null);
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
-  const [arrivedAt, setArrivedAt] = useState<string>("");
-  const [entries, setEntries] = useState<Record<string, number>>({});
+
+  // Helper function to format date to dd/mm/yyyy for display
+  const formatDateToDDMMYYYY = (date: Date): string => {
+    const day = date.getDate().toString().padStart(2, '0');
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const year = date.getFullYear();
+    return `${day}/${month}/${year}`;
+  };
+
+  // Helper function to parse dd/mm/yyyy to yyyy-mm-dd for input fields
+  const parseDDMMYYYYToInputFormat = (dateString: string): string => {
+    const match = dateString.match(/(\d{2})\/(\d{2})\/(\d{4})/);
+    if (match) {
+      const [, day, month, year] = match;
+      return `${year}-${month}-${day}`;
+    }
+    // If it's already in yyyy-mm-dd format, return as is
+    if (dateString.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      return dateString;
+    }
+    // Default to today's date
+    return new Date().toISOString().slice(0, 10);
+  };
+
+  // Initialize with today's date in dd/mm/yyyy format
+  const [date, setDate] = useState(formatDateToDDMMYYYY(new Date()));
+  const [arrivedAt, setArrivedAt] = useState<string>(formatDateToDDMMYYYY(new Date()));
+  const [entries, setEntries] = useState<Record<string, string>>({});
+  const [remarks, setRemarks] = useState<Record<string, string>>({});
+  const [recordRemark, setRecordRemark] = useState<string>("");
+  const [expandedRemarks, setExpandedRemarks] = useState<Record<string, boolean>>({});
   const [reports, setReports] = useState<ReportRecord[]>([]);
   const [editingReportId, setEditingReportId] = useState<number | null>(null);
   const [reportSearch, setReportSearch] = useState("");
@@ -131,17 +398,34 @@ function Page() {
     null,
   );
   const [editingLabel, setEditingLabel] = useState("");
+  const [showQuickInputPopup, setShowQuickInputPopup] = useState(false);
+  const [selectedStatusFilter, setSelectedStatusFilter] = useState<string | null>(null);
+
+  const { showToast } = useToast();
 
   const totalCount = useMemo(
-    () => Object.values(entries).reduce((sum, value) => sum + value, 0),
+    () => Object.values(entries).reduce((sum, value) => sum + (Number(value) || 0), 0),
     [entries],
   );
 
   const handleEntryChange = (statusKey: string, value: string) => {
-    const parsed = Number(value);
     setEntries((prev) => ({
       ...prev,
-      [statusKey]: Number.isNaN(parsed) ? 0 : parsed,
+      [statusKey]: value,
+    }));
+  };
+
+  const handleRemarkChange = (statusKey: string, value: string) => {
+    setRemarks((prev) => ({
+      ...prev,
+      [statusKey]: value,
+    }));
+  };
+
+  const toggleRemarkExpansion = (statusKey: string) => {
+    setExpandedRemarks((prev) => ({
+      ...prev,
+      [statusKey]: !prev[statusKey],
     }));
   };
 
@@ -188,7 +472,7 @@ function Page() {
       ]);
       setEntries((prev) => ({
         ...prev,
-        [createdStatus.key]: prev[createdStatus.key] ?? 0,
+        [createdStatus.key]: prev[createdStatus.key] ?? "",
       }));
       setSelectedStatus(createdStatus.key);
       setShowAddStatusForm(false);
@@ -323,11 +607,14 @@ function Page() {
       const mappedReports: ReportRecord[] = serverReports.map((report) => ({
         id: report.id,
         date: report.calledAt,
+        arrivedAt: report.arrivedAt,
         createdAt: report.createdAt,
         createdBy: report.createdBy,
         branchId: report.branchId,
         branchName: report.branchName,
         entries: report.entries,
+        remarks: report.remarks || {},
+        remark: report.remark,
       }));
 
       setReports(mappedReports);
@@ -360,7 +647,7 @@ function Page() {
 
       setEntries((prev) =>
         Object.fromEntries(
-          serverStatuses.map((status) => [status.key, prev[status.key] ?? 0]),
+          serverStatuses.map((status) => [status.key, prev[status.key] ?? ""]),
         ),
       );
 
@@ -481,14 +768,21 @@ function Page() {
         : "/api/calls/reports";
       const method = isUpdate ? "PUT" : "POST";
 
+      const payloadCalledAt = parseDDMMYYYYToInputFormat(date);
+      const payloadArrivedAt = arrivedAt ? parseDDMMYYYYToInputFormat(arrivedAt) : null;
+
       const response = await apiFetch(url, {
         method,
         headers: buildAuthHeaders(),
         body: JSON.stringify({
-          calledAt: date,
-          arrivedAt: arrivedAt || null,
+          calledAt: payloadCalledAt,
+          arrivedAt: payloadArrivedAt,
           branchId: selectedBranchId,
-          entries,
+          entries: Object.fromEntries(
+            Object.entries(entries).map(([key, value]) => [key, Number(value) || 0])
+          ),
+          remarks,
+          remark: recordRemark,
         }),
       });
 
@@ -500,8 +794,13 @@ function Page() {
       }
 
       await loadReports();
-      setEntries(Object.fromEntries(statuses.map((status) => [status.key, 0])));
-      setArrivedAt("");
+      showToast(`Report ${isUpdate ? "updated" : "submitted"} successfully`, "success");
+      setEntries(Object.fromEntries(statuses.map((status) => [status.key, ""])));
+      setRemarks({});
+      setRecordRemark("");
+      setExpandedRemarks({});
+      setArrivedAt(formatDateToDDMMYYYY(new Date()));
+      setDate(formatDateToDDMMYYYY(new Date()));
       setEditingReportId(null);
     } catch (error) {
       console.error(
@@ -510,6 +809,10 @@ function Page() {
       );
       setApiError(
         `Unable to ${editingReportId ? "update" : "submit"} the report.`,
+      );
+      showToast(
+        error instanceof Error ? error.message : `Failed to ${editingReportId ? "update" : "submit"} report`,
+        "error",
       );
     } finally {
       setIsSubmitting(false);
@@ -535,15 +838,25 @@ function Page() {
       }
 
       setReports((prev) => prev.filter((report) => report.id !== id));
+      showToast("Report deleted", "success");
     } catch (error) {
       console.error("Failed to delete report", error);
       setApiError("Unable to delete the report.");
+      showToast(
+        error instanceof Error ? error.message : "Failed to delete report",
+        "error",
+      );
     }
   };
 
   const handleLoadReport = (report: ReportRecord) => {
     setDate(report.date);
-    setEntries({ ...report.entries });
+    setArrivedAt(report.arrivedAt || "");
+    setEntries(Object.fromEntries(
+      Object.entries(report.entries).map(([key, value]) => [key, String(value)])
+    ));
+    setRemarks({ ...report.remarks });
+    setRecordRemark(report.remark || "");
     setSelectedBranchId(report.branchId);
     setEditingReportId(report.id);
   };
@@ -551,6 +864,11 @@ function Page() {
   const handleBranchChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
     const value = event.target.value;
     setSelectedBranchId(value ? Number(value) : null);
+  };
+
+  const handleQuickInputData = (entries: Record<string, string>) => {
+    setEntries(prev => ({ ...prev, ...entries }));
+    console.log(`Processed data with ${Object.keys(entries).length} status entries`);
   };
 
   const filteredReports = reports.filter((report) => {
@@ -582,7 +900,7 @@ function Page() {
               </div>
               <button
                 onClick={handleAddStatus}
-                className="glass-button px-3 py-1.5 text-xs font-semibold bg-gradient-to-r from-orange-500 to-orange-600 text-white hover:shadow-glow hover:scale-105 transition-all duration-300"
+                className="px-3 py-1.5 text-xs font-semibold bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-lg hover:shadow-lg hover:scale-105 transition-all duration-300"
               >
                 <span className="flex items-center gap-1.5">
                   <svg
@@ -664,7 +982,7 @@ function Page() {
                       value={newStatusName}
                       onChange={(event) => setNewStatusName(event.target.value)}
                       placeholder="e.g., Called Back"
-                      className="glass-input text-sm"
+                      className="px-3 py-2 text-sm bg-slate-800 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
                     />
                   </label>
                   <label className="flex flex-col gap-1.5">
@@ -676,7 +994,7 @@ function Page() {
                       value={newStatusCode}
                       onChange={(event) => setNewStatusCode(event.target.value)}
                       placeholder="e.g., called-back"
-                      className="glass-input text-sm"
+                      className="px-3 py-2 text-sm bg-slate-800 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
                     />
                   </label>
                 </div>
@@ -684,13 +1002,13 @@ function Page() {
                   <button
                     onClick={handleSaveNewStatus}
                     disabled={!newStatusName.trim() || !newStatusCode.trim()}
-                    className="glass-button px-4 py-1.5 text-xs font-semibold bg-gradient-to-r from-orange-500 to-orange-600 text-white hover:shadow-glow disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
+                    className="px-4 py-1.5 text-xs font-semibold bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-lg hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
                   >
                     Create Status
                   </button>
                   <button
                     onClick={handleCancelAddStatus}
-                    className="glass-button-secondary px-4 py-1.5 text-xs font-semibold text-slate-300 hover:text-white transition-all duration-300"
+                    className="px-4 py-1.5 text-xs font-semibold bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600 hover:text-white transition-all duration-300"
                   >
                     Cancel
                   </button>
@@ -727,7 +1045,7 @@ function Page() {
           >
             <div className="flex items-center gap-2 mb-5">
               <div className="w-1 h-6 bg-gradient-to-b from-orange-500 to-orange-600 rounded-full"></div>
-              <h2 className="text-2xl font-bold bg-gradient-to-r from-orange-400 to-orange-600 bg-clip-text text-transparent">
+              <h2 className="text-2xl font-bold bg-linear-to-r from-orange-400 to-orange-600 bg-clip-text text-transparent">
                 Submit Daily Report
               </h2>
             </div>
@@ -735,24 +1053,24 @@ function Page() {
             <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between mb-6">
               <div className="flex-1">
                 <label className="block text-xs font-medium text-slate-400 mb-2 uppercase tracking-wider">
-                  Called Date
+                  Arrived At (Optional)
                 </label>
-                <input
-                  type="date"
-                  value={date}
-                  onChange={(event) => setDate(event.target.value)}
-                  className="glass-input w-full text-sm"
+                <CustomDateInput
+                  value={arrivedAt}
+                  onChange={(value) => setArrivedAt(value)}
+                  placeholder="DD/MM/YYYY"
+                  className="px-3 py-2 w-full text-sm bg-slate-800 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
                 />
               </div>
               <div className="flex-1">
                 <label className="block text-xs font-medium text-slate-400 mb-2 uppercase tracking-wider">
-                  Arrived At (Optional)
+                  Called Date
                 </label>
-                <input
-                  type="date"
-                  value={arrivedAt}
-                  onChange={(event) => setArrivedAt(event.target.value)}
-                  className="glass-input w-full text-sm"
+                <CustomDateInput
+                  value={date}
+                  onChange={(value) => setDate(value)}
+                  placeholder="DD/MM/YYYY"
+                  className="px-3 py-2 w-full text-sm bg-slate-800 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
                 />
               </div>
               <div className="flex-1">
@@ -760,7 +1078,7 @@ function Page() {
                   Branch
                 </label>
                 {hasBranchAssignment ? (
-                  <div className="glass-input w-full text-sm text-slate-300 flex items-center justify-between">
+                  <div className="px-3 py-2 w-full text-sm bg-slate-800 border border-slate-600 rounded-lg text-slate-300 flex items-center justify-between">
                     <span>
                       {branches.find((branch) => branch.id === selectedBranchId)
                         ?.name ?? "Assigned branch"}
@@ -775,7 +1093,7 @@ function Page() {
                       selectedBranchId !== null ? String(selectedBranchId) : ""
                     }
                     onChange={handleBranchChange}
-                    className="glass-input w-full text-sm"
+                    className="px-3 py-2 w-full text-sm bg-slate-800 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
                     disabled={loadingBranches || branches.length === 0}
                   >
                     <option value="">Select a branch</option>
@@ -794,7 +1112,44 @@ function Page() {
                 <div className="text-2xl font-bold bg-linear-to-r from-orange-400 to-orange-600 bg-clip-text text-transparent">
                   {totalCount.toLocaleString()}
                 </div>
+                <button
+                  onClick={() => setShowQuickInputPopup(true)}
+                  className="group relative mt-2 h-10.5 px-5 text-xs font-semibold uppercase tracking-wide text-white rounded-xl overflow-hidden flex items-center justify-center bg-linear-to-r from-sky-500 via-blue-500 to-indigo-600 shadow-[0_8px_25px_rgba(59,130,246,0.45)] transition-all duration-200 hover:shadow-[0_12px_35px_rgba(59,130,246,0.55)] hover:scale-[1.01]"
+                >
+                  <span className="absolute inset-0 bg-linear-to-r from-transparent via-white/80 to-transparent translate-x-[-160%] group-hover:translate-x-[160%] transition-transform duration-400 ease-out"></span>
+                  <span className="absolute inset-0 opacity-40 blur-xl bg-sky-400 group-hover:opacity-80 transition-opacity duration-200"></span>
+                  <span className="relative z-10 flex items-center gap-1.5">
+                    <svg
+                      className="w-3.5 h-3.5"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+                      />
+                    </svg>
+                    Quick Input
+                  </span>
+                </button>
               </div>
+            </div>
+
+            {/* Record-Level Remark Section */}
+            <div className="mb-6">
+              <label className="block text-xs font-medium text-slate-400 mb-2 uppercase tracking-wider">
+                Report Remark (Optional)
+              </label>
+              <textarea
+                value={recordRemark}
+                onChange={(event) => setRecordRemark(event.target.value)}
+                placeholder="Add a general remark for this entire report..."
+                className="w-full text-sm bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white placeholder-slate-400 resize-none focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
+                rows={3}
+              />
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2 mb-2">
@@ -808,34 +1163,78 @@ function Page() {
                     {status.label}
                   </label>
                   <input
-                    value={entries[status.key]}
-                    type="number"
-                    onChange={(event) =>
-                      handleEntryChange(status.key, event.target.value)
-                    }
-                    className="number-input glass-input w-full text-right text-lg font-bold"
+                    value={entries[status.key] ?? ""}
+                    type="tel"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    onChange={(event) => {
+                      // Only allow numbers
+                      const value = event.target.value.replace(/[^0-9]/g, '');
+                      handleEntryChange(status.key, value);
+                    }}
+                    className="w-full text-right text-lg font-bold mb-2 bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white placeholder-slate-400 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
+                    placeholder=""
                   />
+
+                  {/* Collapsible Remark Section */}
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => toggleRemarkExpansion(status.key)}
+                      className="flex items-center justify-between w-full text-xs font-medium text-slate-400 mb-1 hover:text-slate-300 transition-colors duration-200 group"
+                    >
+                      <span>Remark (Optional)</span>
+                      <svg
+                        className={`w-3 h-3 transition-transform duration-200 ${expandedRemarks[status.key] ? 'rotate-180' : ''
+                          }`}
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
+
+                    {expandedRemarks[status.key] && (
+                      <div className="animate-fade-in-up">
+                        <textarea
+                          value={remarks[status.key] || ""}
+                          onChange={(event) =>
+                            handleRemarkChange(status.key, event.target.value)
+                          }
+                          placeholder="Add a remark for this status..."
+                          className="w-full text-sm bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white placeholder-slate-400 resize-none focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
+                          rows={4}
+                        />
+                      </div>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
 
             <div className="flex flex-wrap items-center justify-end gap-3">
               <button
-                onClick={() =>
+                onClick={() => {
                   setEntries(
                     Object.fromEntries(
-                      statuses.map((status) => [status.key, 0]),
+                      statuses.map((status) => [status.key, ""]),
                     ),
-                  )
-                }
-                className="glass-button-secondary px-4 py-2 text-xs font-semibold text-slate-300 hover:text-white transition-all duration-300"
+                  );
+                  setRemarks({});
+                  setRecordRemark("");
+                  setExpandedRemarks({});
+                  setArrivedAt(formatDateToDDMMYYYY(new Date()));
+                  setDate(formatDateToDDMMYYYY(new Date()));
+                }}
+                className="px-4 py-2 text-xs font-semibold bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600 hover:text-white transition-all duration-300"
               >
                 Reset All
               </button>
               <button
                 onClick={handleSubmit}
                 disabled={isSubmitting || !selectedBranchId}
-                className="glass-button px-5 py-2 text-xs font-semibold bg-gradient-to-r from-orange-500 to-orange-600 text-white hover:shadow-glow-strong hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
+                className="px-5 py-2 text-xs font-semibold bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-lg hover:shadow-lg hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
               >
                 {isSubmitting ? (
                   <span className="flex items-center gap-2">
@@ -875,8 +1274,8 @@ function Page() {
             >
               <div className="mb-5 flex flex-wrap items-center justify-between gap-4">
                 <div className="flex items-center gap-2">
-                  <div className="w-1 h-6 bg-gradient-to-b from-orange-500 to-orange-600 rounded-full"></div>
-                  <h2 className="text-2xl font-bold bg-gradient-to-r from-orange-400 to-orange-600 bg-clip-text text-transparent">
+                  <div className="w-1 h-6 bg-linear-to-b from-orange-500 to-orange-600 rounded-full"></div>
+                  <h2 className="text-2xl font-bold bg-linear-to-r from-orange-400 to-orange-600 bg-clip-text text-transparent">
                     Submitted Reports
                   </h2>
                 </div>
@@ -888,7 +1287,7 @@ function Page() {
                     value={reportSearch}
                     onChange={(event) => setReportSearch(event.target.value)}
                     placeholder="Filter reports..."
-                    className="glass-input w-48 text-sm"
+                    className="px-3 py-2 w-48 text-sm bg-slate-800 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
                   />
                 </div>
               </div>
@@ -901,7 +1300,10 @@ function Page() {
                           Created At
                         </th>
                         <th className="px-3 py-3 text-left text-[10px] uppercase tracking-wider text-slate-400 font-semibold">
-                          Date
+                          Arrived At
+                        </th>
+                        <th className="px-3 py-3 text-left text-[10px] uppercase tracking-wider text-slate-400 font-semibold">
+                          Called At
                         </th>
                         <th className="px-3 py-3 text-left text-[10px] uppercase tracking-wider text-slate-400 font-semibold">
                           Created By
@@ -933,6 +1335,9 @@ function Page() {
                             {new Date(report.createdAt).toLocaleString()}
                           </td>
                           <td className="px-3 py-3 text-white font-medium text-xs">
+                            {report.arrivedAt ?? "-"}
+                          </td>
+                          <td className="px-3 py-3 text-white font-medium text-xs">
                             {report.date}
                           </td>
                           <td className="px-3 py-3 text-slate-300 text-xs">
@@ -954,13 +1359,13 @@ function Page() {
                             <div className="flex gap-2">
                               <button
                                 onClick={() => handleLoadReport(report)}
-                                className="table-action-button bg-gradient-to-r from-blue-600 to-blue-800 text-white hover:shadow-glow-blue"
+                                className="px-3 py-1 text-xs font-semibold bg-gradient-to-r from-blue-600 to-blue-800 text-white rounded-lg hover:shadow-lg transition-colors"
                               >
                                 Update
                               </button>
                               <button
                                 onClick={() => handleDeleteReport(report.id)}
-                                className="table-action-button bg-gradient-to-r from-red-600 to-red-800 text-white hover:shadow-glow-red"
+                                className="px-3 py-1 text-xs font-semibold bg-gradient-to-r from-red-600 to-red-800 text-white rounded-lg hover:shadow-lg transition-colors"
                               >
                                 Delete
                               </button>
@@ -1023,7 +1428,7 @@ function Page() {
                   type="text"
                   value={editingLabel}
                   onChange={(event) => setEditingLabel(event.target.value)}
-                  className="glass-input text-sm"
+                  className="px-3 py-2 text-sm bg-slate-800 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
                 />
               </label>
 
@@ -1031,19 +1436,19 @@ function Page() {
                 <button
                   onClick={handleUpdateStatus}
                   disabled={!editingLabel.trim()}
-                  className="glass-button w-full px-4 py-2 text-xs font-semibold bg-gradient-to-r from-blue-600 to-blue-800 text-white hover:shadow-glow disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
+                  className="w-full px-4 py-2 text-xs font-semibold bg-gradient-to-r from-blue-600 to-blue-800 text-white rounded-lg hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
                 >
                   Save Changes
                 </button>
                 <button
                   onClick={handleDeleteStatus}
-                  className="glass-button w-full px-4 py-2 text-xs font-semibold bg-gradient-to-r from-red-600 to-red-800 text-white hover:shadow-glow-red transition-all duration-300"
+                  className="w-full px-4 py-2 text-xs font-semibold bg-gradient-to-r from-red-600 to-red-800 text-white rounded-lg hover:shadow-lg transition-all duration-300"
                 >
                   Delete Status
                 </button>
                 <button
                   onClick={closeManagePopup}
-                  className="glass-button-secondary w-full px-4 py-2 text-xs font-semibold text-slate-300 hover:text-white transition-all duration-300"
+                  className="w-full px-4 py-2 text-xs font-semibold bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600 hover:text-white transition-all duration-300"
                 >
                   Cancel
                 </button>
@@ -1053,281 +1458,16 @@ function Page() {
         </div>
       )}
 
-      <style jsx global>{`
-        @keyframes blob {
-          0%, 100% { transform: translate(0, 0) scale(1); }
-          33% { transform: translate(30px, -50px) scale(1.1); }
-          66% { transform: translate(-20px, 20px) scale(0.9); }
-        }
+      {/* Quick Input Popup */}
+      <ExcelDataProcessor
+        isOpen={showQuickInputPopup}
+        onClose={() => setShowQuickInputPopup(false)}
+        onDataProcessed={handleQuickInputData}
+        statuses={statuses}
+        filterArrivedDate={arrivedAt}
+        filterCalledDate={date}
+      />
 
-        @keyframes fade-in {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
-
-        @keyframes fade-in-up {
-          from {
-            opacity: 0;
-            transform: translateY(20px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-
-        @keyframes slide-down {
-          from {
-            opacity: 0;
-            transform: translateY(-10px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-
-        @keyframes scale-in {
-          from {
-            opacity: 0;
-            transform: scale(0.9);
-          }
-          to {
-            opacity: 1;
-            transform: scale(1);
-          }
-        }
-
-        @keyframes shake {
-          0%, 100% { transform: translateX(0); }
-          25% { transform: translateX(-5px); }
-          75% { transform: translateX(5px); }
-        }
-
-        .animate-blob {
-          animation: blob 7s infinite;
-        }
-
-        .animation-delay-2000 {
-          animation-delay: 2s;
-        }
-
-        .animation-delay-4000 {
-          animation-delay: 4s;
-        }
-
-        .animate-fade-in {
-          animation: fade-in 0.3s ease-out;
-        }
-
-        .animate-fade-in-up {
-          animation: fade-in-up 0.6s ease-out;
-        }
-
-        .animate-slide-down {
-          animation: slide-down 0.4s ease-out;
-        }
-
-        .animate-scale-in {
-          animation: scale-in 0.3s ease-out;
-        }
-
-        .animate-shake {
-          animation: shake 0.4s ease-out;
-        }
-
-        .glass-card {
-          background: rgba(15, 23, 42, 0.6);
-          backdrop-filter: blur(20px);
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          border-radius: 24px;
-          padding: 2rem;
-          box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3),
-                      inset 0 1px 0 rgba(255, 255, 255, 0.1);
-        }
-
-        .glass-card-inner {
-          background: rgba(15, 23, 42, 0.4);
-          backdrop-filter: blur(10px);
-          border: 1px solid rgba(255, 255, 255, 0.05);
-          border-radius: 20px;
-          padding: 1.5rem;
-        }
-
-        .status-card {
-          position: relative;
-          background: rgba(15, 23, 42, 0.5);
-          backdrop-filter: blur(16px);
-          border: 1px solid rgba(255, 255, 255, 0.08);
-          border-radius: 16px;
-          padding: 1rem;
-          transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-          animation: fade-in-up 0.6s ease-out backwards;
-          box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
-        }
-
-        .status-card:hover {
-          transform: translateY(-4px);
-          border-color: rgba(249, 115, 22, 0.3);
-          box-shadow: 0 12px 32px rgba(249, 115, 22, 0.2),
-                      inset 0 1px 0 rgba(255, 255, 255, 0.1);
-        }
-
-        .entry-card {
-          background: rgba(15, 23, 42, 0.4);
-          backdrop-filter: blur(12px);
-          border: 1px solid rgba(255, 255, 255, 0.05);
-          border-radius: 14px;
-          padding: 1rem;
-          transition: all 0.3s ease;
-          animation: fade-in-up 0.5s ease-out backwards;
-        }
-
-        .entry-card:hover {
-          border-color: rgba(30, 58, 138, 0.3);
-          background: rgba(15, 23, 42, 0.6);
-        }
-
-        .total-count-card {
-          background: linear-gradient(135deg, rgba(249, 115, 22, 0.1) 0%, rgba(249, 115, 22, 0.15) 100%);
-          backdrop-filter: blur(16px);
-          border: 1px solid rgba(249, 115, 22, 0.2);
-          border-radius: 16px;
-          padding: 1rem 1.5rem;
-          box-shadow: 0 8px 24px rgba(249, 115, 22, 0.15),
-                      inset 0 1px 0 rgba(255, 255, 255, 0.1);
-        }
-
-        .popup-card {
-          position: relative;
-          background: rgba(15, 23, 42, 0.95);
-          backdrop-filter: blur(24px);
-          border: 1px solid rgba(255, 255, 255, 0.15);
-          border-radius: 24px;
-          padding: 2rem;
-          box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5),
-                      inset 0 1px 0 rgba(255, 255, 255, 0.15);
-        }
-
-        .glass-input {
-          background: rgba(15, 23, 42, 0.6);
-          backdrop-filter: blur(12px);
-          border: 1px solid rgba(255, 255, 255, 0.08);
-          border-radius: 12px;
-          padding: 0.5rem 1rem;
-          color: white;
-          transition: all 0.3s ease;
-          box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
-        }
-
-        .glass-input:focus {
-          outline: none;
-          border-color: rgba(249, 115, 22, 0.5);
-          box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.1),
-                      inset 0 2px 4px rgba(0, 0, 0, 0.2);
-          background: rgba(15, 23, 42, 0.8);
-        }
-
-        .glass-button {
-          position: relative;
-          border-radius: 12px;
-          border: none;
-          overflow: hidden;
-          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-
-        .glass-button::before {
-          content: '';
-          position: absolute;
-          inset: 0;
-          border-radius: 12px;
-          padding: 1px;
-          background: linear-gradient(135deg, rgba(255,255,255,0.2), rgba(255,255,255,0.05));
-          -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-          -webkit-mask-composite: xor;
-          mask-composite: exclude;
-        }
-
-        .glass-button:hover {
-          transform: translateY(-2px);
-        }
-
-        .glass-button-secondary {
-          background: rgba(255, 255, 255, 0.05);
-          backdrop-filter: blur(12px);
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          border-radius: 12px;
-          transition: all 0.3s ease;
-        }
-
-        .glass-button-secondary:hover {
-          background: rgba(255, 255, 255, 0.1);
-          border-color: rgba(255, 255, 255, 0.2);
-          transform: translateY(-2px);
-        }
-
-        .menu-button {
-          background: rgba(255, 255, 255, 0.05);
-          backdrop-filter: blur(8px);
-          border: 1px solid rgba(255, 255, 255, 0.08);
-          border-radius: 10px;
-          padding: 0.5rem;
-          color: rgba(255, 255, 255, 0.6);
-          transition: all 0.3s ease;
-        }
-
-        .menu-button:hover {
-          background: rgba(249, 115, 22, 0.2);
-          border-color: rgba(249, 115, 22, 0.4);
-          color: rgb(251, 146, 60);
-          transform: scale(1.1);
-        }
-
-        .table-row {
-          animation: fade-in-up 0.4s ease-out backwards;
-        }
-
-        .table-action-button {
-          padding: 0.375rem 0.75rem;
-          border-radius: 8px;
-          font-size: 0.625rem;
-          font-weight: 600;
-          border: none;
-          transition: all 0.3s ease;
-        }
-
-        .table-action-button:hover {
-          transform: translateY(-2px);
-        }
-
-        .shadow-glow {
-          box-shadow: 0 0 20px rgba(249, 115, 22, 0.5),
-                      0 0 40px rgba(249, 115, 22, 0.3);
-        }
-
-        .shadow-glow-strong {
-          box-shadow: 0 0 30px rgba(249, 115, 22, 0.6),
-                      0 0 60px rgba(249, 115, 22, 0.4);
-        }
-
-        .shadow-glow-blue {
-          box-shadow: 0 4px 20px rgba(30, 58, 138, 0.5);
-        }
-
-        .shadow-glow-red {
-          box-shadow: 0 4px 20px rgba(153, 27, 27, 0.5);
-        }
-
-        .number-input::-webkit-outer-spin-button,
-        .number-input::-webkit-inner-spin-button {
-          -webkit-appearance: none;
-          margin: 0;
-        }
-
-        .number-input {
-          -moz-appearance: textfield;
-        }
-      `}</style>
     </>
   );
 }

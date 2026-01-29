@@ -6,7 +6,9 @@ import jakarta.validation.constraints.NotNull;
 import com.example.callservice.entity.branch.Branch;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @Entity
@@ -35,16 +37,16 @@ public class CallReport {
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
-    @ElementCollection(fetch = FetchType.EAGER)
-    @CollectionTable(name = "call_report_entries", joinColumns = @JoinColumn(name = "report_id"))
-    @MapKeyColumn(name = "status_key")
-    @Column(name = "status_value")
-    private Map<String, Integer> entries = new HashMap<>();
+    @Column(name = "remark", columnDefinition = "TEXT")
+    private String remark;
+
+    @OneToMany(mappedBy = "report", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
+    private List<CallReportEntry> entries = new ArrayList<>();
 
     public CallReport() {
     }
 
-    public CallReport(LocalDate calledAt, Branch branch, String createdBy, Map<String, Integer> entries) {
+    public CallReport(LocalDate calledAt, Branch branch, String createdBy, List<CallReportEntry> entries) {
         this.calledAt = calledAt;
         this.branch = branch;
         this.createdBy = createdBy;
@@ -54,6 +56,54 @@ public class CallReport {
     @PrePersist
     protected void onCreate() {
         this.createdAt = LocalDateTime.now();
+    }
+
+    // Helper method to get entries as Map for backward compatibility
+    public Map<String, Integer> getEntriesAsMap() {
+        Map<String, Integer> map = new HashMap<>();
+        for (CallReportEntry entry : entries) {
+            map.put(entry.getStatusKey(), entry.getStatusValue());
+        }
+        return map;
+    }
+
+    // Helper method to set entries from Map
+    public void setEntriesFromMap(Map<String, Integer> entriesMap, Map<String, String> remarksMap) {
+        // Remove existing entries that are not in the new map
+        this.entries.removeIf(entry -> !entriesMap.containsKey(entry.getStatusKey()));
+
+        // Update existing entries or add new ones
+        for (Map.Entry<String, Integer> entry : entriesMap.entrySet()) {
+            String statusKey = entry.getKey();
+            Integer statusValue = entry.getValue();
+            String remark = remarksMap != null ? remarksMap.get(statusKey) : null;
+
+            // Find existing entry
+            CallReportEntry existingEntry = this.entries.stream()
+                    .filter(e -> e.getStatusKey().equals(statusKey))
+                    .findFirst()
+                    .orElse(null);
+
+            if (existingEntry != null) {
+                // Update existing entry
+                existingEntry.setStatusValue(statusValue);
+                existingEntry.setRemark(remark);
+            } else {
+                // Add new entry
+                this.entries.add(new CallReportEntry(this, statusKey, statusValue, remark));
+            }
+        }
+    }
+
+    // Helper method to get remarks as Map
+    public Map<String, String> getRemarksAsMap() {
+        Map<String, String> map = new HashMap<>();
+        for (CallReportEntry entry : entries) {
+            if (entry.getRemark() != null) {
+                map.put(entry.getStatusKey(), entry.getRemark());
+            }
+        }
+        return map;
     }
 
     public Long getId() {
@@ -104,11 +154,19 @@ public class CallReport {
         this.createdAt = createdAt;
     }
 
-    public Map<String, Integer> getEntries() {
+    public String getRemark() {
+        return remark;
+    }
+
+    public void setRemark(String remark) {
+        this.remark = remark;
+    }
+
+    public List<CallReportEntry> getEntries() {
         return entries;
     }
 
-    public void setEntries(Map<String, Integer> entries) {
+    public void setEntries(List<CallReportEntry> entries) {
         this.entries = entries;
     }
 }

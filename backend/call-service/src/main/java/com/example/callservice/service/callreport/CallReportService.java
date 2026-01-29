@@ -24,6 +24,8 @@ import java.util.stream.Collectors;
 public class CallReportService {
 
     private static final Logger logger = LoggerFactory.getLogger(CallReportService.class);
+    private static final List<Long> NO_FILTER_LONG_SENTINEL = List.of(-1L);
+    private static final List<String> NO_FILTER_STRING_SENTINEL = List.of("__NO_STATUS__");
 
     private final CallReportRepository callReportRepository;
     private final BranchRepository branchRepository;
@@ -43,16 +45,21 @@ public class CallReportService {
                     .orElseThrow(() -> new RuntimeException("Branch not found with id: " + request.getBranchId()));
         }
 
-        CallReport report = new CallReport(
-                request.getCalledAt(),
-                branch,
-                createdBy,
-                new HashMap<>(request.getEntries()));
+        CallReport report = new CallReport();
+        report.setCalledAt(request.getCalledAt());
+        report.setBranch(branch);
+        report.setCreatedBy(createdBy);
 
         // Set arrivedAt if provided
         if (request.getArrivedAt() != null) {
             report.setArrivedAt(request.getArrivedAt());
         }
+
+        // Set entries and remarks
+        report.setEntriesFromMap(request.getEntries(), request.getRemarks());
+
+        // Set record-level remark
+        report.setRemark(request.getRemark());
 
         return callReportRepository.save(report);
     }
@@ -111,7 +118,8 @@ public class CallReportService {
 
         report.setCalledAt(request.getCalledAt());
         report.setArrivedAt(request.getArrivedAt());
-        report.setEntries(new HashMap<>(request.getEntries()));
+        report.setEntriesFromMap(request.getEntries(), request.getRemarks());
+        report.setRemark(request.getRemark());
 
         return callReportRepository.save(report);
     }
@@ -124,60 +132,34 @@ public class CallReportService {
             List<Long> subareaIds,
             List<String> statusKeys) {
 
-        // Use the original query that gets all data
-        List<CallReportSummaryProjection> rows = callReportRepository.summarizeReports();
+        List<Long> safeBranchIds = (branchIds == null || branchIds.isEmpty()) ? null : branchIds;
+        List<Long> safeAreaIds = (areaIds == null || areaIds.isEmpty()) ? null : areaIds;
+        List<Long> safeSubareaIds = (subareaIds == null || subareaIds.isEmpty()) ? null : subareaIds;
+        List<String> safeStatusKeys = (statusKeys == null || statusKeys.isEmpty()) ? null : statusKeys;
 
-        // Apply filters in memory with corrected logic
+        boolean filterByBranch = safeBranchIds != null;
+        boolean filterByArea = safeAreaIds != null;
+        boolean filterBySubarea = safeSubareaIds != null;
+        boolean filterByStatus = safeStatusKeys != null;
+        boolean filterByStartDate = startDate != null;
+        boolean filterByEndDate = endDate != null;
+
+        List<CallReportSummaryProjection> rows = callReportRepository.summarizeReportsWithFilters(
+                startDate,
+                endDate,
+                filterByStartDate,
+                filterByEndDate,
+                filterByBranch,
+                filterByBranch ? safeBranchIds : NO_FILTER_LONG_SENTINEL,
+                filterByArea,
+                filterByArea ? safeAreaIds : NO_FILTER_LONG_SENTINEL,
+                filterBySubarea,
+                filterBySubarea ? safeSubareaIds : NO_FILTER_LONG_SENTINEL,
+                filterByStatus,
+                filterByStatus ? safeStatusKeys : NO_FILTER_STRING_SENTINEL);
+
         Map<String, CallReportSummaryResponse> grouped = new HashMap<>();
         for (CallReportSummaryProjection row : rows) {
-            // Apply date filter
-            if (startDate != null && row.getCalledAt().isBefore(startDate)) {
-                continue;
-            }
-            if (endDate != null && row.getCalledAt().isAfter(endDate)) {
-                continue;
-            }
-
-            // Apply branch filter - FIXED: Check for null and containment properly
-            if (branchIds != null && !branchIds.isEmpty()) {
-                if (row.getBranchId() == null || !branchIds.contains(row.getBranchId())) {
-                    continue;
-                }
-            }
-
-            // Apply area and sub-area filters by checking branch information
-            if (areaIds != null && !areaIds.isEmpty() || subareaIds != null && !subareaIds.isEmpty()) {
-                // Get branch information from database to check area/sub-area
-                if (row.getBranchId() != null) {
-                    Long branchAreaId = getBranchAreaId(row.getBranchId());
-                    Long branchSubareaId = getBranchSubareaId(row.getBranchId());
-
-                    // Apply area filter
-                    if (areaIds != null && !areaIds.isEmpty()) {
-                        if (branchAreaId == null || !areaIds.contains(branchAreaId)) {
-                            continue;
-                        }
-                    }
-
-                    // Apply sub-area filter
-                    if (subareaIds != null && !subareaIds.isEmpty()) {
-                        if (branchSubareaId == null || !subareaIds.contains(branchSubareaId)) {
-                            continue;
-                        }
-                    }
-                } else {
-                    // If no branch ID and area/sub-area filters are applied, skip
-                    continue;
-                }
-            }
-
-            // Apply status filter
-            if (statusKeys != null && !statusKeys.isEmpty()) {
-                if (!statusKeys.contains(row.getStatusKey())) {
-                    continue;
-                }
-            }
-
             String key = row.getCalledAt() + "|" + row.getBranchId();
             CallReportSummaryResponse summary = grouped.computeIfAbsent(key, ignored -> new CallReportSummaryResponse(
                     row.getCalledAt(),
@@ -189,22 +171,6 @@ public class CallReportService {
         }
 
         return new ArrayList<>(grouped.values());
-    }
-
-    private Long getBranchAreaId(Long branchId) {
-        try {
-            return branchRepository.findAreaIdById(branchId);
-        } catch (Exception e) {
-            return null;
-        }
-    }
-
-    private Long getBranchSubareaId(Long branchId) {
-        try {
-            return branchRepository.findSubareaIdById(branchId);
-        } catch (Exception e) {
-            return null;
-        }
     }
 
 }

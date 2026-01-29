@@ -17,6 +17,10 @@ public class CallReportRequest {
     @Size(min = 1)
     private Map<String, Integer> entries;
 
+    private Map<String, String> remarks;
+
+    private String remark;
+
     public Long getBranchId() {
         return branchId;
     }
@@ -47,5 +51,21 @@ public class CallReportRequest {
 
     public void setEntries(Map<String, Integer> entries) {
         this.entries = entries;
+    }
+
+    public Map<String, String> getRemarks() {
+        return remarks;
+    }
+
+    public void setRemarks(Map<String, String> remarks) {
+        this.remarks = remarks;
+    }
+
+    public String getRemark() {
+        return remark;
+    }
+
+    public void setRemark(String remark) {
+        this.remark = remark;
     }
 }
