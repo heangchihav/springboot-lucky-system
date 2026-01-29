@@ -11,6 +11,7 @@ public class CallReportSummaryResponse {
     private Long branchId;
     private String branchName;
     private Map<String, Long> statusTotals = new HashMap<>();
+    private boolean sameDayArrival;
 
     public CallReportSummaryResponse() {
     }
@@ -62,5 +63,13 @@ public class CallReportSummaryResponse {
 
     public void setStatusTotals(Map<String, Long> statusTotals) {
         this.statusTotals = statusTotals;
+    }
+
+    public boolean isSameDayArrival() {
+        return sameDayArrival;
+    }
+
+    public void setSameDayArrival(boolean sameDayArrival) {
+        this.sameDayArrival = sameDayArrival;
     }
 }

@@ -160,7 +160,8 @@ public class CallReportService {
 
         Map<String, CallReportSummaryResponse> grouped = new HashMap<>();
         for (CallReportSummaryProjection row : rows) {
-            String key = row.getCalledAt() + "|" + row.getBranchId();
+            String arrivedKey = row.getArrivedAt() == null ? "null" : row.getArrivedAt().toString();
+            String key = row.getCalledAt() + "|" + arrivedKey + "|" + row.getBranchId();
             CallReportSummaryResponse summary = grouped.computeIfAbsent(key, ignored -> new CallReportSummaryResponse(
                     row.getCalledAt(),
                     row.getArrivedAt(),

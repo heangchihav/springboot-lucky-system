@@ -403,6 +403,18 @@ function CallDashboard() {
     return Array.from(keys);
   }, [summaryData]);
 
+  const statusDisplayOrder = useMemo(() => {
+    const ordered = statusOptions.map((status) => status.key);
+    const seen = new Set(ordered);
+    statusKeysInData.forEach((key) => {
+      if (!seen.has(key)) {
+        ordered.push(key);
+        seen.add(key);
+      }
+    });
+    return ordered;
+  }, [statusOptions, statusKeysInData]);
+
   const chartStatusKeys = useMemo(() => {
     if (chartViewMode === "total") {
       return ["total"];
@@ -695,6 +707,38 @@ function CallDashboard() {
       })),
     [getStatusLabel, totalsByStatus],
   );
+
+  const detailRows = useMemo(() => {
+    return filteredSummaryData
+      .map((summary, index) => {
+        const total = Object.values(summary.statusTotals).reduce(
+          (sum, value) => sum + value,
+          0,
+        );
+        return {
+          id: `${summary.calledAt}-${summary.branchId ?? summary.branchName}-${index}`,
+          calledAt: summary.calledAt,
+          arrivedAt: summary.arrivedAt ?? null,
+          branchName: summary.branchName || "Unassigned",
+          statusTotals: summary.statusTotals,
+          total,
+        };
+      })
+      .sort((a, b) => b.calledAt.localeCompare(a.calledAt));
+  }, [filteredSummaryData]);
+
+  const detailAggregates = useMemo(() => {
+    const statusTotals: Record<string, number> = {};
+    let grand = 0;
+    detailRows.forEach((row) => {
+      grand += row.total;
+      statusDisplayOrder.forEach((key) => {
+        const value = row.statusTotals[key] ?? 0;
+        statusTotals[key] = (statusTotals[key] ?? 0) + value;
+      });
+    });
+    return { statusTotals, grand };
+  }, [detailRows, statusDisplayOrder]);
 
   const renderStatusPieLabel = useCallback(
     (
@@ -1500,6 +1544,87 @@ function CallDashboard() {
 
 
             </div>
+          </section>
+
+          <section className="rounded-2xl border border-white/5 bg-slate-950/70 p-6 space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-white">Detailed call records</p>
+                <p className="text-xs text-slate-400">
+                  Showing per-branch status totals for each report day. Filters above apply here as well.
+                </p>
+              </div>
+              <div className="text-right">
+                <p className="text-[11px] uppercase tracking-[0.35em] text-slate-500">Total Calls</p>
+                <p className="text-2xl font-semibold text-white">{formatNumber(detailAggregates.grand)}</p>
+              </div>
+            </div>
+
+            {summaryLoading ? (
+              <div className="rounded-xl border border-white/5 bg-white/5 p-4 text-center text-sm text-slate-400">
+                Loading detailed rows…
+              </div>
+            ) : detailRows.length === 0 ? (
+              <div className="rounded-xl border border-white/5 bg-white/5 p-6 text-center text-slate-300">
+                No detailed call reports for the current filters.
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <div className="min-w-[900px]">
+                  <table className="min-w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-white/10 text-left text-[11px] uppercase tracking-[0.25em] text-slate-400">
+                        <th className="px-3 py-3">Called At</th>
+                        <th className="px-3 py-3">Arrived At</th>
+                        <th className="px-3 py-3">Branch</th>
+                        {statusDisplayOrder.map((statusKey) => (
+                          <th key={`header-${statusKey}`} className="px-3 py-3">
+                            {getStatusLabel(statusKey)}
+                          </th>
+                        ))}
+                        <th className="px-3 py-3">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/5">
+                      {detailRows.map((row) => (
+                        <tr key={row.id} className="hover:bg-white/5 transition">
+                          <td className="px-3 py-3 text-white font-semibold">
+                            {row.calledAt}
+                          </td>
+                          <td className="px-3 py-3 text-slate-300">
+                            {row.arrivedAt ?? "—"}
+                          </td>
+                          <td className="px-3 py-3 text-slate-200">
+                            {row.branchName}
+                          </td>
+                          {statusDisplayOrder.map((statusKey) => (
+                            <td key={`${row.id}-${statusKey}`} className="px-3 py-3 text-right text-white/80">
+                              {formatNumber(row.statusTotals[statusKey] ?? 0)}
+                            </td>
+                          ))}
+                          <td className="px-3 py-3 text-right font-semibold text-white">
+                            {formatNumber(row.total)}
+                          </td>
+                        </tr>
+                      ))}
+                      <tr className="bg-white/5 font-semibold text-white">
+                        <td className="px-3 py-3" colSpan={3}>
+                          Grand Total
+                        </td>
+                        {statusDisplayOrder.map((statusKey) => (
+                          <td key={`agg-${statusKey}`} className="px-3 py-3 text-right">
+                            {formatNumber(detailAggregates.statusTotals[statusKey] ?? 0)}
+                          </td>
+                        ))}
+                        <td className="px-3 py-3 text-right">
+                          {formatNumber(detailAggregates.grand)}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
           </section>
 
           {summaryLoading && (
