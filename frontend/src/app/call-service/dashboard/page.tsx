@@ -643,7 +643,7 @@ function CallDashboard() {
 
   const branchSeries = useMemo(() => {
     const map = new Map<string, { branch: string; total: number }>();
-    summaryData.forEach((summary) => {
+    filteredSummaryData.forEach((summary) => {
       const branchName = summary.branchName || "Unassigned";
       const total = Object.values(summary.statusTotals).reduce(
         (sum, value) => sum + value,
@@ -654,11 +654,11 @@ function CallDashboard() {
       map.set(branchName, entry);
     });
     return Array.from(map.values()).sort((a, b) => b.total - a.total);
-  }, [summaryData]);
+  }, [filteredSummaryData]);
 
   const branchStatusSeries = useMemo(() => {
     const map = new Map<string, Record<string, string | number>>();
-    summaryData.forEach((summary) => {
+    filteredSummaryData.forEach((summary) => {
       const branchName = summary.branchName || "Unassigned";
       const entry = map.get(branchName) ?? {
         branch: branchName,
@@ -684,7 +684,7 @@ function CallDashboard() {
         (typeof b.total === "number" ? (b.total as number) : 0) -
         (typeof a.total === "number" ? (a.total as number) : 0),
     );
-  }, [summaryData]);
+  }, [filteredSummaryData]);
 
   const statusDistribution = useMemo(
     () =>

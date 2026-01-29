@@ -273,16 +273,6 @@ export const ReportViewModal = ({ report, onClose }: ReportViewModalProps) => {
 
                 {/* Content */}
                 <div className="p-6 space-y-6">
-                    {/* Report Info */}
-                    <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <label className="block font-medium text-black">
-                                កាលបរិច្ឆេទរបាយការណ៍  {formatDate(report.reportDate)}
-                            </label>
-
-                        </div>
-                    </div>
-
                     {/* Daily Plan Section */}
                     <div className="p-7">
                         <div className="space-y-3">
