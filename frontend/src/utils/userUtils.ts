@@ -1,4 +1,4 @@
-import { API_BASE_URL } from "@/config/env";
+import { apiFetch } from "@/services/httpClient";
 
 /**
  * User utility functions for managing user ID and authentication
@@ -14,9 +14,7 @@ export const getStoredUserId = (): number | null => {
 
 export const fetchAndCacheUserId = async (): Promise<number | null> => {
     try {
-        const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
-            credentials: "include",
-        });
+        const response = await apiFetch("/api/auth/me", { method: "GET" });
 
         if (!response.ok) {
             return null;

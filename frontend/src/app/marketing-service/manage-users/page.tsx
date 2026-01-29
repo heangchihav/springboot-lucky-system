@@ -9,7 +9,7 @@ import { marketingUserService } from "@/services/marketing-service/marketingUser
 import { marketingUserAssignmentService, MarketingUserAssignment, AssignUserRequest } from "@/services/marketingUserAssignmentService";
 import { marketingHierarchyService, MarketingArea, MarketingSubArea, MarketingBranch } from "@/services/marketing-service/marketingHierarchyService";
 import { MultiSelectHierarchyDropdown, toggleSelection } from "@/components/marketing-service/HierarchyDropdown";
-import { API_BASE_URL } from "@/config/env";
+import { apiFetch } from "@/services/httpClient";
 
 const getStoredUserId = (): number | null => {
   if (typeof window === "undefined") {
@@ -31,9 +31,7 @@ const getStoredUserId = (): number | null => {
 
 const fetchAndCacheUserId = async (): Promise<number | null> => {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
-      credentials: "include",
-    });
+    const response = await apiFetch("/api/auth/me", { method: "GET" });
 
     if (!response.ok) {
       return null;

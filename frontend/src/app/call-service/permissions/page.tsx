@@ -25,7 +25,7 @@ import {
   ChevronDown,
   ChevronRight,
 } from "lucide-react";
-import { API_BASE_URL } from "@/config/env";
+import { apiFetch } from "@/services/httpClient";
 
 const getStoredUserId = (): number | null => {
   if (typeof window === "undefined") {
@@ -47,9 +47,7 @@ const getStoredUserId = (): number | null => {
 
 const fetchAndCacheUserId = async (): Promise<number | null> => {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
-      credentials: "include",
-    });
+    const response = await apiFetch("/api/auth/me", { method: "GET" });
 
     if (!response.ok) {
       return null;
@@ -113,11 +111,8 @@ export default function PermissionsPage() {
       }
       setCurrentUserId(resolvedUserId);
 
-      const response = await fetch(
-        `${API_BASE_URL}/api/calls/permissions/user/${resolvedUserId}`,
-        {
-          credentials: "include",
-        },
+      const response = await apiFetch(
+        `/api/calls/permissions/user/${resolvedUserId}`,
       );
 
       if (!response.ok) {

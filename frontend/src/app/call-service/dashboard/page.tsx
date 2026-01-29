@@ -24,7 +24,7 @@ import {
   YAxis,
 } from "recharts";
 import type { PieLabelRenderProps } from "recharts";
-import { API_BASE_URL } from "@/config/env";
+import { apiFetch } from "@/services/httpClient";
 import { areaBranchService, type Area as AreaType, type Subarea, type Branch } from "@/services/areaBranchService";
 
 const STATUS_COLORS = [
@@ -146,9 +146,7 @@ const getStoredUserId = (): number | null => {
 
 const fetchAndCacheUserId = async (): Promise<number | null> => {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
-      credentials: "include",
-    });
+    const response = await apiFetch("/api/auth/me", { method: "GET" });
 
     if (!response.ok) {
       return null;
@@ -251,9 +249,8 @@ function CallDashboard() {
   const loadStatuses = useCallback(async () => {
     setStatusesLoading(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/api/calls/statuses`, {
+      const response = await apiFetch("/api/calls/statuses", {
         headers: buildAuthHeaders(),
-        credentials: "include",
       });
       if (!response.ok) {
         throw new Error("Unable to load statuses");
@@ -295,9 +292,8 @@ function CallDashboard() {
   }, []);
 
   const loadFallbackBranches = useCallback(async () => {
-    const response = await fetch(`${API_BASE_URL}/api/calls/branches/active`, {
+    const response = await apiFetch("/api/calls/branches/active", {
       headers: buildAuthHeaders(),
-      credentials: "include",
     });
 
     if (!response.ok) {
@@ -346,11 +342,10 @@ function CallDashboard() {
       selectedStatusKeys.forEach((key) => params.append("statusKeys", key));
 
       const query = params.toString();
-      const response = await fetch(
-        `${API_BASE_URL}/api/calls/reports/summary${query ? `?${query}` : ""}`,
+      const response = await apiFetch(
+        `/api/calls/reports/summary${query ? `?${query}` : ""}`,
         {
           headers: buildAuthHeaders(),
-          credentials: "include",
         },
       );
 

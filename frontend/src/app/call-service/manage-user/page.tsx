@@ -7,7 +7,7 @@ import { callUserService } from "@/services/call-service/callUserService";
 import { areaBranchService, Area, Subarea, Branch } from "@/services/areaBranchService";
 import { PermissionGuard } from "@/components/layout/PermissionGuard";
 import { CallMultiSelectHierarchyDropdown } from "@/components/call-service/CallHierarchyDropdown";
-import { API_BASE_URL } from "@/config/env";
+import { apiFetch } from "@/services/httpClient";
 
 const getStoredUserId = (): number | null => {
     if (typeof window === "undefined") {
@@ -29,9 +29,7 @@ const getStoredUserId = (): number | null => {
 
 const fetchAndCacheUserId = async (): Promise<number | null> => {
     try {
-        const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
-            credentials: "include",
-        });
+        const response = await apiFetch("/api/auth/me", { method: "GET" });
 
         if (!response.ok) {
             return null;

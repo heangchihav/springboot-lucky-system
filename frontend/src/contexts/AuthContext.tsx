@@ -7,6 +7,7 @@ import React, {
   useState,
   ReactNode,
 } from "react";
+import { useRouter } from "next/navigation";
 import {
   apiService,
   UserInfo,
@@ -16,6 +17,7 @@ import {
   UserServiceEntity,
 } from "@/services/api";
 import { API_BASE_URL } from "@/config/env";
+import { apiFetch, registerUnauthorizedHandler, unregisterUnauthorizedHandler } from "@/services/httpClient";
 
 interface AuthContextType {
   user: UserInfo | null;
@@ -54,6 +56,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [permissionCache, setPermissionCache] = useState<
     Record<string, boolean>
   >({});
+  const router = useRouter();
 
   const clearError = () => setError(null);
 
@@ -252,11 +255,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
     const serviceEndpoint = serviceMap[serviceContext || ""] || "calls";
 
     try {
-      const response = await fetch(
-        `${API_BASE_URL}/api/${serviceEndpoint}/permissions/user/${user.id}/check/${encodeURIComponent(permissionCode)}`,
-        {
-          credentials: "include",
-        },
+      const response = await apiFetch(
+        `/api/${serviceEndpoint}/permissions/user/${user.id}/check/${encodeURIComponent(permissionCode)}`,
       );
 
       if (!response.ok) {
@@ -282,6 +282,17 @@ export function AuthProvider({ children }: AuthProviderProps) {
     // Clear cached permission results whenever the authenticated user changes
     setPermissionCache({});
   }, [user?.id]);
+
+  useEffect(() => {
+    const handler = () => {
+      setUser(null);
+      setIsLoading(false);
+      router.replace("/auth/login");
+    };
+
+    registerUnauthorizedHandler(handler);
+    return () => unregisterUnauthorizedHandler(handler);
+  }, [router]);
 
   useEffect(() => {
     const initializeAuth = async () => {

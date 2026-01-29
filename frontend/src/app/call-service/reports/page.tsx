@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { API_BASE_URL } from "@/config/env";
+import { apiFetch } from "@/services/httpClient";
 
 type CallReportSummaryResponse = {
   calledAt: string;
@@ -125,12 +125,7 @@ export default function CallReports() {
         const params = new URLSearchParams();
         params.append("startDate", defaultStartDate());
         params.append("endDate", defaultEndDate());
-        const response = await fetch(`${API_BASE_URL}/api/calls/reports/summary?${params.toString()}`, {
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-          },
-        });
+        const response = await apiFetch(`/api/calls/reports/summary?${params.toString()}`);
         if (!response.ok) {
           throw new Error("Unable to load reports");
         }
@@ -151,12 +146,7 @@ export default function CallReports() {
     const fetchStatuses = async () => {
       setStatusesError(null);
       try {
-        const response = await fetch(`${API_BASE_URL}/api/calls/statuses`, {
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-          },
-        });
+        const response = await apiFetch("/api/calls/statuses");
         if (!response.ok) {
           throw new Error("Unable to load statuses");
         }

@@ -1,4 +1,4 @@
-import { API_BASE_URL } from "@/config/env";
+import { apiFetch } from "@/services/httpClient";
 
 export interface CallUser {
     id: number;
@@ -21,9 +21,8 @@ class CallUserService {
 
     async getCallUsers(): Promise<CallUser[]> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/calls/users`, {
+            const response = await apiFetch("/api/calls/users", {
                 headers: this.getAuthHeaders(),
-                credentials: "include",
             });
 
             if (!response.ok) {
@@ -45,10 +44,9 @@ class CallUserService {
 
     async toggleUserStatus(userId: number): Promise<CallUser> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/calls/users/${userId}/toggle-status`, {
+            const response = await apiFetch(`/api/calls/users/${userId}/toggle-status`, {
                 method: "PATCH",
                 headers: this.getAuthHeaders(),
-                credentials: "include",
             });
 
             if (!response.ok) {
@@ -73,12 +71,10 @@ class CallUserService {
             console.log("=== Call Service Update User Debug ===");
             console.log("Updating user ID:", id);
             console.log("User data being sent:", userData);
-            console.log("Request URL:", `${API_BASE_URL}/api/calls/users/${id}`);
 
-            const response = await fetch(`${API_BASE_URL}/api/calls/users/${id}`, {
+            const response = await apiFetch(`/api/calls/users/${id}`, {
                 method: "PUT",
                 headers: this.getAuthHeaders(),
-                credentials: "include",
                 body: JSON.stringify(userData),
             });
 

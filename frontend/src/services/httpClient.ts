@@ -10,9 +10,20 @@ type RefreshHandler = () => Promise<unknown>;
 
 let refreshTokenHandler: RefreshHandler | null = null;
 let refreshPromise: Promise<void> | null = null;
+let unauthorizedHandler: (() => void) | null = null;
 
 export function configureHttpClient(handler: RefreshHandler) {
   refreshTokenHandler = handler;
+}
+
+export function registerUnauthorizedHandler(handler: () => void) {
+  unauthorizedHandler = handler;
+}
+
+export function unregisterUnauthorizedHandler(handler?: () => void) {
+  if (!handler || unauthorizedHandler === handler) {
+    unauthorizedHandler = null;
+  }
 }
 
 async function ensureRefreshed(): Promise<void> {
@@ -49,6 +60,10 @@ export async function fetchWithAuth(
       response = await fetch(input, finalInit);
     } catch {
       // If refresh throws, fall through so callers can handle the 401
+    }
+
+    if (response.status === 401) {
+      unauthorizedHandler?.();
     }
   }
 
