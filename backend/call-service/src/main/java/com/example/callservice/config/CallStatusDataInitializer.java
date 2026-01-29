@@ -36,7 +36,7 @@ public class CallStatusDataInitializer implements CommandLineRunner {
                 new CallStatus("called", "តេរួច", "system"),
                 new CallStatus("no-answer", "តេមិនលើក", "system"),
                 new CallStatus("call-not-connected", "តេមិនចូល", "system"),
-                new CallStatus("delivered-to-customer", "ដឹកដល់ផ្អះ", "system")
+                new CallStatus("delivered-to-customer", "ដឹកដល់ផ្ទះ", "system")
         );
 
         logger.info("Processing {} default call statuses", defaultStatuses.size());

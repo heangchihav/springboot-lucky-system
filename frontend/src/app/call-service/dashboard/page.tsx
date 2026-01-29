@@ -47,7 +47,7 @@ const DEFAULT_STATUS_LABELS: Record<string, string> = {
   called: "តេរួច",
   "no-answer": "តេមិនលើក",
   "call-not-connected": "តេមិនចូល",
-  "delivered-to-customer": "ដឹកដល់ផ្អះ",
+  "delivered-to-customer": "ដឹកដល់ផ្ទះ",
 };
 
 type ChartGranularity = "daily" | "weekly" | "monthly";
