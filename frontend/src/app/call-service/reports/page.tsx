@@ -415,7 +415,7 @@ export default function CallReports() {
       )}
 
       {isClient && selectedReport && createPortal(
-        <div className="fixed inset-0 z-[1000]">
+        <div className="fixed inset-0 z-1000">
           <div
             className="absolute inset-0 bg-black/75 backdrop-blur-sm"
             onClick={() => setSelectedReport(null)}

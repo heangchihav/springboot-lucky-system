@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   areaBranchService,
@@ -61,6 +62,9 @@ export default function AreaBranchManagement() {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [isClient, setIsClient] = useState(false);
+
+  const isModalOpen = showAreaForm || showSubareaForm || showBranchForm;
 
   // Fetch areas
   const fetchAreas = async () => {
@@ -100,6 +104,19 @@ export default function AreaBranchManagement() {
       fetchBranches();
     }
   }, [isAuthenticated, hasServiceAccess]);
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
+
+  useEffect(() => {
+    if (!isModalOpen) return;
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = originalOverflow;
+    };
+  }, [isModalOpen]);
 
   // Check if user has access to call service
   if (!isAuthenticated || !user) {
@@ -457,85 +474,101 @@ export default function AreaBranchManagement() {
             </PermissionGuard>
           </div>
 
-          {showAreaForm && (
-            <div className="mb-6 p-6 bg-slate-800 rounded-lg border border-slate-700">
-              <h3 className="text-lg font-medium text-white mb-4">
-                {editingArea ? "Edit Area" : "Add New Area"}
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-1">
-                    Name *
-                  </label>
-                  <input
-                    type="text"
-                    value={areaForm.name || ""}
-                    onChange={(e) =>
-                      setAreaForm({ ...areaForm, name: e.target.value })
-                    }
-                    className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-1">
-                    Code
-                  </label>
-                  <input
-                    type="text"
-                    value={areaForm.code || ""}
-                    onChange={(e) =>
-                      setAreaForm({ ...areaForm, code: e.target.value })
-                    }
-                    className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-slate-300 mb-1">
-                    Description
-                  </label>
-                  <textarea
-                    value={areaForm.description || ""}
-                    onChange={(e) =>
-                      setAreaForm({ ...areaForm, description: e.target.value })
-                    }
-                    className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    rows={3}
-                  />
-                </div>
-                <div>
-                  <label className="flex items-center">
-                    <input
-                      type="checkbox"
-                      checked={areaForm.active || false}
-                      onChange={(e) =>
-                        setAreaForm({ ...areaForm, active: e.target.checked })
-                      }
-                      className="mr-2 rounded border-slate-600 bg-slate-700 text-blue-600 focus:ring-blue-500 focus:ring-offset-0"
-                    />
-                    <span className="text-sm font-medium text-slate-300">
-                      Active
-                    </span>
-                  </label>
-                </div>
-              </div>
-              <div className="mt-4 flex justify-end space-x-2">
-                <button
+          {showAreaForm &&
+            isClient &&
+            createPortal(
+              <div className="fixed inset-0 z-1000">
+                <div
+                  className="absolute inset-0 bg-black/70 backdrop-blur-sm"
                   onClick={resetAreaForm}
-                  className="px-4 py-2 border border-slate-600 rounded-md text-slate-300 hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-500"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={saveArea}
-                  disabled={loading || !areaForm.name}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-slate-900 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {loading ? "Saving..." : editingArea ? "Update" : "Save"}
-                </button>
-              </div>
-            </div>
-          )}
+                />
+                <div className="relative z-10 flex min-h-full items-start justify-center p-4 pt-16">
+                  <div className="w-full max-w-3xl rounded-3xl border border-white/10 bg-slate-950/95 p-6 shadow-[0_20px_80px_rgba(0,0,0,0.65)] animate-slide-down">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <p className="text-[11px] uppercase tracking-[0.35em] text-cyan-300">
+                          Area Management
+                        </p>
+                        <h3 className="mt-2 text-2xl font-semibold text-white">
+                          {editingArea ? "Edit Area" : "Add New Area"}
+                        </h3>
+                      </div>
+                      <button
+                        onClick={resetAreaForm}
+                        className="text-white/60 transition hover:text-white text-2xl leading-none"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                    <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-slate-300 mb-1">
+                          Name *
+                        </label>
+                        <input
+                          type="text"
+                          value={areaForm.name || ""}
+                          onChange={(e) => setAreaForm({ ...areaForm, name: e.target.value })}
+                          className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-slate-300 mb-1">
+                          Code
+                        </label>
+                        <input
+                          type="text"
+                          value={areaForm.code || ""}
+                          onChange={(e) => setAreaForm({ ...areaForm, code: e.target.value })}
+                          className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                        />
+                      </div>
+                      <div className="md:col-span-2">
+                        <label className="block text-sm font-medium text-slate-300 mb-1">
+                          Description
+                        </label>
+                        <textarea
+                          value={areaForm.description || ""}
+                          onChange={(e) => setAreaForm({ ...areaForm, description: e.target.value })}
+                          className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                          rows={3}
+                        />
+                      </div>
+                      <div>
+                        <label className="flex items-center">
+                          <input
+                            type="checkbox"
+                            checked={areaForm.active || false}
+                            onChange={(e) => setAreaForm({ ...areaForm, active: e.target.checked })}
+                            className="mr-2 rounded border-slate-600 bg-slate-800 text-cyan-500 focus:ring-cyan-500"
+                          />
+                          <span className="text-sm font-medium text-slate-300">
+                            Active
+                          </span>
+                        </label>
+                      </div>
+                    </div>
+                    <div className="mt-8 flex justify-end gap-3">
+                      <button
+                        onClick={resetAreaForm}
+                        className="px-4 py-2 rounded-xl border border-white/10 text-slate-200 hover:bg-white/5"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={saveArea}
+                        disabled={loading || !areaForm.name}
+                        className="px-5 py-2 rounded-xl bg-cyan-500 text-slate-950 font-semibold hover:bg-cyan-400 disabled:opacity-50"
+                      >
+                        {loading ? "Saving..." : editingArea ? "Update" : "Save"}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>,
+              document.body
+            )}
 
           <div className="bg-slate-800 shadow overflow-hidden rounded-lg border border-slate-700">
             <table className="min-w-full divide-y divide-slate-700">
@@ -676,109 +709,125 @@ export default function AreaBranchManagement() {
           </div>
 
           {/* Subarea Form Modal */}
-          {showSubareaForm && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-              <div className="bg-slate-800 rounded-lg p-6 w-full max-w-md">
-                <h3 className="text-lg font-semibold text-white mb-4">
-                  {editingSubarea ? "Edit Subarea" : "Add Subarea"}
-                </h3>
-
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-slate-300 mb-1">
-                      Area *
-                    </label>
-                    <select
-                      value={subareaForm.areaId || ""}
-                      onChange={(e) => {
-                        const selectedArea = areas.find(a => a.id === Number(e.target.value));
-                        setSubareaForm({
-                          ...subareaForm,
-                          areaId: Number(e.target.value),
-                          areaName: selectedArea?.name || ""
-                        });
-                      }}
-                      className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      required
-                    >
-                      <option value="">Select Area</option>
-                      {areas.map((area) => (
-                        <option key={area.id} value={area.id}>
-                          {area.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-slate-300 mb-1">
-                      Name *
-                    </label>
-                    <input
-                      type="text"
-                      value={subareaForm.name || ""}
-                      onChange={(e) => setSubareaForm({ ...subareaForm, name: e.target.value })}
-                      className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-slate-300 mb-1">
-                      Code
-                    </label>
-                    <input
-                      type="text"
-                      value={subareaForm.code || ""}
-                      onChange={(e) => setSubareaForm({ ...subareaForm, code: e.target.value })}
-                      className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-slate-300 mb-1">
-                      Description
-                    </label>
-                    <textarea
-                      value={subareaForm.description || ""}
-                      onChange={(e) => setSubareaForm({ ...subareaForm, description: e.target.value })}
-                      className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      rows={3}
-                    />
-                  </div>
-
-                  <div className="flex items-center">
-                    <input
-                      type="checkbox"
-                      id="subarea-active"
-                      checked={subareaForm.active ?? true}
-                      onChange={(e) => setSubareaForm({ ...subareaForm, active: e.target.checked })}
-                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-slate-600 rounded bg-slate-700"
-                    />
-                    <label htmlFor="subarea-active" className="ml-2 block text-sm text-slate-300">
-                      Active
-                    </label>
+          {showSubareaForm &&
+            isClient &&
+            createPortal(
+              <div className="fixed inset-0 z-[1000]">
+                <div
+                  className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+                  onClick={resetSubareaForm}
+                />
+                <div className="relative z-10 flex min-h-full items-start justify-center p-4 pt-16">
+                  <div className="w-full max-w-3xl rounded-3xl border border-white/10 bg-slate-950/95 p-6 shadow-[0_20px_80px_rgba(0,0,0,0.65)] animate-slide-down">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <p className="text-[11px] uppercase tracking-[0.35em] text-cyan-300">
+                          Subarea Management
+                        </p>
+                        <h3 className="mt-2 text-2xl font-semibold text-white">
+                          {editingSubarea ? "Edit Subarea" : "Add Subarea"}
+                        </h3>
+                      </div>
+                      <button
+                        onClick={resetSubareaForm}
+                        className="text-white/60 transition hover:text-white text-2xl leading-none"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                    <div className="mt-6 space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium text-slate-300 mb-1">
+                          Area *
+                        </label>
+                        <select
+                          value={subareaForm.areaId || ""}
+                          onChange={(e) => {
+                            const selectedArea = areas.find((a) => a.id === Number(e.target.value));
+                            setSubareaForm({
+                              ...subareaForm,
+                              areaId: Number(e.target.value),
+                              areaName: selectedArea?.name || "",
+                            });
+                          }}
+                          className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                          required
+                        >
+                          <option value="">Select Area</option>
+                          {areas.map((area) => (
+                            <option key={area.id} value={area.id}>
+                              {area.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-slate-300 mb-1">
+                          Name *
+                        </label>
+                        <input
+                          type="text"
+                          value={subareaForm.name || ""}
+                          onChange={(e) => setSubareaForm({ ...subareaForm, name: e.target.value })}
+                          className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-slate-300 mb-1">
+                          Code
+                        </label>
+                        <input
+                          type="text"
+                          value={subareaForm.code || ""}
+                          onChange={(e) => setSubareaForm({ ...subareaForm, code: e.target.value })}
+                          className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-slate-300 mb-1">
+                          Description
+                        </label>
+                        <textarea
+                          value={subareaForm.description || ""}
+                          onChange={(e) => setSubareaForm({ ...subareaForm, description: e.target.value })}
+                          className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                          rows={3}
+                        />
+                      </div>
+                      <div className="flex items-center">
+                        <input
+                          type="checkbox"
+                          id="subarea-active"
+                          checked={subareaForm.active ?? true}
+                          onChange={(e) => setSubareaForm({ ...subareaForm, active: e.target.checked })}
+                          className="h-4 w-4 text-cyan-500 focus:ring-cyan-500 border-slate-600 rounded bg-slate-800"
+                        />
+                        <label htmlFor="subarea-active" className="ml-2 block text-sm text-slate-300">
+                          Active
+                        </label>
+                      </div>
+                    </div>
+                    <div className="flex justify-end gap-3 mt-8">
+                      <button
+                        onClick={resetSubareaForm}
+                        className="px-4 py-2 rounded-xl border border-white/10 text-slate-200 hover:bg-white/5"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={saveSubarea}
+                        disabled={loading}
+                        className="px-5 py-2 rounded-xl bg-cyan-500 text-slate-950 font-semibold hover:bg-cyan-400 disabled:opacity-50"
+                      >
+                        {loading ? "Saving..." : editingSubarea ? "Update" : "Create"}
+                      </button>
+                    </div>
                   </div>
                 </div>
-
-                <div className="flex justify-end space-x-3 mt-6">
-                  <button
-                    onClick={resetSubareaForm}
-                    className="px-4 py-2 bg-slate-600 text-white rounded-md hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-500"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={saveSubarea}
-                    disabled={loading}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
-                  >
-                    {loading ? "Saving..." : editingSubarea ? "Update" : "Create"}
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
+              </div>,
+              document.body
+            )}
 
           {/* Subareas Table */}
           <div className="bg-slate-800 shadow overflow-hidden sm:rounded-md">
@@ -904,167 +953,173 @@ export default function AreaBranchManagement() {
             </PermissionGuard>
           </div>
 
-          {showBranchForm && (
-            <div className="mb-6 p-6 bg-slate-800 rounded-lg border border-slate-700">
-              <h3 className="text-lg font-medium text-white mb-4">
-                {editingBranch ? "Edit Branch" : "Add New Branch"}
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-1">
-                    Name *
-                  </label>
-                  <input
-                    type="text"
-                    value={branchForm.name || ""}
-                    onChange={(e) =>
-                      setBranchForm({ ...branchForm, name: e.target.value })
-                    }
-                    className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-1">
-                    Code
-                  </label>
-                  <input
-                    type="text"
-                    value={branchForm.code || ""}
-                    onChange={(e) =>
-                      setBranchForm({ ...branchForm, code: e.target.value })
-                    }
-                    className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-1">
-                    Subarea *
-                  </label>
-                  <select
-                    value={branchForm.subareaId ?? ""}
-                    onChange={(e) => {
-                      const selectedSubarea = subareas.find(
-                        (s) => s.id === Number(e.target.value),
-                      );
-                      setBranchForm({
-                        ...branchForm,
-                        subareaId: selectedSubarea?.id,
-                        subareaName: selectedSubarea?.name,
-                        areaId: selectedSubarea?.areaId,
-                        areaName: selectedSubarea?.areaName,
-                      });
-                    }}
-                    className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    required
-                  >
-                    <option value="" className="bg-slate-700">
-                      Select Subarea
-                    </option>
-                    {subareas
-                      .filter((subarea) => subarea.active)
-                      .map((subarea) => (
-                        <option
-                          key={subarea.id}
-                          value={subarea.id}
-                          className="bg-slate-700"
-                        >
-                          {subarea.name} ({subarea.areaName})
-                        </option>
-                      ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-1">
-                    Phone
-                  </label>
-                  <input
-                    type="text"
-                    value={branchForm.phone || ""}
-                    onChange={(e) =>
-                      setBranchForm({ ...branchForm, phone: e.target.value })
-                    }
-                    className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-1">
-                    Email
-                  </label>
-                  <input
-                    type="email"
-                    value={branchForm.email || ""}
-                    onChange={(e) =>
-                      setBranchForm({ ...branchForm, email: e.target.value })
-                    }
-                    className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-slate-300 mb-1">
-                    Address
-                  </label>
-                  <textarea
-                    value={branchForm.address || ""}
-                    onChange={(e) =>
-                      setBranchForm({ ...branchForm, address: e.target.value })
-                    }
-                    className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    rows={2}
-                  />
-                </div>
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-slate-300 mb-1">
-                    Description
-                  </label>
-                  <textarea
-                    value={branchForm.description || ""}
-                    onChange={(e) =>
-                      setBranchForm({
-                        ...branchForm,
-                        description: e.target.value,
-                      })
-                    }
-                    className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    rows={3}
-                  />
-                </div>
-                <div>
-                  <label className="flex items-center">
-                    <input
-                      type="checkbox"
-                      checked={branchForm.active || false}
-                      onChange={(e) =>
-                        setBranchForm({
-                          ...branchForm,
-                          active: e.target.checked,
-                        })
-                      }
-                      className="mr-2 rounded border-slate-600 bg-slate-700 text-blue-600 focus:ring-blue-500 focus:ring-offset-0"
-                    />
-                    <span className="text-sm font-medium text-slate-300">
-                      Active
-                    </span>
-                  </label>
-                </div>
-              </div>
-              <div className="mt-4 flex justify-end space-x-2">
-                <button
+          {showBranchForm &&
+            isClient &&
+            createPortal(
+              <div className="fixed inset-0 z-[1000]">
+                <div
+                  className="absolute inset-0 bg-black/70 backdrop-blur-sm"
                   onClick={resetBranchForm}
-                  className="px-4 py-2 border border-slate-600 rounded-md text-slate-300 hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-500"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={saveBranch}
-                  disabled={loading || !branchForm.name || !branchForm.subareaId}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-slate-900 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {loading ? "Saving..." : editingBranch ? "Update" : "Save"}
-                </button>
-              </div>
-            </div>
-          )}
+                />
+                <div className="relative z-10 flex min-h-full items-start justify-center p-4 pt-16">
+                  <div className="w-full max-w-4xl rounded-3xl border border-white/10 bg-slate-950/95 p-6 shadow-[0_20px_80px_rgba(0,0,0,0.65)] animate-slide-down">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <p className="text-[11px] uppercase tracking-[0.35em] text-cyan-300">
+                          Branch Management
+                        </p>
+                        <h3 className="mt-2 text-2xl font-semibold text-white">
+                          {editingBranch ? "Edit Branch" : "Add New Branch"}
+                        </h3>
+                      </div>
+                      <button
+                        onClick={resetBranchForm}
+                        className="text-white/60 transition hover:text-white text-2xl leading-none"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                    <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-slate-300 mb-1">
+                          Name *
+                        </label>
+                        <input
+                          type="text"
+                          value={branchForm.name || ""}
+                          onChange={(e) => setBranchForm({ ...branchForm, name: e.target.value })}
+                          className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-slate-300 mb-1">
+                          Code
+                        </label>
+                        <input
+                          type="text"
+                          value={branchForm.code || ""}
+                          onChange={(e) => setBranchForm({ ...branchForm, code: e.target.value })}
+                          className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-slate-300 mb-1">
+                          Subarea *
+                        </label>
+                        <select
+                          value={branchForm.subareaId ?? ""}
+                          onChange={(e) => {
+                            const selectedSubarea = subareas.find((s) => s.id === Number(e.target.value));
+                            setBranchForm({
+                              ...branchForm,
+                              subareaId: selectedSubarea?.id,
+                              subareaName: selectedSubarea?.name,
+                              areaId: selectedSubarea?.areaId,
+                              areaName: selectedSubarea?.areaName,
+                            });
+                          }}
+                          className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                          required
+                        >
+                          <option value="" className="bg-slate-800">
+                            Select Subarea
+                          </option>
+                          {subareas
+                            .filter((subarea) => subarea.active)
+                            .map((subarea) => (
+                              <option key={subarea.id} value={subarea.id} className="bg-slate-800">
+                                {subarea.name} ({subarea.areaName})
+                              </option>
+                            ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-slate-300 mb-1">
+                          Phone
+                        </label>
+                        <input
+                          type="text"
+                          value={branchForm.phone || ""}
+                          onChange={(e) => setBranchForm({ ...branchForm, phone: e.target.value })}
+                          className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-slate-300 mb-1">
+                          Email
+                        </label>
+                        <input
+                          type="email"
+                          value={branchForm.email || ""}
+                          onChange={(e) => setBranchForm({ ...branchForm, email: e.target.value })}
+                          className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                        />
+                      </div>
+                      <div className="md:col-span-2">
+                        <label className="block text-sm font-medium text-slate-300 mb-1">
+                          Address
+                        </label>
+                        <textarea
+                          value={branchForm.address || ""}
+                          onChange={(e) => setBranchForm({ ...branchForm, address: e.target.value })}
+                          className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                          rows={2}
+                        />
+                      </div>
+                      <div className="md:col-span-2">
+                        <label className="block text-sm font-medium text-slate-300 mb-1">
+                          Description
+                        </label>
+                        <textarea
+                          value={branchForm.description || ""}
+                          onChange={(e) => setBranchForm({
+                            ...branchForm,
+                            description: e.target.value,
+                          })}
+                          className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                          rows={3}
+                        />
+                      </div>
+                      <div>
+                        <label className="flex items-center">
+                          <input
+                            type="checkbox"
+                            checked={branchForm.active || false}
+                            onChange={(e) =>
+                              setBranchForm({
+                                ...branchForm,
+                                active: e.target.checked,
+                              })
+                            }
+                            className="mr-2 rounded border-slate-600 bg-slate-800 text-cyan-500 focus:ring-cyan-500"
+                          />
+                          <span className="text-sm font-medium text-slate-300">
+                            Active
+                          </span>
+                        </label>
+                      </div>
+                    </div>
+                    <div className="mt-8 flex justify-end gap-3">
+                      <button
+                        onClick={resetBranchForm}
+                        className="px-4 py-2 rounded-xl border border-white/10 text-slate-200 hover:bg-white/5"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={saveBranch}
+                        disabled={loading || !branchForm.name || !branchForm.subareaId}
+                        className="px-5 py-2 rounded-xl bg-cyan-500 text-slate-950 font-semibold hover:bg-cyan-400 disabled:opacity-50"
+                      >
+                        {loading ? "Saving..." : editingBranch ? "Update" : "Save"}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>,
+              document.body
+            )}
 
           <div className="bg-slate-800 shadow overflow-hidden rounded-lg border border-slate-700">
             <table className="min-w-full divide-y divide-slate-700">
