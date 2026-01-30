@@ -1,8 +1,10 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import html2canvas from "html2canvas";
 import { apiFetch } from "@/services/httpClient";
+import { useToast } from "@/components/ui/Toast";
 
 type CallReportSummaryResponse = {
   calledAt: string;
@@ -10,6 +12,33 @@ type CallReportSummaryResponse = {
   branchId: number | null;
   branchName: string;
   statusTotals: Record<string, number>;
+};
+
+const KHMER_MONTHS = [
+  "មករា",
+  "កុម្ភៈ",
+  "មីនា",
+  "មេសា",
+  "ឧសភា",
+  "មិថុនា",
+  "កក្កដា",
+  "សីហា",
+  "កញ្ញា",
+  "តុលា",
+  "វិច្ឆិកា",
+  "ធ្នូ",
+];
+
+const formatKhFullDateLabel = (dateString: string) => {
+  const date = new Date(dateString);
+  if (Number.isNaN(date.getTime())) return dateString;
+
+  const dayFormatter = new Intl.NumberFormat("km-KH", { minimumIntegerDigits: 1 });
+  const day = dayFormatter.format(date.getUTCDate());
+  const monthName = KHMER_MONTHS[date.getUTCMonth()] ?? "";
+  const yearLabel = date.toLocaleDateString("km-KH", { year: "numeric" });
+
+  return `ថ្ងៃទី ${day.padStart(2, "០")} ខែ${monthName} ឆ្នាំ ${yearLabel}`;
 };
 
 type CallStatusResponse = {
@@ -67,11 +96,14 @@ const classifyArrivalType = (summary: CallReportSummaryResponse): ArrivalType =>
 
 const formatKhDate = (dateString: string) => {
   const date = new Date(dateString);
-  return date.toLocaleDateString("km-KH", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
+  if (Number.isNaN(date.getTime())) return dateString;
+
+  const dayFormatter = new Intl.NumberFormat("km-KH", { minimumIntegerDigits: 1 });
+  const day = dayFormatter.format(date.getUTCDate());
+  const monthName = KHMER_MONTHS[date.getUTCMonth()] ?? "";
+  const yearLabel = date.toLocaleDateString("km-KH", { year: "numeric" });
+
+  return `${day.padStart(2, "០")} ខែ${monthName} ឆ្នាំ ${yearLabel}`;
 };
 
 const formatNumber = (value?: number) => (value ?? 0).toLocaleString("km-KH");
@@ -116,6 +148,10 @@ export default function CallReports() {
   const [statuses, setStatuses] = useState<CallStatusResponse[]>([]);
   const [statusesError, setStatusesError] = useState<string | null>(null);
   const [isClient, setIsClient] = useState(false);
+  const [copyingText, setCopyingText] = useState(false);
+  const [copyingImage, setCopyingImage] = useState(false);
+  const modalContentRef = useRef<HTMLDivElement | null>(null);
+  const { showToast } = useToast();
 
   useEffect(() => {
     const fetchReports = async () => {
@@ -226,6 +262,248 @@ export default function CallReports() {
       ...statusLines,
     ];
   }, [statusDisplayOrder, statusLabelMap]);
+
+  const buildReportTextContent = useCallback((report: GroupedReport) => {
+    const totalPlanned = report.totalCalls;
+    const notCalled = report.totalsByStatus["not-called-yet"] ?? 0;
+    const completed = totalPlanned - notCalled;
+
+    const newArrivalText = buildArrivalText("new-arrival", report.arrivalBreakdown["new-arrival"]);
+    const recallText = buildArrivalText("recall", report.arrivalBreakdown["recall"]);
+
+    const lines: string[] = [
+      "ជំរាបសួរបង",
+      `សូមអនុញ្ញាតរាយការណ៍លទ្ធផលការតេរបស់ផ្នែក Call Center ថ្ងៃទី ${formatKhDate(report.calledAt)}${report.branches.length > 0 ? ` សម្រាប់ ${report.branches.join(", ")}` : ""} ។`,
+      `👉 ចំនួនត្រូវតេសរុប ${formatNumber(totalPlanned)} កញ្ចប់`,
+      `👉 មិនទាន់បានតេ : ${formatNumber(notCalled)} កញ្ចប់`,
+      `👉 ចំនួនតេរួចសរុប ${formatNumber(completed)} កញ្ចប់ បែងចែកជា ៖`
+    ];
+
+    if (newArrivalText) {
+      lines.push(...newArrivalText.map((line) => `• ${line}`));
+    }
+
+    if (recallText) {
+      lines.push(...recallText.map((line) => `• ${line}`));
+    }
+
+    lines.push("សូមអរគុណបង!");
+    return lines.join("\n");
+  }, [buildArrivalText]);
+
+  const handleCopyText = useCallback(async (event: React.MouseEvent) => {
+    event.stopPropagation();
+    if (!selectedReport) return;
+
+    setCopyingText(true);
+    try {
+      await navigator.clipboard.writeText(buildReportTextContent(selectedReport));
+      showToast("បានចម្លងអត្ថបទរបាយការណ៍", "success");
+    } catch (copyError) {
+      console.error(copyError);
+      showToast("ពុំអាចចម្លងអត្ថបទបានទេ", "error");
+    } finally {
+      setCopyingText(false);
+    }
+  }, [buildReportTextContent, selectedReport, showToast]);
+
+  const handleCopyImage = useCallback(async (event: React.MouseEvent) => {
+    event.stopPropagation();
+    if (!selectedReport) {
+      showToast("រកមិនឃើញខ្លឹមសារឱ្យចម្លង", "error");
+      return;
+    }
+
+    setCopyingImage(true);
+    try {
+      const tempWrapper = document.createElement("div");
+      tempWrapper.style.position = "fixed";
+      tempWrapper.style.left = "-9999px";
+      tempWrapper.style.top = "0";
+      tempWrapper.style.pointerEvents = "none";
+
+      const exportContainer = document.createElement("div");
+      exportContainer.style.width = "900px";
+      exportContainer.style.background = "#ffffff";
+      exportContainer.style.color = "#0f172a";
+      exportContainer.style.fontFamily = "'Khmer OS', 'Noto Sans Khmer', 'Battambang', sans-serif";
+      exportContainer.style.padding = "40px";
+      exportContainer.style.boxSizing = "border-box";
+      exportContainer.style.border = "1px solid #e2e8f0";
+      exportContainer.style.borderRadius = "24px";
+      exportContainer.style.display = "flex";
+      exportContainer.style.flexDirection = "column";
+      exportContainer.style.gap = "16px";
+      exportContainer.style.boxShadow = "0 20px 60px rgba(15,23,42,0.15)";
+
+      const addParagraph = (text: string, opts: { bold?: boolean; size?: string } = {}) => {
+        const p = document.createElement("p");
+        p.textContent = text;
+        p.style.margin = "0";
+        p.style.fontSize = opts.size ?? "16px";
+        if (opts.bold) {
+          p.style.fontWeight = "600";
+        }
+        exportContainer.appendChild(p);
+      };
+
+      const addSection = (title: string, lines: string[]) => {
+        if (!lines || lines.length === 0) return;
+        const section = document.createElement("div");
+        section.style.border = "1px solid #e2e8f0";
+        section.style.borderRadius = "16px";
+        section.style.padding = "16px";
+        section.style.background = "#f8fafc";
+
+        const heading = document.createElement("p");
+        heading.textContent = title;
+        heading.style.fontWeight = "600";
+        heading.style.margin = "0 0 8px";
+        heading.style.fontSize = "15px";
+        section.appendChild(heading);
+
+        lines.forEach((line) => {
+          const item = document.createElement("p");
+          item.textContent = line.replace(/^[-•]\s*/, "• ");
+          item.style.margin = "0 0 6px";
+          item.style.fontSize = "14px";
+          section.appendChild(item);
+        });
+
+        exportContainer.appendChild(section);
+      };
+
+      const header = document.createElement("div");
+      header.style.display = "flex";
+      header.style.flexDirection = "column";
+      header.style.gap = "8px";
+      header.style.alignItems = "center";
+      header.style.textAlign = "center";
+
+      const headerTopRow = document.createElement("div");
+      headerTopRow.style.display = "flex";
+      headerTopRow.style.alignItems = "center";
+      headerTopRow.style.justifyContent = "center";
+      headerTopRow.style.gap = "12px";
+
+      const logo = document.createElement("img");
+      logo.src = "/Logo.png";
+      logo.alt = "VVB Logo";
+      logo.style.width = "48px";
+      logo.style.height = "48px";
+      logo.style.objectFit = "contain";
+      logo.style.borderRadius = "12px";
+      logo.style.border = "1px solid #e2e8f0";
+      logo.style.background = "#ffffff";
+      headerTopRow.appendChild(logo);
+
+      const headerTitle = document.createElement("p");
+      headerTitle.textContent = "របាយការណ៍ផ្នែក Call Center";
+      headerTitle.style.margin = "0";
+      headerTitle.style.fontFamily = "'Khmer OS Muol', 'Khmer OS', 'Battambang', sans-serif";
+      headerTitle.style.fontSize = "22px";
+      headerTopRow.appendChild(headerTitle);
+
+      header.appendChild(headerTopRow);
+
+      const headerSub = document.createElement("p");
+      headerSub.textContent = formatKhFullDateLabel(selectedReport.calledAt);
+      headerSub.style.margin = "0";
+      headerSub.style.fontSize = "16px";
+      headerSub.style.color = "#475569";
+      header.appendChild(headerSub);
+
+      if (selectedReport.branches.length > 0) {
+        const branchLine = document.createElement("p");
+        branchLine.textContent = `សម្រាប់សាខាៈ ${selectedReport.branches.join(", ")}`;
+        branchLine.style.margin = "0";
+        branchLine.style.fontSize = "15px";
+        branchLine.style.fontFamily = "'Khmer OS Muol', 'Khmer OS', 'Battambang', sans-serif";
+        header.appendChild(branchLine);
+      }
+
+      exportContainer.appendChild(header);
+
+      addParagraph("ជំរាបសួរបង", { size: "16px" });
+
+      const introLine = document.createElement("p");
+      introLine.textContent = `សូមអនុញ្ញាតរាយការណ៍លទ្ធផលការតេរបស់ផ្នែក Call Center ${formatKhFullDateLabel(selectedReport.calledAt)}${selectedReport.branches.length > 0 ? ` សម្រាប់ ${selectedReport.branches.join(", ")}` : ""} ។`;
+      introLine.style.margin = "0";
+      introLine.style.fontSize = "16px";
+      exportContainer.appendChild(introLine);
+
+      const totalPlanned = selectedReport.totalCalls;
+      const notCalled = selectedReport.totalsByStatus["not-called-yet"] ?? 0;
+      const completed = totalPlanned - notCalled;
+
+      const infoBlock = document.createElement("div");
+      infoBlock.style.display = "flex";
+      infoBlock.style.flexDirection = "column";
+      infoBlock.style.gap = "4px";
+
+      [
+        `👉 ចំនួនត្រូវតេសរុប ${formatNumber(totalPlanned)} កញ្ចប់`,
+        `👉 មិនទាន់បានតេ : ${formatNumber(notCalled)} កញ្ចប់`,
+        `👉 ចំនួនតេរួចសរុប ${formatNumber(completed)} កញ្ចប់ បែងចែកជា ៖`,
+      ].forEach((line) => {
+        const p = document.createElement("p");
+        p.textContent = line;
+        p.style.margin = "0";
+        p.style.fontSize = "15px";
+        infoBlock.appendChild(p);
+      });
+
+      exportContainer.appendChild(infoBlock);
+
+      const newArrivalText = buildArrivalText("new-arrival", selectedReport.arrivalBreakdown["new-arrival"]);
+      const recallText = buildArrivalText("recall", selectedReport.arrivalBreakdown["recall"]);
+
+      addSection("អីវ៉ាន់ចូលថ្មី", newArrivalText ?? []);
+      addSection("Re-Call", recallText ?? []);
+
+      addParagraph("សូមអរគុណបង!", { bold: true, size: "16px" });
+
+      tempWrapper.appendChild(exportContainer);
+      document.body.appendChild(tempWrapper);
+
+      type Html2CanvasOptions = Parameters<typeof html2canvas>[1];
+      const canvas = await html2canvas(exportContainer, {
+        backgroundColor: "#ffffff",
+        scale: 2,
+        logging: false,
+        useCORS: true,
+      } as Html2CanvasOptions);
+
+      document.body.removeChild(tempWrapper);
+
+      const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
+      if (!blob) {
+        throw new Error("Failed to create image");
+      }
+
+      try {
+        await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
+        showToast("បានចម្លងរបាយការណ៍ជារូបភាព", "success");
+      } catch (clipboardError) {
+        console.warn("Clipboard write failed, downloading instead", clipboardError);
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        const safeDate = selectedReport.calledAt.replace(/[^0-9-]/g, "");
+        link.href = url;
+        link.download = `call-report-${safeDate || "snapshot"}.png`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        showToast("បានទាញយករបាយការណ៍ជារូបភាព", "success");
+      }
+    } catch (imageError) {
+      console.error(imageError);
+      showToast("ពុំអាចចម្លងរបាយការណ៍ជារូបភាពបានទេ", "error");
+    } finally {
+      setCopyingImage(false);
+    }
+  }, [buildArrivalText, selectedReport, showToast]);
 
   const groupedReports = useMemo<GroupedReport[]>(() => {
     const byDate = new Map<string, { branches: Set<string>; entries: CallReportSummaryResponse[] }>();
@@ -411,18 +689,71 @@ export default function CallReports() {
             onClick={() => setSelectedReport(null)}
           ></div>
           <div className="relative z-10 flex min-h-full items-start justify-center p-4 pt-12">
-            <div className="w-full max-w-3xl rounded-3xl border border-white/10 bg-slate-950/95 p-6 shadow-[0_20px_80px_rgba(0,0,0,0.65)] animate-slide-down">
+            <div
+              ref={modalContentRef}
+              className="w-full max-w-3xl rounded-3xl border border-white/10 bg-slate-950/95 p-6 shadow-[0_20px_80px_rgba(0,0,0,0.65)] animate-slide-down"
+            >
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <p className="text-[11px] uppercase tracking-[0.35em] text-cyan-300">Call Center Report</p>
                   <h3 className="mt-2 text-2xl font-semibold text-white">{formatKhDate(selectedReport.calledAt)}</h3>
                 </div>
-                <button
-                  onClick={() => setSelectedReport(null)}
-                  className="text-white/60 transition hover:text-white text-2xl leading-none"
-                >
-                  ✕
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleCopyText}
+                    disabled={copyingText}
+                    className="flex items-center gap-2 rounded-xl bg-white/10 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {copyingText ? (
+                      <>
+                        <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                          <circle className="opacity-30" cx="12" cy="12" r="10" strokeWidth="4" />
+                          <path className="opacity-70" d="M4 12a8 8 0 018-8" strokeWidth="4" strokeLinecap="round" />
+                        </svg>
+                        កំពុងចម្លង
+                      </>
+                    ) : (
+                      <>
+                        <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2" strokeLinecap="round" strokeLinejoin="round" />
+                          <rect x="9" y="10" width="11" height="11" rx="2" ry="2" />
+                        </svg>
+                        Copy Text
+                      </>
+                    )}
+                  </button>
+                  <button
+                    onClick={handleCopyImage}
+                    disabled={copyingImage}
+                    className="flex items-center gap-2 rounded-xl bg-white/10 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {copyingImage ? (
+                      <>
+                        <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                          <circle className="opacity-30" cx="12" cy="12" r="10" strokeWidth="4" />
+                          <path className="opacity-70" d="M4 12a8 8 0 018-8" strokeWidth="4" strokeLinecap="round" />
+                        </svg>
+                        Copying...
+                      </>
+                    ) : (
+                      <>
+                        <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <rect x="3" y="3" width="7" height="7" rx="1.5" />
+                          <rect x="14" y="3" width="7" height="7" rx="1.5" />
+                          <rect x="3" y="14" width="7" height="7" rx="1.5" />
+                          <rect x="14" y="14" width="7" height="7" rx="1.5" />
+                        </svg>
+                        Copy Image
+                      </>
+                    )}
+                  </button>
+                  <button
+                    onClick={() => setSelectedReport(null)}
+                    className="text-white/60 transition hover:text-white text-2xl leading-none"
+                  >
+                    ✕
+                  </button>
+                </div>
               </div>
               <div className="mt-4 max-h-[70vh] overflow-y-auto pr-2 text-sm text-white/80">
                 {renderModalContent(selectedReport)}
