@@ -1117,7 +1117,7 @@ export default function GoodsDashboardPage() {
           </div>
         </section>
         <section className="rounded-3xl border border-white/10 bg-white/5 p-6">
-          <div className="flex flex-col gap-2 pb-6 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex flex-col gap-4 pb-6 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <p className="text-xs uppercase tracking-[0.3em] text-amber-300/70">
                 Totals overview
@@ -1125,6 +1125,14 @@ export default function GoodsDashboardPage() {
               <h2 className="text-xl font-semibold text-white">
                 Goods volume by location hierarchy
               </h2>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-slate-900/60 px-4 py-3 text-right text-sm text-slate-300">
+              <p className="text-[0.65rem] uppercase tracking-[0.3em] text-slate-400">
+                Total goods shown
+              </p>
+              <p className="text-2xl font-semibold text-white">
+                {goodsTypeTotals.TOTAL.toLocaleString()}
+              </p>
             </div>
           </div>
           <div className={`mt-2 h-96 w-full ${totalsChartData.length > 8 ? 'overflow-x-auto scrollbar-hide' : ''}`}>

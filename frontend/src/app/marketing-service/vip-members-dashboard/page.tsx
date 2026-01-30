@@ -79,9 +79,19 @@ const TREND_VIEW_OPTIONS = [
 
 type TrendView = (typeof TREND_VIEW_OPTIONS)[number]["key"];
 
-const toISODate = (date: Date) => date.toISOString().split("T")[0];
+const toISODate = (date: Date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
 
-const parseDate = (value: string) => new Date(`${value}T00:00:00`);
+const parseDate = (value: string) => {
+  const [year, month, day] = value.split("-").map(Number);
+  const date = new Date(year, (month ?? 1) - 1, day ?? 1);
+  date.setHours(0, 0, 0, 0);
+  return date;
+};
 
 const buildDateRange = (start: string, end: string) => {
   const days: string[] = [];
@@ -185,6 +195,7 @@ function VIPMembersDashboardPage() {
   const [rawMembers, setRawMembers] = useState<VipMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [chartLoading, setChartLoading] = useState(true);
 
   // Infinite scroll states for active members
   const [activeMembersPage, setActiveMembersPage] = useState(0);
@@ -232,8 +243,10 @@ function VIPMembersDashboardPage() {
       setSubAreas(subAreaData);
       setBranches(branchData);
       setRawMembers(memberData);
+      setChartLoading(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load VIP data");
+      setChartLoading(false);
     } finally {
       setLoading(false);
     }
@@ -371,52 +384,59 @@ function VIPMembersDashboardPage() {
   }, [filteredMembers]);
 
   const chartSegments: ChartSegment[] = useMemo(() => {
+    let segments: ChartSegment[];
+
     if (selectedAreaId === "all") {
-      return areas.map((area) => ({
+      segments = areas.map((area) => ({
         key: `area-${area.id}`,
         label: area.name,
         members: areaCounts.get(area.id) ?? 0,
       }));
-    }
+    } else if (!selectedArea) {
+      segments = [];
+    } else {
+      const areaSubAreas = selectedAreaSubAreas;
+      const areaBranches = branches.filter(
+        (branch) => branch.areaId === selectedArea.id,
+      );
 
-    if (!selectedArea) {
-      return [];
-    }
-
-    const areaSubAreas = selectedAreaSubAreas;
-    const areaBranches = branches.filter(
-      (branch) => branch.areaId === selectedArea.id,
-    );
-
-    if (areaSubAreas.length > 0) {
-      if (normalizedBranchId !== null || selectedSubAreaId !== "all") {
-        const branchList = areaBranches.filter((branch) => {
-          if (selectedSubAreaId === "all") {
-            return true;
-          }
-          return (branch.subAreaId ?? null) === selectedSubAreaId;
-        });
-        return branchList.map((branch) => ({
+      if (areaSubAreas.length > 0) {
+        if (normalizedBranchId !== null || selectedSubAreaId !== "all") {
+          const branchList = areaBranches.filter((branch) => {
+            if (selectedSubAreaId === "all") {
+              return true;
+            }
+            return (branch.subAreaId ?? null) === selectedSubAreaId;
+          });
+          segments = branchList.map((branch) => ({
+            key: `branch-${branch.id}`,
+            label: branch.name,
+            members: branchCounts.get(branch.id) ?? 0,
+            highlight: branch.id === normalizedBranchId,
+          }));
+        } else {
+          segments = areaSubAreas.map((subArea) => ({
+            key: `sub-${subArea.id}`,
+            label: subArea.name,
+            members: subAreaCounts.get(subArea.id) ?? 0,
+          }));
+        }
+      } else {
+        segments = areaBranches.map((branch) => ({
           key: `branch-${branch.id}`,
           label: branch.name,
           members: branchCounts.get(branch.id) ?? 0,
           highlight: branch.id === normalizedBranchId,
         }));
       }
-
-      return areaSubAreas.map((subArea) => ({
-        key: `sub-${subArea.id}`,
-        label: subArea.name,
-        members: subAreaCounts.get(subArea.id) ?? 0,
-      }));
     }
 
-    return areaBranches.map((branch) => ({
-      key: `branch-${branch.id}`,
-      label: branch.name,
-      members: branchCounts.get(branch.id) ?? 0,
-      highlight: branch.id === normalizedBranchId,
-    }));
+    return segments.sort((a, b) => {
+      if (b.members !== a.members) {
+        return b.members - a.members;
+      }
+      return a.label.localeCompare(b.label);
+    });
   }, [
     selectedAreaId,
     selectedArea,
@@ -994,7 +1014,11 @@ function VIPMembersDashboardPage() {
           </div>
 
           <div className={`mt-6 h-96 w-full ${chartSegments.length > 8 ? 'overflow-x-auto scrollbar-hide' : ''}`}>
-            {chartSegments.length === 0 ? (
+            {chartLoading ? (
+              <div className="flex h-full items-center justify-center text-sm text-slate-400">
+                Loading chart data...
+              </div>
+            ) : chartSegments.length === 0 ? (
               <div className="flex h-full items-center justify-center text-sm text-slate-400">
                 No members in the selected segment.
               </div>
@@ -1088,7 +1112,11 @@ function VIPMembersDashboardPage() {
             </div>
           </div>
           <div className="mt-6 h-72 w-full">
-            {timelineData.length === 0 ? (
+            {chartLoading ? (
+              <div className="flex h-full items-center justify-center text-sm text-slate-400">
+                Loading chart data...
+              </div>
+            ) : timelineData.length === 0 ? (
               <div className="flex h-full items-center justify-center text-sm text-slate-400">
                 No members in this period.
               </div>
