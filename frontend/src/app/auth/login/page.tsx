@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
@@ -25,7 +25,15 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const router = useRouter();
-  const { login, error, clearError } = useAuth();
+  const { login, error, clearError, isAuthenticated } = useAuth();
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      const searchParams = new URLSearchParams(window.location.search);
+      const returnUrl = searchParams.get("returnUrl") || "/";
+      router.replace(returnUrl);
+    }
+  }, [isAuthenticated, router]);
 
   const validateForm = () => {
     const errors: FieldErrors = {};
@@ -76,11 +84,6 @@ export default function LoginPage() {
         password: formData.password,
         deviceId: `web-${Date.now()}`,
       });
-
-      // Redirect to dashboard or intended page
-      const returnUrl =
-        new URLSearchParams(window.location.search).get("returnUrl") || "/";
-      router.push(returnUrl);
     } catch (err) {
       // Error is handled by the auth context
     } finally {
