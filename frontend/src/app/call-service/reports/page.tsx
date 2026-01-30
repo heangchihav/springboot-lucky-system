@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import html2canvas from "html2canvas";
 import { apiFetch } from "@/services/httpClient";
 import { useToast } from "@/components/ui/Toast";
+import { areaBranchService, Area, Subarea, Branch } from "@/services/areaBranchService";
 
 type CallReportSummaryResponse = {
   calledAt: string;
@@ -13,6 +14,44 @@ type CallReportSummaryResponse = {
   branchName: string;
   statusTotals: Record<string, number>;
 };
+
+const cloneArrivalBreakdown = (breakdown: GroupedReport["arrivalBreakdown"]): GroupedReport["arrivalBreakdown"] => {
+  const cloneType = (type: ArrivalType) => ({
+    total: breakdown[type].total,
+    statuses: { ...breakdown[type].statuses },
+    dates: [...breakdown[type].dates],
+  });
+  return {
+    "new-arrival": cloneType("new-arrival"),
+    recall: cloneType("recall"),
+  };
+};
+
+const mergeArrivalBreakdowns = (
+  current: GroupedReport["arrivalBreakdown"],
+  next: GroupedReport["arrivalBreakdown"]
+): GroupedReport["arrivalBreakdown"] => {
+  const mergeType = (type: ArrivalType) => {
+    const statuses: Record<string, number> = { ...current[type].statuses };
+    Object.entries(next[type].statuses).forEach(([status, value]) => {
+      statuses[status] = (statuses[status] ?? 0) + value;
+    });
+    const dates = Array.from(new Set([...current[type].dates, ...next[type].dates])).sort();
+    return {
+      total: current[type].total + next[type].total,
+      statuses,
+      dates,
+    };
+  };
+
+  return {
+    "new-arrival": mergeType("new-arrival"),
+    recall: mergeType("recall"),
+  };
+};
+
+const getBranchLabel = (branchName?: string | null) => branchName?.trim() || "Unassigned";
+const normalizeName = (value?: string | null) => value?.trim().toLowerCase() || "";
 
 const KHMER_MONTHS = [
   "មករា",
@@ -60,6 +99,20 @@ type GroupedReport = {
   }>;
 };
 
+type ReportRow = {
+  id: string;
+  calledAt: string;
+  branchId: number | null;
+  branchName: string;
+  areaId?: number;
+  areaName?: string;
+  subareaId?: number;
+  subareaName?: string;
+  totalsByStatus: Record<string, number>;
+  totalCalls: number;
+  arrivalBreakdown: GroupedReport["arrivalBreakdown"];
+};
+
 const LOOKBACK_DAYS = 6;
 
 const defaultStartDate = () => {
@@ -92,6 +145,42 @@ const classifyArrivalType = (summary: CallReportSummaryResponse): ArrivalType =>
     return "new-arrival";
   }
   return "recall";
+};
+
+const buildArrivalBreakdownFromSummary = (summary: CallReportSummaryResponse): GroupedReport["arrivalBreakdown"] => {
+  const buckets: Record<ArrivalType, { total: number; statuses: Record<string, number>; dates: Set<string> }> = {
+    "new-arrival": { total: 0, statuses: {}, dates: new Set<string>() },
+    recall: { total: 0, statuses: {}, dates: new Set<string>() },
+  };
+
+  const arrivalType = classifyArrivalType(summary);
+  const bucket = buckets[arrivalType];
+  const normalizedArrivalDate =
+    normalizeDateForArrival(summary.arrivedAt) ??
+    normalizeDateForArrival(summary.calledAt) ??
+    summary.calledAt;
+
+  if (normalizedArrivalDate) {
+    bucket.dates.add(normalizedArrivalDate);
+  }
+
+  Object.entries(summary.statusTotals).forEach(([status, value]) => {
+    bucket.statuses[status] = (bucket.statuses[status] ?? 0) + value;
+    bucket.total += value;
+  });
+
+  return {
+    "new-arrival": {
+      total: buckets["new-arrival"].total,
+      statuses: buckets["new-arrival"].statuses,
+      dates: Array.from(buckets["new-arrival"].dates).sort(),
+    },
+    recall: {
+      total: buckets.recall.total,
+      statuses: buckets.recall.statuses,
+      dates: Array.from(buckets.recall.dates).sort(),
+    },
+  };
 };
 
 const formatKhDate = (dateString: string) => {
@@ -150,32 +239,58 @@ export default function CallReports() {
   const [isClient, setIsClient] = useState(false);
   const [copyingText, setCopyingText] = useState(false);
   const [copyingImage, setCopyingImage] = useState(false);
+  const [startDate, setStartDate] = useState(() => defaultStartDate());
+  const [endDate, setEndDate] = useState(() => defaultEndDate());
+  const [areas, setAreas] = useState<Area[]>([]);
+  const [subareas, setSubareas] = useState<Subarea[]>([]);
+  const [branches, setBranches] = useState<Branch[]>([]);
+  const [selectedAreaId, setSelectedAreaId] = useState<number | null>(null);
+  const [selectedSubareaId, setSelectedSubareaId] = useState<number | null>(null);
+  const [selectedBranchId, setSelectedBranchId] = useState<number | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
   const modalContentRef = useRef<HTMLDivElement | null>(null);
   const { showToast } = useToast();
 
-  useEffect(() => {
-    const fetchReports = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const params = new URLSearchParams();
-        params.append("startDate", defaultStartDate());
-        params.append("endDate", defaultEndDate());
-        const response = await apiFetch(`/api/calls/reports/summary?${params.toString()}`);
-        if (!response.ok) {
-          throw new Error("Unable to load reports");
-        }
-        const data: CallReportSummaryResponse[] = await response.json();
-        setSummaries(data);
-      } catch (err) {
-        console.error(err);
-        setError("ពុំអាចទាញយកទិន្នន័យបានទេ។ សូមព្យាយាមម្តងទៀត។");
-      } finally {
-        setLoading(false);
-      }
-    };
+  const fetchReports = useCallback(async () => {
+    if (!startDate || !endDate) return;
+    if (new Date(startDate) > new Date(endDate)) {
+      showToast("កែប្រែកាលបរិច្ឆេទឱ្យត្រឹមត្រូវសិន", "error");
+      return;
+    }
 
+    setLoading(true);
+    setError(null);
+    try {
+      const params = new URLSearchParams();
+      params.append("startDate", startDate);
+      params.append("endDate", endDate);
+      const response = await apiFetch(`/api/calls/reports/summary?${params.toString()}`);
+      if (!response.ok) {
+        throw new Error("Unable to load reports");
+      }
+      const data: CallReportSummaryResponse[] = await response.json();
+      setSummaries(data);
+    } catch (err) {
+      console.error(err);
+      setError("ពុំអាចទាញយកទិន្នន័យបានទេ។ សូមព្យាយាមម្តងទៀត។");
+    } finally {
+      setLoading(false);
+    }
+  }, [endDate, showToast, startDate]);
+
+  useEffect(() => {
     fetchReports();
+  }, [fetchReports]);
+
+  const handleResetFilters = useCallback(() => {
+    const defaultStart = defaultStartDate();
+    const defaultEnd = defaultEndDate();
+    setStartDate(defaultStart);
+    setEndDate(defaultEnd);
+    setSelectedAreaId(null);
+    setSelectedSubareaId(null);
+    setSelectedBranchId(null);
+    setSearchTerm("");
   }, []);
 
   useEffect(() => {
@@ -196,6 +311,26 @@ export default function CallReports() {
 
     fetchStatuses();
   }, []);
+
+  useEffect(() => {
+    const loadAreaHierarchy = async () => {
+      try {
+        const [allAreas, allSubareas, allBranches] = await Promise.all([
+          areaBranchService.getAreas(),
+          areaBranchService.getSubareas(),
+          areaBranchService.getBranches(),
+        ]);
+        setAreas(allAreas);
+        setSubareas(allSubareas);
+        setBranches(allBranches);
+      } catch (err) {
+        console.error("Failed to load area hierarchy", err);
+        showToast("ពុំអាចទាញយកទិន្នន័យសាខាបានទេ", "error");
+      }
+    };
+
+    loadAreaHierarchy();
+  }, [showToast]);
 
   useEffect(() => {
     setIsClient(true);
@@ -505,69 +640,197 @@ export default function CallReports() {
     }
   }, [buildArrivalText, selectedReport, showToast]);
 
-  const groupedReports = useMemo<GroupedReport[]>(() => {
-    const byDate = new Map<string, { branches: Set<string>; entries: CallReportSummaryResponse[] }>();
+  const branchLookupById = useMemo(() => {
+    const map = new Map<number, Branch>();
+    branches.forEach((branch) => {
+      map.set(branch.id, branch);
+    });
+    return map;
+  }, [branches]);
 
-    summaries.forEach((summary) => {
-      const entry = byDate.get(summary.calledAt) ?? { branches: new Set<string>(), entries: [] };
-      entry.branches.add(summary.branchName || "Unassigned");
-      entry.entries.push(summary);
-      byDate.set(summary.calledAt, entry);
+  const branchLookupByName = useMemo(() => {
+    const map = new Map<string, Branch>();
+    branches.forEach((branch) => {
+      map.set(normalizeName(branch.name), branch);
+    });
+    return map;
+  }, [branches]);
+
+  const areaLookupById = useMemo(() => {
+    const map = new Map<number, Area>();
+    areas.forEach((area) => {
+      map.set(area.id, area);
+    });
+    return map;
+  }, [areas]);
+
+  const subareaAreaMap = useMemo(() => {
+    const map = new Map<number, number>();
+    subareas.forEach((subarea) => {
+      map.set(subarea.id, subarea.areaId);
+    });
+    return map;
+  }, [subareas]);
+
+  const subareaLookupById = useMemo(() => {
+    const map = new Map<number, Subarea>();
+    subareas.forEach((subarea) => {
+      map.set(subarea.id, subarea);
+    });
+    return map;
+  }, [subareas]);
+
+  const resolveBranch = useCallback((branchId: number | null | undefined, branchName?: string | null) => {
+    if (typeof branchId === "number") {
+      const match = branchLookupById.get(branchId);
+      if (match) return match;
+    }
+    if (branchName) {
+      const normalized = normalizeName(branchName);
+      const direct = branchLookupByName.get(normalized);
+      if (direct) return direct;
+      return branches.find((branch) => {
+        const branchNormalized = normalizeName(branch.name);
+        return normalized.includes(branchNormalized) || branchNormalized.includes(normalized);
+      });
+    }
+    return undefined;
+  }, [branchLookupById, branchLookupByName, branches]);
+
+  const reportRows = useMemo<ReportRow[]>(() => {
+    return summaries.map((summary, index) => {
+      const branchInfo = resolveBranch(summary.branchId, summary.branchName);
+
+      const branchName = getBranchLabel(branchInfo?.name ?? summary.branchName);
+      const resolvedSubareaId = branchInfo?.subareaId ?? undefined;
+      const resolvedAreaId = branchInfo?.areaId ?? (resolvedSubareaId ? subareaAreaMap.get(resolvedSubareaId) : undefined);
+      const resolvedAreaName = resolvedAreaId ? areaLookupById.get(resolvedAreaId)?.name ?? branchInfo?.areaName : branchInfo?.areaName;
+      const resolvedSubareaName = resolvedSubareaId ? subareaLookupById.get(resolvedSubareaId)?.name ?? branchInfo?.subareaName : branchInfo?.subareaName;
+      const totalCalls = Object.values(summary.statusTotals).reduce((sum, value) => sum + value, 0);
+
+      return {
+        id: `${summary.calledAt}-${summary.branchId ?? summary.branchName ?? index}`,
+        calledAt: summary.calledAt,
+        branchId: summary.branchId ?? null,
+        branchName,
+        areaId: resolvedAreaId,
+        areaName: resolvedAreaName,
+        subareaId: resolvedSubareaId,
+        subareaName: resolvedSubareaName,
+        totalsByStatus: summary.statusTotals,
+        totalCalls,
+        arrivalBreakdown: buildArrivalBreakdownFromSummary(summary),
+      };
+    });
+  }, [areaLookupById, resolveBranch, subareaAreaMap, subareaLookupById, summaries]);
+
+  const aggregatedRows = useMemo<ReportRow[]>(() => {
+    const map = new Map<string, ReportRow>();
+
+    reportRows.forEach((row) => {
+      const key = `${row.branchId ?? row.branchName}-${row.calledAt}`;
+      const existing = map.get(key);
+
+      if (!existing) {
+        map.set(key, {
+          ...row,
+          totalsByStatus: { ...row.totalsByStatus },
+          arrivalBreakdown: cloneArrivalBreakdown(row.arrivalBreakdown),
+        });
+        return;
+      }
+
+      const mergedTotals: Record<string, number> = { ...existing.totalsByStatus };
+      Object.entries(row.totalsByStatus).forEach(([status, value]) => {
+        mergedTotals[status] = (mergedTotals[status] ?? 0) + value;
+      });
+      existing.totalsByStatus = mergedTotals;
+      existing.totalCalls += row.totalCalls;
+      existing.arrivalBreakdown = mergeArrivalBreakdowns(existing.arrivalBreakdown, row.arrivalBreakdown);
+
+      if (!existing.areaId && row.areaId) {
+        existing.areaId = row.areaId;
+        existing.areaName = row.areaName;
+      }
+      if (!existing.subareaId && row.subareaId) {
+        existing.subareaId = row.subareaId;
+        existing.subareaName = row.subareaName;
+      }
     });
 
-    return Array.from(byDate.entries())
-      .map<GroupedReport>(([calledAt, { branches, entries }]) => {
-        const totalsByStatus: Record<string, number> = {};
-        const arrivalBuckets: Record<ArrivalType, { total: number; statuses: Record<string, number>; dates: Set<string> }> = {
-          "new-arrival": { total: 0, statuses: {}, dates: new Set<string>() },
-          "recall": { total: 0, statuses: {}, dates: new Set<string>() },
-        };
+    return Array.from(map.values()).sort((a, b) => new Date(b.calledAt).getTime() - new Date(a.calledAt).getTime());
+  }, [reportRows]);
 
-        entries.forEach((entry) => {
-          Object.entries(entry.statusTotals).forEach(([status, value]) => {
-            totalsByStatus[status] = (totalsByStatus[status] ?? 0) + value;
-          });
+  const filteredSubareas = useMemo(() => {
+    return subareas.filter((subarea) => !selectedAreaId || subarea.areaId === selectedAreaId);
+  }, [selectedAreaId, subareas]);
 
-          const arrivalType = classifyArrivalType(entry);
-          const bucket = arrivalBuckets[arrivalType];
-          const normalizedArrivalDate =
-            normalizeDateForArrival(entry.arrivedAt) ??
-            normalizeDateForArrival(entry.calledAt) ??
-            entry.calledAt;
-          if (normalizedArrivalDate) {
-            bucket.dates.add(normalizedArrivalDate);
-          }
-          Object.entries(entry.statusTotals).forEach(([status, value]) => {
-            bucket.statuses[status] = (bucket.statuses[status] ?? 0) + value;
-            bucket.total += value;
-          });
-        });
+  const filteredBranches = useMemo(() => {
+    return branches.filter((branch) => {
+      const branchAreaId = branch.areaId ?? (branch.subareaId ? subareaAreaMap.get(branch.subareaId) : undefined);
+      if (selectedAreaId && branchAreaId !== selectedAreaId) {
+        return false;
+      }
+      if (selectedSubareaId && branch.subareaId !== selectedSubareaId) {
+        return false;
+      }
+      return true;
+    });
+  }, [branches, selectedAreaId, selectedSubareaId, subareaAreaMap]);
 
-        const totalCalls = Object.values(totalsByStatus).reduce((sum, value) => sum + value, 0);
+  const filteredRows = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase();
+    return aggregatedRows
+      .filter((row) => {
+        const branchInfo = resolveBranch(row.branchId, row.branchName);
+        const rowSubareaId = row.subareaId ?? branchInfo?.subareaId ?? undefined;
+        const rowAreaId = row.areaId ?? branchInfo?.areaId ?? (rowSubareaId ? subareaAreaMap.get(rowSubareaId) : undefined);
+        const rowBranchId = row.branchId ?? branchInfo?.id ?? undefined;
 
-        const arrivalBreakdown: GroupedReport["arrivalBreakdown"] = {
-          "new-arrival": {
-            total: arrivalBuckets["new-arrival"].total,
-            statuses: arrivalBuckets["new-arrival"].statuses,
-            dates: Array.from(arrivalBuckets["new-arrival"].dates).sort(),
-          },
-          "recall": {
-            total: arrivalBuckets["recall"].total,
-            statuses: arrivalBuckets["recall"].statuses,
-            dates: Array.from(arrivalBuckets["recall"].dates).sort(),
-          },
-        };
+        if (selectedAreaId && rowAreaId !== selectedAreaId) {
+          return false;
+        }
+        if (selectedSubareaId && rowSubareaId !== selectedSubareaId) {
+          return false;
+        }
+        if (selectedBranchId && rowBranchId !== selectedBranchId) {
+          return false;
+        }
 
-        return {
-          calledAt,
-          branches: Array.from(branches).sort(),
-          totalsByStatus,
-          totalCalls,
-          arrivalBreakdown,
-        };
+        if (!term) return true;
+        const statusText = buildStatusSummary(row.totalsByStatus).toLowerCase();
+        return [
+          row.branchName,
+          row.areaName,
+          row.subareaName,
+          row.calledAt,
+          formatKhDate(row.calledAt),
+          statusText,
+        ]
+          .filter(Boolean)
+          .some((value) => value!.toLowerCase().includes(term));
       })
       .sort((a, b) => new Date(b.calledAt).getTime() - new Date(a.calledAt).getTime());
-  }, [summaries]);
+  }, [
+    resolveBranch,
+    subareaAreaMap,
+    buildStatusSummary,
+    aggregatedRows,
+    searchTerm,
+    selectedAreaId,
+    selectedBranchId,
+    selectedSubareaId,
+  ]);
+
+  const handleOpenRow = useCallback((row: ReportRow) => {
+    setSelectedReport({
+      calledAt: row.calledAt,
+      branches: [row.branchName],
+      totalsByStatus: row.totalsByStatus,
+      totalCalls: row.totalCalls,
+      arrivalBreakdown: row.arrivalBreakdown,
+    });
+  }, []);
 
   const renderModalContent = (report: GroupedReport) => {
     const totalPlanned = report.totalCalls;
@@ -617,6 +880,101 @@ export default function CallReports() {
         <p className="text-slate-300">របាយការណ៍លទ្ធផលតាមថ្ងៃ និងសាខា</p>
       </div>
 
+      <div className="rounded-2xl border border-white/10 bg-slate-950/60 p-4 text-sm text-white space-y-4">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <label className="space-y-1">
+            <span className="text-xs uppercase tracking-wide text-slate-400">កាលបរិច្ឆេទចាប់ផ្តើម</span>
+            <input
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              className="w-full rounded-xl border border-white/10 bg-slate-900/70 px-3 py-2 text-white focus:border-cyan-400 focus:outline-none"
+            />
+          </label>
+          <label className="space-y-1">
+            <span className="text-xs uppercase tracking-wide text-slate-400">កាលបរិច្ឆេទបញ្ចប់</span>
+            <input
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              className="w-full rounded-xl border border-white/10 bg-slate-900/70 px-3 py-2 text-white focus:border-cyan-400 focus:outline-none"
+            />
+          </label>
+          <label className="space-y-1">
+            <span className="text-xs uppercase tracking-wide text-slate-400">តំបន់ (Area)</span>
+            <select
+              value={selectedAreaId ?? ""}
+              onChange={(e) => {
+                const value = e.target.value ? Number(e.target.value) : null;
+                setSelectedAreaId(value);
+                setSelectedSubareaId(null);
+                setSelectedBranchId(null);
+              }}
+              className="w-full rounded-xl border border-white/10 bg-slate-900/70 px-3 py-2 text-white focus:border-cyan-400 focus:outline-none"
+            >
+              <option value="">តំបន់ទាំងអស់</option>
+              {areas.map((area) => (
+                <option key={area.id} value={area.id}>{area.name}</option>
+              ))}
+            </select>
+          </label>
+          <label className="space-y-1">
+            <span className="text-xs uppercase tracking-wide text-slate-400">ក្រោមតំបន់ (Sub-area)</span>
+            <select
+              value={selectedSubareaId ?? ""}
+              onChange={(e) => {
+                const value = e.target.value ? Number(e.target.value) : null;
+                setSelectedSubareaId(value);
+                setSelectedBranchId(null);
+              }}
+              className="w-full rounded-xl border border-white/10 bg-slate-900/70 px-3 py-2 text-white focus:border-cyan-400 focus:outline-none"
+            >
+              <option value="">ក្រោមតំបន់ទាំងអស់</option>
+              {filteredSubareas.map((subarea) => (
+                <option key={subarea.id} value={subarea.id}>{subarea.name}</option>
+              ))}
+            </select>
+          </label>
+          <label className="space-y-1">
+            <span className="text-xs uppercase tracking-wide text-slate-400">សាខា</span>
+            <select
+              value={selectedBranchId ?? ""}
+              onChange={(e) => {
+                const value = e.target.value ? Number(e.target.value) : null;
+                setSelectedBranchId(value);
+              }}
+              className="w-full rounded-xl border border-white/10 bg-slate-900/70 px-3 py-2 text-white focus:border-cyan-400 focus:outline-none"
+            >
+              <option value="">សាខាទាំងអស់</option>
+              {filteredBranches.map((branch) => (
+                <option key={branch.id} value={branch.id}>{branch.name}</option>
+              ))}
+            </select>
+          </label>
+          <label className="space-y-1">
+            <span className="text-xs uppercase tracking-wide text-slate-400">ស្វែងរក</span>
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="ស្វែងរកតាមសាខា កាលបរិច្ឆេទ ឬស្ថានភាព"
+              className="w-full rounded-xl border border-white/10 bg-slate-900/70 px-3 py-2 text-white placeholder:text-slate-500 focus:border-cyan-400 focus:outline-none"
+            />
+          </label>
+        </div>
+        <div className="flex flex-wrap gap-3">
+          <button
+            onClick={handleResetFilters}
+            className="rounded-xl bg-linear-to-r from-cyan-500 to-blue-500 px-4 py-2 text-sm font-semibold text-white hover:from-cyan-400 hover:to-blue-400 disabled:opacity-50"
+          >
+            កំណត់ឡើងវិញ
+          </button>
+          <span className="text-xs text-slate-400 self-center">
+            បង្ហាញ​ពី {formatKhDate(startDate)} ដល់ {formatKhDate(endDate)}
+          </span>
+        </div>
+      </div>
+
       {loading && (
         <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-white">
           កំពុងទាញយកទិន្នន័យ...
@@ -629,48 +987,49 @@ export default function CallReports() {
         </div>
       )}
 
-      {!loading && !error && groupedReports.length === 0 && (
+      {!loading && !error && filteredRows.length === 0 && (
         <div className="rounded-2xl border border-white/10 bg-white/5 p-6 text-center text-white/70">
           មិនមានទិន្នន័យរបាយការណ៍ក្នុងកាលបរិច្ឆេទនេះទេ។
         </div>
       )}
 
-      {!loading && !error && groupedReports.length > 0 && (
+      {!loading && !error && filteredRows.length > 0 && (
         <div className="overflow-hidden rounded-2xl border border-white/5 bg-slate-950/70">
           <table className="min-w-full divide-y divide-white/5 text-sm">
             <thead>
               <tr className="bg-white/5 text-left text-xs font-semibold uppercase tracking-wider text-slate-300">
                 <th className="px-4 py-3">No</th>
-                <th className="px-4 py-3">Called at</th>
+                <th className="px-4 py-3">Called At</th>
                 <th className="px-4 py-3">Branch</th>
                 <th className="px-4 py-3">Status</th>
+                <th className="px-4 py-3">Total</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-white/5 text-white/90">
-              {groupedReports.map((report, index) => (
+              {filteredRows.map((row, index) => (
                 <tr
-                  key={report.calledAt}
+                  key={`${row.id}-${index}`}
                   className="cursor-pointer transition hover:bg-white/5"
-                  onClick={() => setSelectedReport(report)}
+                  onClick={() => handleOpenRow(row)}
                 >
                   <td className="px-4 py-3 text-sm font-semibold text-slate-300">{index + 1}</td>
                   <td className="px-4 py-3">
-                    <div className="font-semibold text-white">{formatKhDate(report.calledAt)}</div>
-                    <p className="text-xs text-slate-400">{report.calledAt}</p>
+                    <div className="font-semibold text-white">{formatKhDate(row.calledAt)}</div>
+                    <p className="text-xs text-slate-400">{row.calledAt}</p>
                   </td>
                   <td className="px-4 py-3">
-                    <div className="font-semibold">
-                      {report.branches.length > 3
-                        ? `${report.branches.length} branches`
-                        : report.branches.join(", ")}
-                    </div>
-                    <p className="text-xs text-slate-400">សរុប {formatNumber(report.totalCalls)} កញ្ចប់</p>
+                    <div className="font-semibold text-white">{row.branchName}</div>
+                    <p className="text-xs text-slate-400">
+                      {[row.subareaName, row.areaName].filter(Boolean).join(" · ")}
+                    </p>
+                  </td>
+                  <td className="px-4 py-3">
+                    <p className="text-xs text-slate-300 line-clamp-2">{buildStatusSummary(row.totalsByStatus)}</p>
                   </td>
                   <td className="px-4 py-3">
                     <div className="text-sm font-semibold text-white">
-                      {formatNumber(report.totalCalls - (report.totalsByStatus["not-called-yet"] ?? 0))} កញ្ចប់បានតេ
+                      {formatNumber(row.totalCalls)} កញ្ចប់
                     </div>
-                    <p className="text-xs text-slate-400 line-clamp-2">{buildStatusSummary(report.totalsByStatus)}</p>
                   </td>
                 </tr>
               ))}
