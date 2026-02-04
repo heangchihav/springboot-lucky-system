@@ -26,6 +26,11 @@ public class CallReport {
     @Column(name = "arrived_at")
     private LocalDate arrivedAt;
 
+    @NotNull
+    @Enumerated(EnumType.STRING)
+    @Column(name = "type", nullable = false)
+    private CallType type;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "branch_id")
     private Branch branch;
@@ -136,6 +141,14 @@ public class CallReport {
 
     public void setArrivedAt(LocalDate arrivedAt) {
         this.arrivedAt = arrivedAt;
+    }
+
+    public CallType getType() {
+        return type;
+    }
+
+    public void setType(CallType type) {
+        this.type = type;
     }
 
     public String getCreatedBy() {

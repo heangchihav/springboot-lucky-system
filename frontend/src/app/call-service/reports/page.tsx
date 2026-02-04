@@ -10,6 +10,7 @@ import { areaBranchService, Area, Subarea, Branch } from "@/services/areaBranchS
 type CallReportSummaryResponse = {
   calledAt: string;
   arrivedAt?: string;
+  type: "new-call" | "recall";
   branchId: number | null;
   branchName: string;
   statusTotals: Record<string, number>;
@@ -22,7 +23,7 @@ const cloneArrivalBreakdown = (breakdown: GroupedReport["arrivalBreakdown"]): Gr
     dates: [...breakdown[type].dates],
   });
   return {
-    "new-arrival": cloneType("new-arrival"),
+    "new-call": cloneType("new-call"),
     recall: cloneType("recall"),
   };
 };
@@ -45,7 +46,7 @@ const mergeArrivalBreakdowns = (
   };
 
   return {
-    "new-arrival": mergeType("new-arrival"),
+    "new-call": mergeType("new-call"),
     recall: mergeType("recall"),
   };
 };
@@ -85,7 +86,7 @@ type CallStatusResponse = {
   label: string;
 };
 
-type ArrivalType = "new-arrival" | "recall";
+type ArrivalType = "new-call" | "recall";
 
 type GroupedReport = {
   calledAt: string;
@@ -139,17 +140,12 @@ const normalizeDateForArrival = (value?: string | null) => {
 };
 
 const classifyArrivalType = (summary: CallReportSummaryResponse): ArrivalType => {
-  const arrived = normalizeDateForArrival(summary.arrivedAt);
-  const called = normalizeDateForArrival(summary.calledAt);
-  if (arrived && called && arrived === called) {
-    return "new-arrival";
-  }
-  return "recall";
+  return summary.type || "new-call";
 };
 
 const buildArrivalBreakdownFromSummary = (summary: CallReportSummaryResponse): GroupedReport["arrivalBreakdown"] => {
   const buckets: Record<ArrivalType, { total: number; statuses: Record<string, number>; dates: Set<string> }> = {
-    "new-arrival": { total: 0, statuses: {}, dates: new Set<string>() },
+    "new-call": { total: 0, statuses: {}, dates: new Set<string>() },
     recall: { total: 0, statuses: {}, dates: new Set<string>() },
   };
 
@@ -170,10 +166,10 @@ const buildArrivalBreakdownFromSummary = (summary: CallReportSummaryResponse): G
   });
 
   return {
-    "new-arrival": {
-      total: buckets["new-arrival"].total,
-      statuses: buckets["new-arrival"].statuses,
-      dates: Array.from(buckets["new-arrival"].dates).sort(),
+    "new-call": {
+      total: buckets["new-call"].total,
+      statuses: buckets["new-call"].statuses,
+      dates: Array.from(buckets["new-call"].dates).sort(),
     },
     recall: {
       total: buckets.recall.total,
@@ -385,8 +381,8 @@ export default function CallReports() {
   const buildArrivalText = useCallback((type: ArrivalType, data: { total: number; statuses: Record<string, number>; dates?: string[] }) => {
     if (!data || data.total === 0) return null;
     const heading =
-      type === "new-arrival"
-        ? "អីវ៉ាន់ចូលថ្មី (New Arrival)"
+      type === "new-call"
+        ? "អីវ៉ាន់ចូលថ្មី (New Call)"
         : "Re-Call";
     const dateRange = formatArrivalDateRange(data.dates);
     const statusLines = statusDisplayOrder.filter((key) => (data.statuses[key] ?? 0) > 0)
@@ -403,7 +399,7 @@ export default function CallReports() {
     const notCalled = report.totalsByStatus["not-called-yet"] ?? 0;
     const completed = totalPlanned - notCalled;
 
-    const newArrivalText = buildArrivalText("new-arrival", report.arrivalBreakdown["new-arrival"]);
+    const newArrivalText = buildArrivalText("new-call", report.arrivalBreakdown["new-call"]);
     const recallText = buildArrivalText("recall", report.arrivalBreakdown["recall"]);
 
     const lines: string[] = [
@@ -590,10 +586,10 @@ export default function CallReports() {
 
       exportContainer.appendChild(infoBlock);
 
-      const newArrivalText = buildArrivalText("new-arrival", selectedReport.arrivalBreakdown["new-arrival"]);
+      const newArrivalText = buildArrivalText("new-call", selectedReport.arrivalBreakdown["new-call"]);
       const recallText = buildArrivalText("recall", selectedReport.arrivalBreakdown["recall"]);
 
-      addSection("អីវ៉ាន់ចូលថ្មី", newArrivalText ?? []);
+      addSection("អីវ៉ាន់ចូលថ្មី (New Call)", newArrivalText ?? []);
       addSection("Re-Call", recallText ?? []);
 
       addParagraph("សូមអរគុណបង!", { bold: true, size: "16px" });
@@ -837,7 +833,7 @@ export default function CallReports() {
     const notCalled = report.totalsByStatus["not-called-yet"] ?? 0;
     const completed = totalPlanned - notCalled;
 
-    const newArrivalText = buildArrivalText("new-arrival", report.arrivalBreakdown["new-arrival"]);
+    const newArrivalText = buildArrivalText("new-call", report.arrivalBreakdown["new-call"]);
     const recallText = buildArrivalText("recall", report.arrivalBreakdown["recall"]);
 
     return (

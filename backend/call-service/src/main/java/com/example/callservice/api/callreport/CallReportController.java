@@ -35,7 +35,8 @@ public class CallReportController extends BaseController {
 
     @GetMapping
     public ResponseEntity<List<CallReportResponse>> listReports(HttpServletRequest request) {
-        ResponseEntity<List<CallReportResponse>> permissionCheck = checkPermissionAndReturn(request, "menu.3.view");
+        ResponseEntity<List<CallReportResponse>> permissionCheck = checkPermissionAndReturn(request,
+                "call-report.view");
         if (permissionCheck != null) {
             return permissionCheck;
         }
@@ -64,7 +65,7 @@ public class CallReportController extends BaseController {
             @RequestParam(required = false) List<Long> subareaIds,
             @RequestParam(required = false) List<String> statusKeys) {
         ResponseEntity<List<CallReportSummaryResponse>> permissionCheck = checkPermissionAndReturn(request,
-                "menu.3.view");
+                "call-report.view");
         if (permissionCheck != null) {
             return permissionCheck;
         }
@@ -116,7 +117,8 @@ public class CallReportController extends BaseController {
     @PostMapping
     public ResponseEntity<CallReportResponse> createReport(@Valid @RequestBody CallReportRequest request,
             HttpServletRequest httpRequest) {
-        ResponseEntity<CallReportResponse> permissionCheck = checkPermissionAndReturn(httpRequest, "menu.3.view");
+        ResponseEntity<CallReportResponse> permissionCheck = checkPermissionAndReturn(httpRequest,
+                "call-report.create");
         if (permissionCheck != null) {
             return permissionCheck;
         }
@@ -134,7 +136,8 @@ public class CallReportController extends BaseController {
     @PutMapping("/{id}")
     public ResponseEntity<CallReportResponse> updateReport(@PathVariable Long id,
             @Valid @RequestBody CallReportRequest request, HttpServletRequest httpRequest) {
-        ResponseEntity<CallReportResponse> permissionCheck = checkPermissionAndReturn(httpRequest, "menu.3.view");
+        ResponseEntity<CallReportResponse> permissionCheck = checkPermissionAndReturn(httpRequest,
+                "call-report.create");
         if (permissionCheck != null) {
             return permissionCheck;
         }
@@ -150,7 +153,7 @@ public class CallReportController extends BaseController {
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteReport(@PathVariable Long id, HttpServletRequest request) {
-        ResponseEntity<Void> permissionCheck = checkPermissionAndReturn(request, "menu.3.view");
+        ResponseEntity<Void> permissionCheck = checkPermissionAndReturn(request, "call-report.delete");
         if (permissionCheck != null) {
             return permissionCheck;
         }
@@ -168,6 +171,7 @@ public class CallReportController extends BaseController {
                 callReport.getId(),
                 callReport.getCalledAt(),
                 callReport.getArrivedAt(),
+                callReport.getType(),
                 callReport.getBranch() != null ? callReport.getBranch().getId() : null,
                 callReport.getBranch() != null ? callReport.getBranch().getName() : "No Branch",
                 creatorNames.getOrDefault(callReport.getCreatedBy(), callReport.getCreatedBy()),

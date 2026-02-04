@@ -374,8 +374,23 @@ function Page() {
 
   // Initialize with today's date in dd/mm/yyyy format
   const [date, setDate] = useState(formatDateToDDMMYYYY(new Date()));
-  const [arrivedAt, setArrivedAt] = useState<string>(formatDateToDDMMYYYY(new Date()));
+  const [arrivedAt, setArrivedAt] = useState<string>("");
+  const [inputType, setInputType] = useState<"new-call" | "recall">("new-call");
   const [entries, setEntries] = useState<Record<string, string>>({});
+
+  // Function to get the most recent arrivedAt date from user's reports
+  const getMostRecentArrivedAt = (userReports: ReportRecord[]): string => {
+    const reportsWithArrivedAt = userReports.filter(report => report.arrivedAt && report.arrivedAt.trim() !== "");
+
+    if (reportsWithArrivedAt.length === 0) {
+      return formatDateToDDMMYYYY(new Date()); // Default to today if no previous data
+    }
+
+    // Sort by created date to get the most recent
+    reportsWithArrivedAt.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+    return reportsWithArrivedAt[0].arrivedAt || formatDateToDDMMYYYY(new Date());
+  };
   const [remarks, setRemarks] = useState<Record<string, string>>({});
   const [recordRemark, setRecordRemark] = useState<string>("");
   const [expandedRemarks, setExpandedRemarks] = useState<Record<string, boolean>>({});
@@ -618,6 +633,12 @@ function Page() {
       }));
 
       setReports(mappedReports);
+
+      // Auto-set arrivedAt from the most recent report if it's not already set
+      if (!arrivedAt || arrivedAt.trim() === "") {
+        const mostRecentArrivedAt = getMostRecentArrivedAt(mappedReports);
+        setArrivedAt(mostRecentArrivedAt);
+      }
     } catch (error) {
       console.error("Failed to fetch reports", error);
       setApiError("Unable to load call reports from backend");
@@ -769,7 +790,16 @@ function Page() {
       const method = isUpdate ? "PUT" : "POST";
 
       const payloadCalledAt = parseDDMMYYYYToInputFormat(date);
-      const payloadArrivedAt = arrivedAt ? parseDDMMYYYYToInputFormat(arrivedAt) : null;
+      let payloadArrivedAt = null;
+
+      if (inputType === "new-call") {
+        // For new calls, the date is the arrivedAt
+        payloadArrivedAt = payloadCalledAt;
+        // calledAt should be null or same as arrivedAt for new calls
+      } else {
+        // For recall, use the auto-set arrivedAt and current date as calledAt
+        payloadArrivedAt = arrivedAt ? parseDDMMYYYYToInputFormat(arrivedAt) : null;
+      }
 
       const response = await apiFetch(url, {
         method,
@@ -777,6 +807,7 @@ function Page() {
         body: JSON.stringify({
           calledAt: payloadCalledAt,
           arrivedAt: payloadArrivedAt,
+          type: inputType === "new-call" ? "new-call" : "recall",
           branchId: selectedBranchId,
           entries: Object.fromEntries(
             Object.entries(entries).map(([key, value]) => [key, Number(value) || 0])
@@ -799,7 +830,7 @@ function Page() {
       setRemarks({});
       setRecordRemark("");
       setExpandedRemarks({});
-      setArrivedAt(formatDateToDDMMYYYY(new Date()));
+      // Don't reset arrivedAt - keep it from user's past data
       setDate(formatDateToDDMMYYYY(new Date()));
       setEditingReportId(null);
     } catch (error) {
@@ -1046,25 +1077,47 @@ function Page() {
             <div className="flex items-center gap-2 mb-5">
               <div className="w-1 h-6 bg-gradient-to-b from-orange-500 to-orange-600 rounded-full"></div>
               <h2 className="text-2xl font-bold bg-linear-to-r from-orange-400 to-orange-600 bg-clip-text text-transparent">
-                Submit Daily Report
+                Submit {inputType === "new-call" ? "New Call" : "Recall"} Report
               </h2>
+              
+            </div>
+
+            {/* Call Type Options */}
+            <div className="mb-4">
+              <span className="text-sm font-medium text-slate-300 mb-2 block">Call Type</span>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setInputType("new-call")}
+                  className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg border-2 transition-all duration-200 ${inputType === "new-call"
+                    ? "bg-orange-500/20 border-orange-500 text-orange-400"
+                    : "bg-slate-800 border-slate-600 text-slate-400 hover:border-slate-500 hover:text-slate-300"
+                    }`}
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  <span className="font-medium">New Call</span>
+                </button>
+                <button
+                  onClick={() => setInputType("recall")}
+                  className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg border-2 transition-all duration-200 ${inputType === "recall"
+                    ? "bg-blue-500/20 border-blue-500 text-blue-400"
+                    : "bg-slate-800 border-slate-600 text-slate-400 hover:border-slate-500 hover:text-slate-300"
+                    }`}
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  <span className="font-medium">Re-call</span>
+             
+                </button>
+              </div>
             </div>
 
             <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between mb-6">
               <div className="flex-1">
                 <label className="block text-xs font-medium text-slate-400 mb-2 uppercase tracking-wider">
-                  Arrived At (Optional)
-                </label>
-                <CustomDateInput
-                  value={arrivedAt}
-                  onChange={(value) => setArrivedAt(value)}
-                  placeholder="DD/MM/YYYY"
-                  className="px-3 py-2 w-full text-sm bg-slate-800 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
-                />
-              </div>
-              <div className="flex-1">
-                <label className="block text-xs font-medium text-slate-400 mb-2 uppercase tracking-wider">
-                  Called Date
+                  {inputType === "new-call" ? "Arrived Date" : "Called Date"}
                 </label>
                 <CustomDateInput
                   value={date}
@@ -1073,6 +1126,16 @@ function Page() {
                   className="px-3 py-2 w-full text-sm bg-slate-800 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
                 />
               </div>
+              {inputType === "recall" && (
+                <div className="flex-1">
+                  <label className="block text-xs font-medium text-slate-400 mb-2 uppercase tracking-wider">
+                    Original Arrived Date
+                  </label>
+                  <div className="px-3 py-2 w-full text-sm bg-slate-800 border border-slate-600 rounded-lg text-slate-300">
+                    {arrivedAt || "Loading..."}
+                  </div>
+                </div>
+              )}
               <div className="flex-1">
                 <label className="block text-xs font-medium text-slate-400 mb-2 uppercase tracking-wider">
                   Branch
@@ -1224,7 +1287,7 @@ function Page() {
                   setRemarks({});
                   setRecordRemark("");
                   setExpandedRemarks({});
-                  setArrivedAt(formatDateToDDMMYYYY(new Date()));
+                  // Don't reset arrivedAt - keep it from user's past data
                   setDate(formatDateToDDMMYYYY(new Date()));
                 }}
                 className="px-4 py-2 text-xs font-semibold bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600 hover:text-white transition-all duration-300"
@@ -1464,7 +1527,7 @@ function Page() {
         onClose={() => setShowQuickInputPopup(false)}
         onDataProcessed={handleQuickInputData}
         statuses={statuses}
-        filterArrivedDate={arrivedAt}
+        filterArrivedDate={inputType === "recall" ? arrivedAt : (inputType === "new-call" ? date : undefined)}
         filterCalledDate={date}
       />
 

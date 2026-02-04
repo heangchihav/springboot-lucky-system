@@ -3,16 +3,65 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 
+// Updated permission map to match the new semantic database structure
 const MENU_PERMISSION_MAP: Record<string, string> = {
-  canViewDashboard: "menu.1.view",
-  canViewBranches: "menu.2.view",
-  canManageBranches: "menu.2.branch.create",
-  canViewCalls: "menu.1.view",
-  canManageCalls: "menu.1.edit",
-  canViewQueue: "menu.3.view",
-  canManageQueue: "menu.3.analytics",
-  canViewReports: "menu.3.view",
-  canManageUsers: "menu.4.view",
+  // Dashboard permissions
+  canViewDashboard: "dashboard.view",
+  canViewOverview: "dashboard.overview",
+  canViewEscalations: "dashboard.escalations",
+  canViewQueueHealth: "dashboard.queue-health",
+
+  // Area Management permissions
+  canViewAreas: "area.view",
+  canCreateAreas: "area.create",
+  canEditAreas: "area.edit",
+  canDeleteAreas: "area.delete",
+
+  // Subarea Management permissions
+  canViewSubareas: "subarea.view",
+  canCreateSubareas: "subarea.create",
+  canEditSubareas: "subarea.edit",
+  canDeleteSubareas: "subarea.delete",
+
+  // Branch Management permissions
+  canViewBranches: "branch.view",
+  canCreateBranches: "branch.create",
+  canEditBranches: "branch.edit",
+  canUpdateBranches: "branch.update",
+  canDeleteBranches: "branch.delete",
+
+  // User Branch Assignment permissions
+  canAssignUserBranch: "user.branch.assign",
+  canRemoveUserBranch: "user.branch.remove",
+  canViewUserBranchAssignments: "user.branch.view",
+
+  // Call Reports permissions
+  canViewCallReports: "call-report.view",
+  canCreateCallReports: "call-report.create",
+  canEditCallReports: "call-report.edit",
+  canDeleteCallReports: "call-report.delete",
+
+  // Call Status permissions
+  canViewCallStatus: "call-status.view",
+  canCreateCallStatus: "call-status.create",
+  canEditCallStatus: "call-status.edit",
+  canDeleteCallStatus: "call-status.delete",
+
+  // Role Management permissions
+  canViewRoles: "role.view",
+  canManageRoles: "role.manage",
+  canAssignRoles: "role.assign",
+
+  // Permission Management permissions
+  canViewPermissions: "permission.view",
+  canManagePermissions: "permission.manage",
+
+  // User Management permissions
+  canViewUsers: "user.view",
+  canCreateUsers: "user.create",
+  canEditUsers: "user.edit",
+  canDeleteUsers: "user.delete",
+  canAssignUsers: "user.assign",
 };
 
 const resolvePermissionCode = (key: string) => MENU_PERMISSION_MAP[key] ?? key;

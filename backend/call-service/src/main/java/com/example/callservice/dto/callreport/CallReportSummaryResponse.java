@@ -1,5 +1,6 @@
 package com.example.callservice.dto.callreport;
 
+import com.example.callservice.entity.callreport.CallType;
 import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.Map;
@@ -8,10 +9,10 @@ public class CallReportSummaryResponse {
 
     private LocalDate calledAt;
     private LocalDate arrivedAt;
+    private CallType type;
     private Long branchId;
     private String branchName;
     private Map<String, Long> statusTotals = new HashMap<>();
-    private boolean sameDayArrival;
 
     public CallReportSummaryResponse() {
     }
@@ -65,11 +66,11 @@ public class CallReportSummaryResponse {
         this.statusTotals = statusTotals;
     }
 
-    public boolean isSameDayArrival() {
-        return sameDayArrival;
+    public CallType getType() {
+        return type;
     }
 
-    public void setSameDayArrival(boolean sameDayArrival) {
-        this.sameDayArrival = sameDayArrival;
+    public void setType(CallType type) {
+        this.type = type;
     }
 }

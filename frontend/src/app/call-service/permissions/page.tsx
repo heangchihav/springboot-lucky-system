@@ -2,13 +2,13 @@
 
 import React, { useState, useEffect, useMemo } from "react";
 import {
-  permissionsService,
+  callPermissionsService,
   Permission,
   Role,
   PermissionGroup,
   CreateRoleRequest,
   UpdateRoleRequest,
-} from "@/services/permissionsService";
+} from "@/services/callPermissionsService";
 import { userService, User } from "@/services/userService";
 import { callUserService } from "@/services/call-service/callUserService";
 import { PermissionGuard } from "@/components/layout/PermissionGuard";
@@ -145,9 +145,9 @@ export default function PermissionsPage() {
     try {
       // Fetch data using real services
       const [permissionsData, groupsData, rolesData] = await Promise.all([
-        permissionsService.getPermissions(),
-        permissionsService.getPermissionGroups(),
-        permissionsService.getRoles(),
+        callPermissionsService.getPermissions(),
+        callPermissionsService.getPermissionGroups(),
+        callPermissionsService.getRoles(),
       ]);
 
       setPermissions(permissionsData);
@@ -158,7 +158,7 @@ export default function PermissionsPage() {
       const roleUsersMap = new Map<number, User[]>();
       for (const role of rolesData) {
         try {
-          const assignedUsers = await permissionsService.getUsersInRole(
+          const assignedUsers = await callPermissionsService.getUsersInRole(
             role.id,
           );
           roleUsersMap.set(role.id, assignedUsers);
@@ -189,7 +189,7 @@ export default function PermissionsPage() {
         permissionCodes: selectedPermissions,
       };
 
-      const newRole = await permissionsService.createRole(createRoleRequest);
+      const newRole = await callPermissionsService.createRole(createRoleRequest);
       setRoles([...roles, newRole]);
       resetRoleForm();
       console.log("Role created successfully:", newRole);
@@ -210,7 +210,7 @@ export default function PermissionsPage() {
         permissionCodes: selectedPermissions,
       };
 
-      const updatedRole = await permissionsService.updateRole(
+      const updatedRole = await callPermissionsService.updateRole(
         editingRole.id,
         updateRoleRequest,
       );
@@ -229,7 +229,7 @@ export default function PermissionsPage() {
 
   const handleDeleteRole = async (roleId: number) => {
     try {
-      await permissionsService.deleteRole(roleId);
+      await callPermissionsService.deleteRole(roleId);
       setRoles(roles.filter((role) => role.id !== roleId));
       console.log("Role deleted successfully:", roleId);
     } catch (error) {
@@ -337,12 +337,12 @@ export default function PermissionsPage() {
 
       // Add new users
       if (usersToAdd.length > 0) {
-        await permissionsService.assignUsersToRole(selectedRole.id, usersToAdd);
+        await callPermissionsService.assignUsersToRole(selectedRole.id, usersToAdd);
       }
 
       // Remove users
       if (usersToRemove.length > 0) {
-        await permissionsService.removeUsersFromRole(
+        await callPermissionsService.removeUsersFromRole(
           selectedRole.id,
           usersToRemove,
         );
@@ -358,7 +358,7 @@ export default function PermissionsPage() {
 
       // Refresh users for this role
       try {
-        const assignedUsers = await permissionsService.getUsersInRole(
+        const assignedUsers = await callPermissionsService.getUsersInRole(
           selectedRole.id,
         );
         setRoleUsers((prev) =>
@@ -436,7 +436,8 @@ export default function PermissionsPage() {
             <div className="flex justify-between items-center">
               <h2 className="text-xl font-semibold text-white">Roles</h2>
               <PermissionGuard
-                permission="menu.5.manage"
+                permission="role.manage"
+                serviceContext="call-service"
                 fallback={
                   <button
                     disabled
@@ -500,7 +501,8 @@ export default function PermissionsPage() {
 
                     <div className="flex items-center gap-2">
                       <PermissionGuard
-                        permission="menu.5.assign"
+                        permission="role.assign"
+                        serviceContext="call-service"
                         fallback={
                           <button
                             disabled
@@ -520,7 +522,8 @@ export default function PermissionsPage() {
                         </button>
                       </PermissionGuard>
                       <PermissionGuard
-                        permission="menu.5.manage"
+                        permission="role.manage"
+                        serviceContext="call-service"
                         fallback={
                           <button
                             disabled
@@ -540,7 +543,8 @@ export default function PermissionsPage() {
                         </button>
                       </PermissionGuard>
                       <PermissionGuard
-                        permission="menu.5.manage"
+                        permission="role.manage"
+                        serviceContext="call-service"
                         fallback={
                           <button
                             disabled

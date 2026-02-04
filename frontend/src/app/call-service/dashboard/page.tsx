@@ -91,13 +91,14 @@ type CallReportSummaryResponse = {
   branchName: string;
   statusTotals: Record<string, number>;
   arrivedAt?: string;
+  type: "new-call" | "recall";
 };
 
-type ArrivalType = "all" | "new-arrival" | "recall";
+type ArrivalType = "all" | "new-call" | "recall";
 
 const ARRIVAL_TYPE_LABELS: Record<ArrivalType, string> = {
   "all": "ទាំងអស់",
-  "new-arrival": "អីវ៉ាន់ចូលថ្មី (New Arrival)",
+  "new-call": "ការហៅថ្មី (New Call)",
   "recall": "Re-Call",
 };
 
@@ -716,14 +717,7 @@ function CallDashboard() {
   );
 
   const classifyArrivalType = (summary: CallReportSummaryResponse): ArrivalType => {
-    const normalizedArrived = normalizeDateForArrival(summary.arrivedAt);
-    const normalizedCalled = normalizeDateForArrival(summary.calledAt);
-
-    if (normalizedArrived && normalizedCalled && normalizedArrived === normalizedCalled) {
-      return "new-arrival";
-    }
-
-    return "recall";
+    return summary.type || "new-call";
   };
 
   const filteredSummaryData = useMemo(() => {

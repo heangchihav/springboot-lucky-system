@@ -3,6 +3,7 @@ package com.example.callservice.service.callreport;
 import com.example.callservice.dto.callreport.CallReportRequest;
 import com.example.callservice.dto.callreport.CallReportSummaryResponse;
 import com.example.callservice.entity.callreport.CallReport;
+import com.example.callservice.entity.callreport.CallType;
 import com.example.callservice.entity.branch.Branch;
 import com.example.callservice.repository.callreport.CallReportRepository;
 import com.example.callservice.repository.callreport.CallReportSummaryProjection;
@@ -49,6 +50,7 @@ public class CallReportService {
         report.setCalledAt(request.getCalledAt());
         report.setBranch(branch);
         report.setCreatedBy(createdBy);
+        report.setType(request.getType());
 
         // Set arrivedAt if provided
         if (request.getArrivedAt() != null) {
@@ -161,14 +163,45 @@ public class CallReportService {
         Map<String, CallReportSummaryResponse> grouped = new HashMap<>();
         for (CallReportSummaryProjection row : rows) {
             String arrivedKey = row.getArrivedAt() == null ? "null" : row.getArrivedAt().toString();
-            String key = row.getCalledAt() + "|" + arrivedKey + "|" + row.getBranchId();
+            // Include type in the grouping key to separate NEW_CALL and RECALL records
+            String typeKey = row.getType() != null ? row.getType() : "NEW_CALL";
+            String key = row.getCalledAt() + "|" + arrivedKey + "|" + row.getBranchId() + "|" + typeKey;
             CallReportSummaryResponse summary = grouped.computeIfAbsent(key, ignored -> new CallReportSummaryResponse(
                     row.getCalledAt(),
                     row.getArrivedAt(),
                     row.getBranchId(),
                     row.getBranchName(),
                     new HashMap<>()));
-            summary.getStatusTotals().put(row.getStatusKey(), row.getTotal());
+
+            // Handle type conversion - convert String to CallType enum
+            String typeString = row.getType();
+            CallType reportType;
+            if (typeString == null || typeString.trim().isEmpty()) {
+                // Fallback to NEW_CALL if type is null or empty
+                reportType = CallType.NEW_CALL;
+            } else {
+                // Convert string to CallType enum
+                try {
+                    reportType = CallType.fromValue(typeString.toLowerCase());
+                } catch (IllegalArgumentException e) {
+                    // If conversion fails, default to NEW_CALL
+                    reportType = CallType.NEW_CALL;
+                }
+            }
+
+            // Create a new CallReportSummaryResponse with the correct type
+            // This ensures the @JsonValue annotation is used for serialization
+            CallReportSummaryResponse updatedSummary = new CallReportSummaryResponse(
+                    summary.getCalledAt(),
+                    summary.getArrivedAt(),
+                    summary.getBranchId(),
+                    summary.getBranchName(),
+                    summary.getStatusTotals());
+            updatedSummary.setType(reportType);
+
+            // Replace the summary in the map
+            grouped.put(key, updatedSummary);
+            updatedSummary.getStatusTotals().put(row.getStatusKey(), row.getTotal());
         }
 
         return new ArrayList<>(grouped.values());

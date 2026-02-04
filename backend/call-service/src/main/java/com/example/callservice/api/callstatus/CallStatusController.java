@@ -26,20 +26,22 @@ public class CallStatusController extends BaseController {
 
     @GetMapping
     public ResponseEntity<List<CallStatusResponse>> listStatuses(HttpServletRequest request) {
-        ResponseEntity<List<CallStatusResponse>> permissionCheck = checkPermissionAndReturn(request, "menu.3.view");
+        ResponseEntity<List<CallStatusResponse>> permissionCheck = checkPermissionAndReturn(request,
+                "call-status.view");
         if (permissionCheck != null) {
             return permissionCheck;
         }
 
         List<CallStatusResponse> response = callStatusService.getAllStatuses().stream()
-            .map(this::valueToResponse)
-            .collect(Collectors.toList());
+                .map(this::valueToResponse)
+                .collect(Collectors.toList());
         return ResponseEntity.ok(response);
     }
 
     @PostMapping
-    public ResponseEntity<CallStatusResponse> createStatus(@Valid @RequestBody CallStatusRequest requestBody, HttpServletRequest request) {
-        ResponseEntity<CallStatusResponse> permissionCheck = checkPermissionAndReturn(request, "menu.3.view");
+    public ResponseEntity<CallStatusResponse> createStatus(@Valid @RequestBody CallStatusRequest requestBody,
+            HttpServletRequest request) {
+        ResponseEntity<CallStatusResponse> permissionCheck = checkPermissionAndReturn(request, "call-status.create");
         if (permissionCheck != null) {
             return permissionCheck;
         }
@@ -58,8 +60,9 @@ public class CallStatusController extends BaseController {
     }
 
     @PutMapping("/{key}")
-    public ResponseEntity<CallStatusResponse> updateStatus(@PathVariable String key, @Valid @RequestBody CallStatusRequest requestBody, HttpServletRequest request) {
-        ResponseEntity<CallStatusResponse> permissionCheck = checkPermissionAndReturn(request, "menu.3.view");
+    public ResponseEntity<CallStatusResponse> updateStatus(@PathVariable String key,
+            @Valid @RequestBody CallStatusRequest requestBody, HttpServletRequest request) {
+        ResponseEntity<CallStatusResponse> permissionCheck = checkPermissionAndReturn(request, "call-status.edit");
         if (permissionCheck != null) {
             return permissionCheck;
         }
@@ -74,7 +77,7 @@ public class CallStatusController extends BaseController {
 
     @DeleteMapping("/{key}")
     public ResponseEntity<Void> deleteStatus(@PathVariable String key, HttpServletRequest request) {
-        ResponseEntity<Void> permissionCheck = checkPermissionAndReturn(request, "menu.3.view");
+        ResponseEntity<Void> permissionCheck = checkPermissionAndReturn(request, "call-status.delete");
         if (permissionCheck != null) {
             return permissionCheck;
         }
@@ -89,10 +92,9 @@ public class CallStatusController extends BaseController {
 
     private CallStatusResponse valueToResponse(CallStatus status) {
         return new CallStatusResponse(
-            status.getKey(),
-            status.getLabel(),
-            status.getCreatedBy(),
-            status.getCreatedAt()
-        );
+                status.getKey(),
+                status.getLabel(),
+                status.getCreatedBy(),
+                status.getCreatedAt());
     }
 }

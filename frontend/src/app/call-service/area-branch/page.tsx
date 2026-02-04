@@ -13,6 +13,7 @@ import {
   CreateBranchRequest,
 } from "@/services/areaBranchService";
 import { PermissionGuard } from "@/components/layout/PermissionGuard";
+import { CALL_SERVICE_PERMISSIONS } from "@/constants/permissions";
 
 export default function AreaBranchManagement() {
   const { user, isAuthenticated, hasServiceAccess } = useAuth();
@@ -454,7 +455,7 @@ export default function AreaBranchManagement() {
           <div className="mb-4 flex justify-between items-center">
             <h2 className="text-xl font-semibold text-white">Areas</h2>
             <PermissionGuard
-              permission="menu.6.area.create"
+              permission={CALL_SERVICE_PERMISSIONS.AREAS.CREATE}
               fallback={
                 <button
                   disabled
@@ -615,7 +616,7 @@ export default function AreaBranchManagement() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <PermissionGuard
-                        permission="menu.6.area.edit"
+                        permission="canEditAreas"
                         fallback={
                           <button
                             disabled
@@ -634,11 +635,11 @@ export default function AreaBranchManagement() {
                         </button>
                       </PermissionGuard>
                       <PermissionGuard
-                        permission="menu.6.area.edit"
+                        permission="canEditAreas"
                         fallback={
                           <button
                             disabled
-                            className="text-gray-400 mr-3 cursor-not-allowed"
+                            className="text-gray-400 cursor-not-allowed"
                             title="You don't have permission to change area status"
                           >
                             {area.active ? "Deactivate" : "Activate"}
@@ -655,7 +656,7 @@ export default function AreaBranchManagement() {
                         </button>
                       </PermissionGuard>
                       <PermissionGuard
-                        permission="menu.6.area.delete"
+                        permission="canDeleteAreas"
                         fallback={
                           <button
                             disabled
@@ -688,7 +689,7 @@ export default function AreaBranchManagement() {
           <div className="mb-4 flex justify-between items-center">
             <h2 className="text-xl font-semibold text-white">Subareas</h2>
             <PermissionGuard
-              permission="subarea.create"
+              permission="canCreateSubareas"
               fallback={
                 <button
                   disabled
@@ -881,7 +882,7 @@ export default function AreaBranchManagement() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <PermissionGuard
-                        permission="subarea.edit"
+                        permission="canEditSubareas"
                         fallback={
                           <button
                             disabled
@@ -900,7 +901,7 @@ export default function AreaBranchManagement() {
                         </button>
                       </PermissionGuard>
                       <PermissionGuard
-                        permission="subarea.delete"
+                        permission="canDeleteSubareas"
                         fallback={
                           <button
                             disabled
@@ -933,7 +934,7 @@ export default function AreaBranchManagement() {
           <div className="mb-4 flex justify-between items-center">
             <h2 className="text-xl font-semibold text-white">Branches</h2>
             <PermissionGuard
-              permission="branch.create"
+              permission="canCreateBranches"
               fallback={
                 <button
                   disabled
@@ -1179,7 +1180,7 @@ export default function AreaBranchManagement() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <PermissionGuard
-                        permission="branch.update"
+                        permission="canUpdateBranches"
                         fallback={
                           <button
                             disabled
@@ -1198,7 +1199,7 @@ export default function AreaBranchManagement() {
                         </button>
                       </PermissionGuard>
                       <PermissionGuard
-                        permission="branch.update"
+                        permission="canUpdateBranches"
                         fallback={
                           <button
                             disabled
@@ -1219,7 +1220,7 @@ export default function AreaBranchManagement() {
                         </button>
                       </PermissionGuard>
                       <PermissionGuard
-                        permission="branch.delete"
+                        permission="canDeleteBranches"
                         fallback={
                           <button
                             disabled

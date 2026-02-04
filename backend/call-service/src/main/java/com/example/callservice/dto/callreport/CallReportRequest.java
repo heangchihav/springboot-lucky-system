@@ -2,6 +2,7 @@ package com.example.callservice.dto.callreport;
 
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
+import com.example.callservice.entity.callreport.CallType;
 import java.time.LocalDate;
 import java.util.Map;
 
@@ -10,6 +11,9 @@ public class CallReportRequest {
     private LocalDate calledAt;
 
     private LocalDate arrivedAt;
+
+    @NotNull
+    private CallType type;
 
     private Long branchId;
 
@@ -43,6 +47,14 @@ public class CallReportRequest {
 
     public void setArrivedAt(LocalDate arrivedAt) {
         this.arrivedAt = arrivedAt;
+    }
+
+    public CallType getType() {
+        return type;
+    }
+
+    public void setType(CallType type) {
+        this.type = type;
     }
 
     public Map<String, Integer> getEntries() {

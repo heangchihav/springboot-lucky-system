@@ -17,16 +17,16 @@ import java.util.Map;
 public class BaseController {
 
     private static final Logger logger = LoggerFactory.getLogger(BaseController.class);
-    
+
     @Autowired
     protected PermissionCheckService permissionCheckService;
-    
+
     @Autowired
     protected RestTemplate restTemplate;
-    
+
     @Value("${user.service.url:http://localhost:8080}")
     protected String userServiceUrl;
-    
+
     protected Long getCurrentUserId(HttpServletRequest request) {
         try {
             String userIdHeader = request.getHeader("X-User-Id");
@@ -61,30 +61,30 @@ public class BaseController {
         String rootFlag = currentRequest.getHeader("X-Root-User");
         return rootFlag != null && Boolean.parseBoolean(rootFlag);
     }
-    
+
     protected <T> ResponseEntity<T> checkPermissionAndReturn(HttpServletRequest request, String permissionCode) {
         try {
             Long userId = getCurrentUserId(request);
             if (userId == null) {
                 return ResponseEntity.status(401).body(null);
             }
-            
+
             // Root users bypass all permission checks
             if (isRootUser(userId)) {
                 logger.debug("Root user {} bypassing permission check for {}", userId, permissionCode);
                 return null; // Permission check passed
             }
-            
+
             if (!permissionCheckService.hasPermission(userId, permissionCode)) {
                 return ResponseEntity.status(403).body(null);
             }
-            
+
             return null; // Permission check passed
         } catch (Exception e) {
             return ResponseEntity.status(500).body(null);
         }
     }
-    
+
     protected boolean isRootUser(Long userId) {
         if (hasRootHeaderFlag()) {
             return true;
@@ -98,7 +98,7 @@ public class BaseController {
             return false;
         }
     }
-    
+
     protected ResponseEntity<Map<String, Object>> createErrorResponse(int status, String error, String message) {
         return ResponseEntity.status(status).body(Map.of("error", error, "message", message));
     }

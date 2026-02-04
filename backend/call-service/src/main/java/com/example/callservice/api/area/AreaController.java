@@ -19,10 +19,10 @@ import java.util.stream.Collectors;
 @RestController
 @RequestMapping("/api/calls/areas")
 public class AreaController extends BaseController {
-    
+
     @Autowired
     private AreaService areaService;
-    
+
     private AreaDTO convertToDTO(Area area) {
         AreaDTO dto = new AreaDTO();
         dto.setId(area.getId());
@@ -32,10 +32,10 @@ public class AreaController extends BaseController {
         dto.setActive(area.getActive());
         return dto;
     }
-    
+
     @GetMapping
     public ResponseEntity<List<AreaDTO>> getAllAreas(HttpServletRequest request) {
-        ResponseEntity<List<AreaDTO>> permissionCheck = checkPermissionAndReturn(request, "menu.6.area.view");
+        ResponseEntity<List<AreaDTO>> permissionCheck = checkPermissionAndReturn(request, "area.view");
         if (permissionCheck != null) {
             return permissionCheck;
         }
@@ -43,10 +43,10 @@ public class AreaController extends BaseController {
         List<AreaDTO> areaDTOs = areas.stream().map(this::convertToDTO).collect(Collectors.toList());
         return ResponseEntity.ok(areaDTOs);
     }
-    
+
     @GetMapping("/active")
     public ResponseEntity<List<AreaDTO>> getActiveAreas(HttpServletRequest request) {
-        ResponseEntity<List<AreaDTO>> permissionCheck = checkPermissionAndReturn(request, "menu.6.area.view");
+        ResponseEntity<List<AreaDTO>> permissionCheck = checkPermissionAndReturn(request, "area.view");
         if (permissionCheck != null) {
             return permissionCheck;
         }
@@ -54,10 +54,10 @@ public class AreaController extends BaseController {
         List<AreaDTO> areaDTOs = areas.stream().map(this::convertToDTO).collect(Collectors.toList());
         return ResponseEntity.ok(areaDTOs);
     }
-    
+
     @GetMapping("/{id}")
     public ResponseEntity<AreaDTO> getAreaById(@PathVariable Long id, HttpServletRequest request) {
-        ResponseEntity<AreaDTO> permissionCheck = checkPermissionAndReturn(request, "menu.6.area.view");
+        ResponseEntity<AreaDTO> permissionCheck = checkPermissionAndReturn(request, "area.view");
         if (permissionCheck != null) {
             return permissionCheck;
         }
@@ -65,10 +65,10 @@ public class AreaController extends BaseController {
         return area.map(a -> ResponseEntity.ok(convertToDTO(a)))
                 .orElse(ResponseEntity.notFound().build());
     }
-    
+
     @GetMapping("/code/{code}")
     public ResponseEntity<AreaDTO> getAreaByCode(@PathVariable String code, HttpServletRequest request) {
-        ResponseEntity<AreaDTO> permissionCheck = checkPermissionAndReturn(request, "menu.6.area.view");
+        ResponseEntity<AreaDTO> permissionCheck = checkPermissionAndReturn(request, "area.view");
         if (permissionCheck != null) {
             return permissionCheck;
         }
@@ -76,10 +76,10 @@ public class AreaController extends BaseController {
         return area.map(a -> ResponseEntity.ok(convertToDTO(a)))
                 .orElse(ResponseEntity.notFound().build());
     }
-    
+
     @GetMapping("/search")
     public ResponseEntity<List<AreaDTO>> searchAreas(@RequestParam String name, HttpServletRequest request) {
-        ResponseEntity<List<AreaDTO>> permissionCheck = checkPermissionAndReturn(request, "menu.6.area.view");
+        ResponseEntity<List<AreaDTO>> permissionCheck = checkPermissionAndReturn(request, "area.view");
         if (permissionCheck != null) {
             return permissionCheck;
         }
@@ -87,11 +87,11 @@ public class AreaController extends BaseController {
         List<AreaDTO> areaDTOs = areas.stream().map(this::convertToDTO).collect(Collectors.toList());
         return ResponseEntity.ok(areaDTOs);
     }
-    
+
     @PostMapping
-    @RequirePermission("menu.6.area.create")
+    @RequirePermission("area.create")
     public ResponseEntity<AreaDTO> createArea(@Valid @RequestBody Area area, HttpServletRequest request) {
-        ResponseEntity<AreaDTO> permissionCheck = checkPermissionAndReturn(request, "menu.6.area.create");
+        ResponseEntity<AreaDTO> permissionCheck = checkPermissionAndReturn(request, "area.create");
         if (permissionCheck != null) {
             return permissionCheck;
         }
@@ -102,11 +102,12 @@ public class AreaController extends BaseController {
             return ResponseEntity.badRequest().build();
         }
     }
-    
+
     @PutMapping("/{id}")
-    @RequirePermission("menu.6.area.edit")
-    public ResponseEntity<AreaDTO> updateArea(@PathVariable Long id, @Valid @RequestBody Area area, HttpServletRequest request) {
-        ResponseEntity<AreaDTO> permissionCheck = checkPermissionAndReturn(request, "menu.6.area.edit");
+    @RequirePermission("area.edit")
+    public ResponseEntity<AreaDTO> updateArea(@PathVariable Long id, @Valid @RequestBody Area area,
+            HttpServletRequest request) {
+        ResponseEntity<AreaDTO> permissionCheck = checkPermissionAndReturn(request, "area.edit");
         if (permissionCheck != null) {
             return permissionCheck;
         }
@@ -117,11 +118,11 @@ public class AreaController extends BaseController {
             return ResponseEntity.badRequest().build();
         }
     }
-    
+
     @DeleteMapping("/{id}")
-    @RequirePermission("menu.6.area.delete")
+    @RequirePermission("area.delete")
     public ResponseEntity<Void> deleteArea(@PathVariable Long id, HttpServletRequest request) {
-        ResponseEntity<Void> permissionCheck = checkPermissionAndReturn(request, "menu.6.area.delete");
+        ResponseEntity<Void> permissionCheck = checkPermissionAndReturn(request, "area.delete");
         if (permissionCheck != null) {
             return permissionCheck;
         }
@@ -132,11 +133,11 @@ public class AreaController extends BaseController {
             return ResponseEntity.badRequest().build();
         }
     }
-    
+
     @PutMapping("/{id}/deactivate")
-    @RequirePermission("menu.6.area.edit")
+    @RequirePermission("area.edit")
     public ResponseEntity<Area> deactivateArea(@PathVariable Long id, HttpServletRequest request) {
-        ResponseEntity<Area> permissionCheck = checkPermissionAndReturn(request, "menu.6.area.edit");
+        ResponseEntity<Area> permissionCheck = checkPermissionAndReturn(request, "area.edit");
         if (permissionCheck != null) {
             return permissionCheck;
         }
@@ -147,11 +148,11 @@ public class AreaController extends BaseController {
             return ResponseEntity.notFound().build();
         }
     }
-    
+
     @PutMapping("/{id}/activate")
-    @RequirePermission("menu.6.area.edit")
+    @RequirePermission("area.edit")
     public ResponseEntity<Area> activateArea(@PathVariable Long id, HttpServletRequest request) {
-        ResponseEntity<Area> permissionCheck = checkPermissionAndReturn(request, "menu.6.area.edit");
+        ResponseEntity<Area> permissionCheck = checkPermissionAndReturn(request, "area.edit");
         if (permissionCheck != null) {
             return permissionCheck;
         }
@@ -162,7 +163,7 @@ public class AreaController extends BaseController {
             return ResponseEntity.notFound().build();
         }
     }
-    
+
     @GetMapping("/{id}/branch-count")
     public ResponseEntity<Long> getBranchCount(@PathVariable Long id) {
         if (!areaService.getAreaById(id).isPresent()) {

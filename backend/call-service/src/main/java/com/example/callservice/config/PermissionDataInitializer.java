@@ -27,6 +27,7 @@ public class PermissionDataInitializer implements CommandLineRunner {
 
     @Override
     public void run(String... args) throws Exception {
+        logger.info("Initializing permissions for call-service...");
         initializePermissions();
     }
 
@@ -35,63 +36,65 @@ public class PermissionDataInitializer implements CommandLineRunner {
 
         List<Permission> defaultPermissions = Arrays.asList(
                 // Dashboard permissions
-                new Permission("menu.6.view", "View Dashboard", "Can view call service dashboard"),
-                new Permission("menu.6.overview", "View Overview", "Can view call service overview"),
-                new Permission("menu.6.escalations", "View Escalations", "Can view call escalations"),
-                new Permission("menu.6.queue-health", "View Queue Health", "Can view queue health metrics"),
+                new Permission("dashboard.view", "View Dashboard", "Can view call service dashboard"),
+                new Permission("dashboard.overview", "View Overview", "Can view call service overview"),
+                new Permission("dashboard.escalations", "View Escalations", "Can view call escalations"),
+                new Permission("dashboard.queue-health", "View Queue Health", "Can view queue health metrics"),
 
-                // Area permissions
+                // Area permissions (API: /api/calls/areas)
                 new Permission("area.view", "View Areas", "Can view call service areas"),
                 new Permission("area.create", "Create Areas", "Can create new call service areas"),
                 new Permission("area.edit", "Edit Areas", "Can edit existing call service areas"),
                 new Permission("area.delete", "Delete Areas", "Can delete call service areas"),
 
-                // Subarea permissions
+                // Subarea permissions (API: /api/calls/subareas)
                 new Permission("subarea.view", "View Subareas", "Can view call service subareas"),
                 new Permission("subarea.create", "Create Subareas", "Can create new call service subareas"),
                 new Permission("subarea.edit", "Edit Subareas", "Can edit existing call service subareas"),
                 new Permission("subarea.delete", "Delete Subareas", "Can delete call service subareas"),
 
-                // Branch permissions
+                // Branch permissions (API: /api/calls/branches)
                 new Permission("branch.view", "View Branches", "Can view call service branches"),
                 new Permission("branch.create", "Create Branches", "Can create new call service branches"),
                 new Permission("branch.edit", "Edit Branches", "Can edit existing call service branches"),
                 new Permission("branch.update", "Update Branches", "Can update call service branches"),
                 new Permission("branch.delete", "Delete Branches", "Can delete call service branches"),
 
-                // User branch assignment permissions
+                // User branch assignment permissions (API: /api/calls/user-branches)
                 new Permission("user.branch.assign", "Assign User to Branch", "Can assign users to branches"),
                 new Permission("user.branch.remove", "Remove User from Branch", "Can remove users from branches"),
                 new Permission("user.branch.view", "View User Branch Assignments", "Can view user branch assignments"),
 
-                // Call management permissions
-                new Permission("call.view", "View Calls", "Can view call records"),
-                new Permission("call.create", "Create Calls", "Can create new call records"),
-                new Permission("call.edit", "Edit Calls", "Can edit existing call records"),
-                new Permission("call.delete", "Delete Calls", "Can delete call records"),
-                new Permission("call.assign", "Assign Calls", "Can assign calls to agents"),
+                // Call management permissions (API: /api/calls/reports)
+                new Permission("call-report.view", "View Call Reports", "Can view call records and reports"),
+                new Permission("call-report.create", "Create Call Reports", "Can create new call records"),
+                new Permission("call-report.edit", "Edit Call Reports", "Can edit existing call records"),
+                new Permission("call-report.delete", "Delete Call Reports", "Can delete call records"),
 
-                // Agent permissions
-                new Permission("agent.view", "View Agents", "Can view call agents"),
-                new Permission("agent.create", "Create Agents", "Can create new call agents"),
-                new Permission("agent.edit", "Edit Agents", "Can edit existing call agents"),
-                new Permission("agent.delete", "Delete Agents", "Can delete call agents"),
-                new Permission("agent.assign", "Assign Agents", "Can assign agents to calls"),
+                // Call Status permissions (API: /api/calls/statuses)
+                new Permission("call-status.view", "View Call Status", "Can view call status options"),
+                new Permission("call-status.create", "Create Call Status", "Can create new call status"),
+                new Permission("call-status.edit", "Edit Call Status", "Can edit existing call status"),
+                new Permission("call-status.delete", "Delete Call Status", "Can delete call status"),
 
-                // Queue management permissions
-                new Permission("queue.view", "View Queues", "Can view call queues"),
-                new Permission("queue.manage", "Manage Queues", "Can manage call queue settings"),
-                new Permission("queue.priority", "Set Priority", "Can set call priority levels"),
+                // Role permissions (API: /api/calls/roles)
+                new Permission("role.view", "View Roles", "Can view call service roles"),
+                new Permission("role.manage", "Manage Roles", "Can create, edit, delete roles"),
+                new Permission("role.assign", "Assign Roles", "Can assign users to roles"),
 
-                // Reporting permissions
-                new Permission("report.view", "View Reports", "Can view call service reports"),
-                new Permission("report.create", "Create Reports", "Can generate new reports"),
-                new Permission("report.export", "Export Reports", "Can export reports to various formats"),
+                // Permission permissions (API: /api/calls/permissions)
+                new Permission("permission.view", "View Permissions", "Can view call service permissions"),
+                new Permission("permission.manage", "Manage Permissions",
+                        "Can create, edit, delete permissions"),
 
-                // System permissions
-                new Permission("system.config", "System Configuration", "Can configure system settings"),
-                new Permission("system.monitor", "System Monitoring", "Can monitor system performance"),
-                new Permission("system.logs", "View System Logs", "Can view system logs and audit trails"));
+                // User management permissions (API: /api/calls/users)
+                new Permission("user.view", "View Users", "Can view call service users"),
+                new Permission("user.create", "Create Users", "Can create new call service users"),
+                new Permission("user.edit", "Edit Users", "Can edit existing call service users"),
+                new Permission("user.delete", "Delete Users", "Can delete call service users"),
+
+                // User assignment permissions (API: /api/calls/user-assignments)
+                new Permission("user.assign", "Assign Users", "Can assign users to roles and branches"));
 
         logger.info("Processing {} default permissions", defaultPermissions.size());
 
@@ -118,7 +121,7 @@ public class PermissionDataInitializer implements CommandLineRunner {
                 setMenuMetadata(permission);
                 permissionRepository.save(permission);
                 createdCount++;
-                logger.info("Created new permission: {}", permission.getCode());
+                logger.info("Created permission: {} - {}", permission.getCode(), permission.getName());
             } catch (Exception e) {
                 logger.error("Failed to create permission {}: {}", permission.getCode(), e.getMessage());
             }
@@ -131,71 +134,6 @@ public class PermissionDataInitializer implements CommandLineRunner {
 
         // Always update default role to include all permissions
         updateDefaultRole();
-    }
-
-    private void setMenuMetadata(Permission permission) {
-        String code = permission.getCode();
-
-        if (code.startsWith("area.")) {
-            permission.setMenuGroup("Areas");
-            return;
-        }
-
-        if (code.startsWith("subarea.")) {
-            permission.setMenuGroup("Subareas");
-            return;
-        }
-
-        if (code.startsWith("branch.")) {
-            permission.setMenuGroup("Branches");
-            return;
-        }
-
-        if (code.startsWith("user.branch.")) {
-            permission.setMenuGroup("User Branch Assignments");
-            return;
-        }
-
-        if (code.startsWith("call.")) {
-            permission.setMenuGroup("Call Management");
-            return;
-        }
-
-        if (code.startsWith("agent.")) {
-            permission.setMenuGroup("Agent Management");
-            return;
-        }
-
-        if (code.startsWith("queue.")) {
-            permission.setMenuGroup("Queue Management");
-            return;
-        }
-
-        if (code.startsWith("report.")) {
-            permission.setMenuGroup("Reports");
-            return;
-        }
-
-        if (code.startsWith("system.")) {
-            permission.setMenuGroup("System Management");
-            return;
-        }
-
-        if (code.startsWith("menu.")) {
-            String[] parts = code.split("\\.");
-            if (parts.length >= 2) {
-                String menuNumber = parts[1];
-
-                switch (menuNumber) {
-                    case "6":
-                        permission.setMenuGroup("Call Service");
-                        break;
-                    default:
-                        permission.setMenuGroup("Other");
-                        break;
-                }
-            }
-        }
     }
 
     private void updateDefaultRole() {
@@ -216,5 +154,158 @@ public class PermissionDataInitializer implements CommandLineRunner {
         roleRepository.save(fullAccessRole);
 
         logger.info("Updated 'Full Access' role with {} permissions", allPermissions.size());
+    }
+
+    private void setMenuMetadata(Permission permission) {
+        String code = permission.getCode();
+
+        // Dashboard permissions
+        if (code.startsWith("dashboard.")) {
+            permission.setMenuGroup("Dashboard");
+            if (code.equals("dashboard.view")) {
+                permission.setMenuNumber("1.1");
+            } else if (code.equals("dashboard.overview")) {
+                permission.setMenuNumber("1.2");
+            } else if (code.equals("dashboard.escalations")) {
+                permission.setMenuNumber("1.3");
+            } else if (code.equals("dashboard.queue-health")) {
+                permission.setMenuNumber("1.4");
+            }
+            return;
+        }
+
+        // Area Management permissions
+        if (code.startsWith("area.")) {
+            permission.setMenuGroup("Areas");
+            if (code.equals("area.view")) {
+                permission.setMenuNumber("2.1");
+            } else if (code.equals("area.create")) {
+                permission.setMenuNumber("2.2");
+            } else if (code.equals("area.edit")) {
+                permission.setMenuNumber("2.3");
+            } else if (code.equals("area.delete")) {
+                permission.setMenuNumber("2.4");
+            }
+            return;
+        }
+
+        // Subarea Management permissions
+        if (code.startsWith("subarea.")) {
+            permission.setMenuGroup("Sub-Areas");
+            if (code.equals("subarea.view")) {
+                permission.setMenuNumber("3.1");
+            } else if (code.equals("subarea.create")) {
+                permission.setMenuNumber("3.2");
+            } else if (code.equals("subarea.edit")) {
+                permission.setMenuNumber("3.3");
+            } else if (code.equals("subarea.delete")) {
+                permission.setMenuNumber("3.4");
+            }
+            return;
+        }
+
+        // Branch permissions
+        if (code.startsWith("branch.")) {
+            permission.setMenuGroup("Branches");
+            if (code.equals("branch.view")) {
+                permission.setMenuNumber("4.1");
+            } else if (code.equals("branch.create")) {
+                permission.setMenuNumber("4.2");
+            } else if (code.equals("branch.edit")) {
+                permission.setMenuNumber("4.3");
+            } else if (code.equals("branch.update")) {
+                permission.setMenuNumber("4.4");
+            } else if (code.equals("branch.delete")) {
+                permission.setMenuNumber("4.5");
+            }
+            return;
+        }
+
+        // User branch assignment permissions
+        if (code.startsWith("user.branch.")) {
+            permission.setMenuGroup("User Branch Assignments");
+            if (code.equals("user.branch.assign")) {
+                permission.setMenuNumber("5.1");
+            } else if (code.equals("user.branch.remove")) {
+                permission.setMenuNumber("5.2");
+            } else if (code.equals("user.branch.view")) {
+                permission.setMenuNumber("5.3");
+            }
+            return;
+        }
+
+        // Call Reports permissions
+        if (code.startsWith("call-report.")) {
+            permission.setMenuGroup("Call Reports");
+            if (code.equals("call-report.view")) {
+                permission.setMenuNumber("6.1");
+            } else if (code.equals("call-report.create")) {
+                permission.setMenuNumber("6.2");
+            } else if (code.equals("call-report.edit")) {
+                permission.setMenuNumber("6.3");
+            } else if (code.equals("call-report.delete")) {
+                permission.setMenuNumber("6.4");
+            }
+            return;
+        }
+
+        // Call Status permissions
+        if (code.startsWith("call-status.")) {
+            permission.setMenuGroup("Call Status");
+            if (code.equals("call-status.view")) {
+                permission.setMenuNumber("7.1");
+            } else if (code.equals("call-status.create")) {
+                permission.setMenuNumber("7.2");
+            } else if (code.equals("call-status.edit")) {
+                permission.setMenuNumber("7.3");
+            } else if (code.equals("call-status.delete")) {
+                permission.setMenuNumber("7.4");
+            }
+            return;
+        }
+
+        // Role permissions
+        if (code.startsWith("role.")) {
+            permission.setMenuGroup("Role Management");
+            if (code.equals("role.view")) {
+                permission.setMenuNumber("8.1");
+            } else if (code.equals("role.manage")) {
+                permission.setMenuNumber("8.2");
+            } else if (code.equals("role.assign")) {
+                permission.setMenuNumber("8.3");
+            }
+            return;
+        }
+
+        // Permission permissions
+        if (code.startsWith("permission.")) {
+            permission.setMenuGroup("Permissions Management");
+            if (code.equals("permission.view")) {
+                permission.setMenuNumber("9.1");
+            } else if (code.equals("permission.manage")) {
+                permission.setMenuNumber("9.2");
+            }
+            return;
+        }
+
+        // User Management permissions
+        if (code.startsWith("user.") && !code.startsWith("user.branch.")) {
+            permission.setMenuGroup("User Management");
+            if (code.equals("user.view")) {
+                permission.setMenuNumber("10.1");
+            } else if (code.equals("user.create")) {
+                permission.setMenuNumber("10.2");
+            } else if (code.equals("user.edit")) {
+                permission.setMenuNumber("10.3");
+            } else if (code.equals("user.delete")) {
+                permission.setMenuNumber("10.4");
+            } else if (code.equals("user.assign")) {
+                permission.setMenuNumber("10.5");
+            }
+            return;
+        }
+
+        // Default grouping
+        permission.setMenuGroup("Other");
     }
 }

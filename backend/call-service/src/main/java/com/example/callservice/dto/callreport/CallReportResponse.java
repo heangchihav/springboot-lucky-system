@@ -1,5 +1,6 @@
 package com.example.callservice.dto.callreport;
 
+import com.example.callservice.entity.callreport.CallType;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Map;
@@ -9,6 +10,7 @@ public class CallReportResponse {
     private Long id;
     private LocalDate calledAt;
     private LocalDate arrivedAt;
+    private CallType type;
     private Long branchId;
     private String branchName;
     private String createdBy;
@@ -20,12 +22,14 @@ public class CallReportResponse {
     public CallReportResponse() {
     }
 
-    public CallReportResponse(Long id, LocalDate calledAt, LocalDate arrivedAt, Long branchId, String branchName,
+    public CallReportResponse(Long id, LocalDate calledAt, LocalDate arrivedAt, CallType type, Long branchId,
+            String branchName,
             String createdBy, LocalDateTime createdAt, Map<String, Integer> entries, Map<String, String> remarks,
             String remark) {
         this.id = id;
         this.calledAt = calledAt;
         this.arrivedAt = arrivedAt;
+        this.type = type;
         this.branchId = branchId;
         this.branchName = branchName;
         this.createdBy = createdBy;
@@ -57,6 +61,14 @@ public class CallReportResponse {
 
     public void setArrivedAt(LocalDate arrivedAt) {
         this.arrivedAt = arrivedAt;
+    }
+
+    public CallType getType() {
+        return type;
+    }
+
+    public void setType(CallType type) {
+        this.type = type;
     }
 
     public Long getBranchId() {

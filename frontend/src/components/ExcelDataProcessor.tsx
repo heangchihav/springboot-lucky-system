@@ -200,6 +200,12 @@ export function ExcelDataProcessor({
                   return;
                 }
 
+                // For re-call data (when arrivedAt and calledAt are different), exclude "ដឹកដល់ផ្ទះ" status
+                const isRecallData = currentArrivedAt && calledAt && normalizeDate(currentArrivedAt) !== normalizeDate(calledAt);
+                if (isRecallData && status === "ដឹកដល់ផ្ទះ") {
+                  return; // Skip this status for re-call data
+                }
+
                 // Validate that status exists in backend statuses
                 const isValidStatus = statuses.some(backendStatus =>
                   backendStatus.label === status ||
@@ -263,6 +269,12 @@ export function ExcelDataProcessor({
 
             if (!isRecordAllowed(currentArrivedAt, calledAt)) {
               return;
+            }
+
+            // For re-call data (when arrivedAt and calledAt are different), exclude "ដឹកដល់ផ្ទះ" status
+            const isRecallData = currentArrivedAt && calledAt && normalizeDate(currentArrivedAt) !== normalizeDate(calledAt);
+            if (isRecallData && status === "ដឹកដល់ផ្ទះ") {
+              return; // Skip this status for re-call data
             }
 
             // Validate that status exists in backend statuses
@@ -494,6 +506,12 @@ Tip: Copy rows from Excel and paste directly here"
                                     return;
                                   }
 
+                                  // For re-call data (when arrivedAt and calledAt are different), exclude "ដឹកដល់ផ្ទះ" status
+                                  const isRecallData = currentArrivedAt && calledAt && normalizeDate(currentArrivedAt) !== normalizeDate(calledAt);
+                                  if (isRecallData && status === "ដឹកដល់ផ្ទះ") {
+                                    return; // Skip this status for re-call data
+                                  }
+
                                   // Validate that status exists in backend statuses
                                   const isValidStatus = statuses.some(backendStatus =>
                                     backendStatus.label === status ||
@@ -542,6 +560,12 @@ Tip: Copy rows from Excel and paste directly here"
 
                               if (!isRecordAllowed(currentArrivedAt, calledAt)) {
                                 return;
+                              }
+
+                              // For re-call data (when arrivedAt and calledAt are different), exclude "ដឹកដល់ផ្ទះ" status
+                              const isRecallData = currentArrivedAt && calledAt && normalizeDate(currentArrivedAt) !== normalizeDate(calledAt);
+                              if (isRecallData && status === "ដឹកដល់ផ្ទះ") {
+                                return; // Skip this status for re-call data
                               }
 
                               // Validate that status exists in backend statuses
