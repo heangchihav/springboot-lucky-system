@@ -126,6 +126,30 @@ const defaultStartDate = () =>
   formatDateInput(new Date(Date.now() - LOOKBACK_DAYS * 24 * 60 * 60 * 1000));
 const defaultEndDate = () => formatDateInput(new Date());
 
+// Helper functions for dd/mm/yyyy format
+const formatDateToDDMMYYYY = (date: Date): string => {
+  const day = date.getDate().toString().padStart(2, '0');
+  const month = (date.getMonth() + 1).toString().padStart(2, '0');
+  const year = date.getFullYear();
+  return `${day}/${month}/${year}`;
+};
+
+const parseDDMMYYYYToInputFormat = (dateString: string): string => {
+  const match = dateString.match(/(\d{2})\/(\d{2})\/(\d{4})/);
+  if (match) {
+    const [, day, month, year] = match;
+    return `${year}-${month}-${day}`;
+  }
+  // If it's already in yyyy-mm-dd format, return as is
+  if (dateString.match(/^\d{4}-\d{2}-\d{2}$/)) {
+    return dateString;
+  }
+  return dateString;
+};
+
+const defaultStartDateDDMMYYYY = () => formatDateToDDMMYYYY(new Date(Date.now() - LOOKBACK_DAYS * 24 * 60 * 60 * 1000));
+const defaultEndDateDDMMYYYY = () => formatDateToDDMMYYYY(new Date());
+
 const getStoredUserId = (): number | null => {
   if (typeof window === "undefined") {
     return null;
@@ -173,6 +197,221 @@ const buildAuthHeaders = () => {
   return headers;
 };
 
+// Custom date input component for dd/mm/yyyy format with calendar
+const CustomDateInput = ({
+  value,
+  onChange,
+  placeholder = "DD/MM/YYYY",
+  className = ""
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  className?: string;
+}) => {
+  const [inputValue, setInputValue] = useState(value);
+  const [showCalendar, setShowCalendar] = useState(false);
+  const [calendarDate, setCalendarDate] = useState<Date>(new Date());
+  const wrapperRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
+        setShowCalendar(false);
+      }
+    };
+
+    if (showCalendar) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [showCalendar]);
+
+  useEffect(() => {
+    setInputValue(value);
+    // Update calendar date when value changes
+    if (value) {
+      const dateMatch = value.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+      if (dateMatch) {
+        const [, day, month, year] = dateMatch;
+        setCalendarDate(new Date(parseInt(year), parseInt(month) - 1, parseInt(day)));
+      }
+    }
+  }, [value]);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let newValue = e.target.value;
+
+    // Auto-format as user types
+    const numbersOnly = newValue.replace(/[^\d]/g, '');
+
+    if (numbersOnly.length <= 2) {
+      newValue = numbersOnly;
+    } else if (numbersOnly.length <= 4) {
+      newValue = `${numbersOnly.slice(0, 2)}/${numbersOnly.slice(2)}`;
+    } else if (numbersOnly.length <= 8) {
+      newValue = `${numbersOnly.slice(0, 2)}/${numbersOnly.slice(2, 4)}/${numbersOnly.slice(4)}`;
+    } else {
+      newValue = `${numbersOnly.slice(0, 2)}/${numbersOnly.slice(2, 4)}/${numbersOnly.slice(4, 8)}`;
+    }
+
+    setInputValue(newValue);
+
+    // Validate and call onChange if valid
+    const dateMatch = newValue.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    if (dateMatch) {
+      const [, day, month, year] = dateMatch;
+      // Basic validation
+      const dayNum = parseInt(day);
+      const monthNum = parseInt(month);
+      const yearNum = parseInt(year);
+
+      if (dayNum >= 1 && dayNum <= 31 && monthNum >= 1 && monthNum <= 12 && yearNum >= 1900 && yearNum <= 2100) {
+        onChange(newValue);
+      }
+    }
+  };
+
+  const handleCalendarSelect = (date: Date) => {
+    const day = date.getDate().toString().padStart(2, '0');
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const year = date.getFullYear();
+    const formattedDate = `${day}/${month}/${year}`;
+    setInputValue(formattedDate);
+    onChange(formattedDate);
+    setShowCalendar(false);
+  };
+
+  const getFirstDayOfMonth = (date: Date) => {
+    return new Date(date.getFullYear(), date.getMonth(), 1).getDay();
+  };
+
+  const getDaysInMonth = (date: Date) => {
+    return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+  };
+
+  const renderCalendar = () => {
+    const daysInMonth = getDaysInMonth(calendarDate);
+    const firstDay = getFirstDayOfMonth(calendarDate);
+    const today = new Date();
+    const days = [];
+
+    // Add empty cells for days before month starts
+    for (let i = 0; i < firstDay; i++) {
+      days.push(<div key={`empty-${i}`} className="p-2"></div>);
+    }
+
+    // Add days of the month
+    for (let day = 1; day <= daysInMonth; day++) {
+      const currentDate = new Date(calendarDate.getFullYear(), calendarDate.getMonth(), day);
+      const isSelected = value === `${day.toString().padStart(2, '0')}/${(calendarDate.getMonth() + 1).toString().padStart(2, '0')}/${calendarDate.getFullYear()}`;
+      const isToday =
+        day === today.getDate() &&
+        calendarDate.getMonth() === today.getMonth() &&
+        calendarDate.getFullYear() === today.getFullYear();
+
+      days.push(
+        <button
+          key={day}
+          onClick={() => handleCalendarSelect(currentDate)}
+          className={`p-2 text-sm rounded transition-colors relative ${isSelected
+            ? 'bg-orange-500 text-white shadow-[0_0_10px_rgba(249,115,22,0.45)]'
+            : isToday
+              ? 'text-white border border-sky-400 bg-sky-500/30'
+              : 'text-slate-300 hover:bg-orange-500 hover:text-white'
+            }`}
+        >
+          {day}
+          {isToday && !isSelected && (
+            <span className="absolute inset-0 rounded pointer-events-none border border-sky-300/40 animate-pulse"></span>
+          )}
+        </button>
+      );
+    }
+
+    return days;
+  };
+
+  const changeMonth = (increment: number) => {
+    setCalendarDate(new Date(calendarDate.getFullYear(), calendarDate.getMonth() + increment, 1));
+  };
+
+  return (
+    <div className="relative" ref={wrapperRef}>
+      <div className="flex gap-2">
+        <input
+          type="text"
+          value={inputValue}
+          onChange={handleInputChange}
+          placeholder={placeholder}
+          className={`${className} flex-1`}
+          maxLength={10}
+        />
+        <button
+          type="button"
+          onClick={() => setShowCalendar(!showCalendar)}
+          className="px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white hover:bg-slate-600 transition-colors"
+        >
+          <svg
+            className="w-4 h-4"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+            />
+          </svg>
+        </button>
+      </div>
+
+      {showCalendar && (
+        <div className="absolute top-full mt-1 z-50 bg-slate-800 border border-slate-600 rounded-lg shadow-xl p-3">
+          <div className="flex items-center justify-between mb-3">
+            <button
+              type="button"
+              onClick={() => changeMonth(-1)}
+              className="p-1 text-slate-400 hover:text-white"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
+            <div className="text-sm font-medium text-white">
+              {calendarDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+            </div>
+            <button
+              type="button"
+              onClick={() => changeMonth(1)}
+              className="p-1 text-slate-400 hover:text-white"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </button>
+          </div>
+
+          <div className="grid grid-cols-7 gap-1 text-xs text-slate-400 mb-2">
+            {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(day => (
+              <div key={day} className="p-2 text-center font-medium">{day}</div>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-7 gap-1">
+            {renderCalendar()}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 function CallDashboard() {
   const [summaryData, setSummaryData] = useState<CallReportSummaryResponse[]>(
     [],
@@ -197,8 +436,8 @@ function CallDashboard() {
   const [selectedStatusKeys, setSelectedStatusKeys] = useState<string[]>([]);
   const [selectedArrivalType, setSelectedArrivalType] = useState<ArrivalType>("all");
   const [statusDragging, setStatusDragging] = useState(false);
-  const [startDate, setStartDate] = useState<string>(() => defaultStartDate());
-  const [endDate, setEndDate] = useState<string>(() => defaultEndDate());
+  const [startDate, setStartDate] = useState<string>(() => defaultStartDateDDMMYYYY());
+  const [endDate, setEndDate] = useState<string>(() => defaultEndDateDDMMYYYY());
   const [chartGranularity, setChartGranularity] =
     useState<ChartGranularity>("daily");
   const [chartViewMode, setChartViewMode] = useState<"total" | "byStatus">("byStatus");
@@ -327,10 +566,10 @@ function CallDashboard() {
     try {
       const params = new URLSearchParams();
       if (startDate) {
-        params.append("startDate", startDate);
+        params.append("startDate", parseDDMMYYYYToInputFormat(startDate));
       }
       if (endDate) {
-        params.append("endDate", endDate);
+        params.append("endDate", parseDDMMYYYYToInputFormat(endDate));
       }
       if (selectedBranchId !== "all") {
         params.append("branchIds", selectedBranchId);
@@ -695,6 +934,84 @@ function CallDashboard() {
     );
   }, [filteredSummaryData]);
 
+  // Filter-aware composition data for the chart
+  const compositionData = useMemo(() => {
+    let dataSource: Array<{ name: string;[key: string]: any }> = [];
+    let filterLevel = "branch";
+
+    if (selectedBranchId !== "all") {
+      // Single branch selected - show data over time
+      filterLevel = "date";
+      dataSource = dateSeries.map(entry => ({
+        name: String(entry.label || entry.date),
+        total: 0,
+        ...entry
+      }));
+    } else if (selectedSubArea !== "all") {
+      // Sub-area selected - show branches within this sub-area
+      filterLevel = "branch";
+      dataSource = branchStatusSeries
+        .filter(branch => filteredBranches.some(b => b.name === branch.branch))
+        .map(branch => ({
+          name: String(branch.branch),
+          ...branch
+        }));
+    } else if (selectedArea !== "all") {
+      // Area selected - show sub-areas within this area
+      filterLevel = "subarea";
+      const subareaTotals = new Map<string, Record<string, number>>();
+
+      filteredSummaryData.forEach((summary) => {
+        const branch = branches.find(b => b.name === summary.branchName);
+        if (branch && branch.subareaId) {
+          const subarea = subareasData.find(s => s.id === branch.subareaId);
+          if (subarea) {
+            const existing = subareaTotals.get(subarea.name) || { total: 0 };
+            Object.entries(summary.statusTotals).forEach(([statusKey, value]) => {
+              existing[statusKey] = (existing[statusKey] || 0) + value;
+              existing.total = (existing.total || 0) + value;
+            });
+            subareaTotals.set(subarea.name, existing);
+          }
+        }
+      });
+
+      dataSource = Array.from(subareaTotals.entries()).map(([name, totals]) => ({
+        name,
+        ...totals
+      }));
+    } else {
+      // No area filter - show areas
+      filterLevel = "area";
+      const areaTotals = new Map<string, Record<string, number>>();
+
+      filteredSummaryData.forEach((summary) => {
+        const branch = branches.find(b => b.name === summary.branchName);
+        if (branch && branch.subareaId) {
+          const subarea = subareasData.find(s => s.id === branch.subareaId);
+          if (subarea) {
+            const area = areasData.find(a => a.id === subarea.areaId);
+            if (area) {
+              const existing = areaTotals.get(area.name) || { total: 0 };
+              Object.entries(summary.statusTotals).forEach(([statusKey, value]) => {
+                existing[statusKey] = (existing[statusKey] || 0) + value;
+                existing.total = (existing.total || 0) + value;
+              });
+              areaTotals.set(area.name, existing);
+            }
+          }
+        }
+      });
+
+      dataSource = Array.from(areaTotals.entries()).map(([name, totals]) => ({
+        name,
+        ...totals
+      }));
+    }
+
+    return { data: dataSource, filterLevel };
+  }, [branchStatusSeries, selectedBranchId, selectedSubArea, selectedArea, filteredSummaryData, branches, subareasData, areasData, dateSeries, filteredBranches]);
+
   const statusDistribution = useMemo(
     () =>
       Object.entries(totalsByStatus).map(([statusKey, value]) => ({
@@ -922,8 +1239,8 @@ function CallDashboard() {
     setSelectedSubArea("all");
     setSelectedStatusKeys([]);
     setSelectedArrivalType("all");
-    setStartDate(defaultStartDate());
-    setEndDate(defaultEndDate());
+    setStartDate(defaultStartDateDDMMYYYY());
+    setEndDate(defaultEndDateDDMMYYYY());
   };
 
   const formatNumber = (value?: number) => (value ?? 0).toLocaleString();
@@ -1111,21 +1428,17 @@ function CallDashboard() {
                   <div className="grid gap-4">
                     <label className="space-y-2 text-sm text-slate-300">
                       Start date
-                      <input
-                        type="date"
+                      <CustomDateInput
                         value={startDate}
-                        max={endDate}
-                        onChange={(event) => setStartDate(event.target.value)}
+                        onChange={setStartDate}
                         className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-white outline-none transition focus:border-cyan-400 focus:bg-slate-900/50"
                       />
                     </label>
                     <label className="space-y-2 text-sm text-slate-300">
                       End date
-                      <input
-                        type="date"
+                      <CustomDateInput
                         value={endDate}
-                        min={startDate}
-                        onChange={(event) => setEndDate(event.target.value)}
+                        onChange={setEndDate}
                         className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-white outline-none transition focus:border-cyan-400 focus:bg-slate-900/50"
                       />
                     </label>
@@ -1532,27 +1845,34 @@ function CallDashboard() {
                 <div className="flex items-center justify-between gap-4">
                   <div>
                     <p className="text-sm font-semibold text-slate-300">
-                      Branch composition
+                      {compositionData.filterLevel === "area" ? "Area composition" :
+                        compositionData.filterLevel === "subarea" ? "Sub-area composition" :
+                          compositionData.filterLevel === "branch" ? "Branch composition" :
+                            "Daily composition"}
                     </p>
                     <p className="text-xs text-slate-400">
-                      Stacked totals per branch with status breakdown
+                      Stacked totals per {compositionData.filterLevel === "area" ? "area" :
+                        compositionData.filterLevel === "subarea" ? "sub-area" :
+                          compositionData.filterLevel === "branch" ? "branch" : "date"} with status breakdown
                     </p>
                   </div>
                   <span className="text-[10px] uppercase tracking-[0.3em] text-slate-500">
-                    {branchStatusSeries.length} branches
+                    {compositionData.data.length} {compositionData.filterLevel === "area" ? "areas" :
+                      compositionData.filterLevel === "subarea" ? "sub-areas" :
+                        compositionData.filterLevel === "branch" ? "branches" : "dates"}
                   </span>
                 </div>
                 <div className="mt-4 h-72">
-                  {branchStatusSeries.length === 0 ? (
+                  {compositionData.data.length === 0 ? (
                     <div className="flex h-full items-center justify-center text-sm text-slate-400">
-                      No branch data available.
+                      No {compositionData.filterLevel} data available.
                     </div>
                   ) : (
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart
-                        data={branchStatusSeries}
+                        data={compositionData.data}
                         margin={{ top: 20, right: 30, left: 10, bottom: 30 }}
-                        key={`bar-chart-${selectedArrivalType}-${selectedBranchId}-${selectedArea}-${selectedSubArea}-${branchStatusSeries.length}`}
+                        key={`composition-chart-${selectedArrivalType}-${selectedBranchId}-${selectedArea}-${selectedSubArea}-${compositionData.data.length}`}
                       >
                         <defs>
                           <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
@@ -1565,7 +1885,7 @@ function CallDashboard() {
                           stroke="rgba(255,255,255,0.06)"
                         />
                         <XAxis
-                          dataKey="branch"
+                          dataKey="name"
                           stroke="#64748b"
                           tick={{ fill: '#94a3b8', fontSize: 11 }}
                           interval={0}
@@ -1607,7 +1927,7 @@ function CallDashboard() {
                                 .map(key => `${getStatusLabel(key)}: ${formatNumber(data[key] as number)}`)
                             ];
 
-                            return [details.join("\n"), data.branch || name];
+                            return [details.join("\n"), data.name || name];
                           }}
                         />
                         <Legend
@@ -1718,9 +2038,9 @@ function CallDashboard() {
                                   >
                                     <div className="flex items-center gap-2 mb-2">
                                       <div className={`flex items-center justify-center w-5 h-5 rounded-full text-xs font-bold ${item.rank === 1 ? "bg-gradient-to-br from-yellow-500/20 to-yellow-600/10 border border-yellow-500/30 text-yellow-400" :
-                                          item.rank === 2 ? "bg-gradient-to-br from-gray-400/20 to-gray-500/10 border border-gray-400/30 text-gray-300" :
-                                            item.rank === 3 ? "bg-gradient-to-br from-orange-600/20 to-orange-700/10 border border-orange-600/30 text-orange-400" :
-                                              "bg-gradient-to-br from-blue-500/20 to-blue-600/10 border border-blue-500/30 text-blue-400"
+                                        item.rank === 2 ? "bg-gradient-to-br from-gray-400/20 to-gray-500/10 border border-gray-400/30 text-gray-300" :
+                                          item.rank === 3 ? "bg-gradient-to-br from-orange-600/20 to-orange-700/10 border border-orange-600/30 text-orange-400" :
+                                            "bg-gradient-to-br from-blue-500/20 to-blue-600/10 border border-blue-500/30 text-blue-400"
                                         }`}>
                                         {item.rank === 1 ? "🥇" : item.rank === 2 ? "🥈" : item.rank === 3 ? "🥉" : item.rank}
                                       </div>
