@@ -379,6 +379,14 @@ function Page() {
   const [inputType, setInputType] = useState<"new-call" | "recall">("new-call");
   const [entries, setEntries] = useState<Record<string, string>>({});
 
+  // Filter statuses for recall - exclude "ដឹកដល់ផ្ទះ"
+  const filteredStatuses = useMemo(() => {
+    if (inputType === "recall") {
+      return statuses.filter(status => status.label !== "ដឹកដល់ផ្ទះ");
+    }
+    return statuses;
+  }, [statuses, inputType]);
+
   // Function to get the most recent arrivedAt date from user's reports
   const getMostRecentArrivedAt = (userReports: ReportRecord[]): string => {
     const reportsWithArrivedAt = userReports.filter(report => report.arrivedAt && report.arrivedAt.trim() !== "");
@@ -835,7 +843,7 @@ function Page() {
 
       await loadReports();
       showToast(`Report ${isUpdate ? "updated" : "submitted"} successfully`, "success");
-      setEntries(Object.fromEntries(statuses.map((status) => [status.key, ""])));
+      setEntries(Object.fromEntries(filteredStatuses.map((status) => [status.key, ""])));
       setRemarks({});
       setRecordRemark("");
       setExpandedRemarks({});
@@ -970,7 +978,7 @@ function Page() {
 
             {/* Status Grid */}
             <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-4">
-              {statuses.map((status, index) => (
+              {filteredStatuses.map((status, index) => (
                 <div
                   key={status.key}
                   className="status-card group"
@@ -1233,7 +1241,7 @@ function Page() {
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2 mb-2">
-              {statuses.map((status, index) => (
+              {filteredStatuses.map((status, index) => (
                 <div
                   key={status.key}
                   className="entry-card"
@@ -1298,7 +1306,7 @@ function Page() {
                 onClick={() => {
                   setEntries(
                     Object.fromEntries(
-                      statuses.map((status) => [status.key, ""]),
+                      filteredStatuses.map((status) => [status.key, ""]),
                     ),
                   );
                   setRemarks({});
@@ -1392,7 +1400,7 @@ function Page() {
                         <th className="px-3 py-3 text-left text-[10px] uppercase tracking-wider text-slate-400 font-semibold">
                           Branch
                         </th>
-                        {statuses.map((status) => (
+                        {filteredStatuses.map((status) => (
                           <th
                             key={status.key}
                             className="px-3 py-3 text-left text-[10px] uppercase tracking-wider text-slate-400 font-semibold"
@@ -1427,16 +1435,15 @@ function Page() {
                           <td className="px-3 py-3 text-slate-300 text-xs">
                             {report.branchName}
                           </td>
-                          {statuses.map((status) => (
+                          {filteredStatuses.map((status) => (
                             <td
                               key={`${report.id}-${status.key}`}
                               className="px-3 py-3 text-slate-300 font-medium text-xs"
                             >
-                              {report.entries[status.key]?.toLocaleString() ??
-                                0}
+                              {report.entries[status.key] ?? 0}
                             </td>
                           ))}
-                          <td className="px-3 py-3">
+                          <td className="px-3 py-3 text-slate-300 text-xs">
                             <div className="flex gap-2">
                               <button
                                 onClick={() => handleLoadReport(report)}
@@ -1460,97 +1467,98 @@ function Page() {
               </div>
             </section>
           )}
-        </div>
-      </div>
+        </div>        </div>
 
-      {/* Manage Status Popup */}
-      {showManagePopup && managingStatusKey && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in">
-          <div
-            className="absolute inset-0 bg-black/60 backdrop-blur-md"
-            onClick={closeManagePopup}
-          ></div>
-          <div className="popup-card w-full max-w-md animate-scale-in">
-            <div className="flex items-start justify-between mb-5">
-              <div>
-                <h3 className="text-xl font-bold bg-gradient-to-r from-orange-400 to-orange-600 bg-clip-text text-transparent">
-                  Manage Status
-                </h3>
-                <p className="text-[10px] text-slate-500 font-mono mt-1">
-                  {managingStatusKey}
-                </p>
-              </div>
-              <button
+        {/* Manage Status Popup */}
+        {
+          showManagePopup && managingStatusKey && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in">
+              <div
+                className="absolute inset-0 bg-black/60 backdrop-blur-md"
                 onClick={closeManagePopup}
-                className="menu-button hover:rotate-90"
-              >
-                <svg
-                  className="h-4 w-4"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M6 18L18 6M6 6l12 12"
-                  />
-                </svg>
-              </button>
-            </div>
+              ></div>
+              <div className="popup-card w-full max-w-md animate-scale-in">
+                <div className="flex items-start justify-between mb-5">
+                  <div>
+                    <h3 className="text-xl font-bold bg-gradient-to-r from-orange-400 to-orange-600 bg-clip-text text-transparent">
+                      Manage Status
+                    </h3>
+                    <p className="text-[10px] text-slate-500 font-mono mt-1">
+                      {managingStatusKey}
+                    </p>
+                  </div>
+                  <button
+                    onClick={closeManagePopup}
+                    className="menu-button hover:rotate-90"
+                  >
+                    <svg
+                      className="h-4 w-4"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M6 18L18 6M6 6l12 12"
+                      />
+                    </svg>
+                  </button>
+                </div>
 
-            <div className="space-y-4">
-              <label className="flex flex-col gap-1.5">
-                <span className="text-xs font-medium text-slate-300 uppercase tracking-wider">
-                  Display Name
-                </span>
-                <input
-                  type="text"
-                  value={editingLabel}
-                  onChange={(event) => setEditingLabel(event.target.value)}
-                  className="px-3 py-2 text-sm bg-slate-800 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
-                />
-              </label>
+                <div className="space-y-4">
+                  <label className="flex flex-col gap-1.5">
+                    <span className="text-xs font-medium text-slate-300 uppercase tracking-wider">
+                      Display Name
+                    </span>
+                    <input
+                      type="text"
+                      value={editingLabel}
+                      onChange={(event) => setEditingLabel(event.target.value)}
+                      className="px-3 py-2 text-sm bg-slate-800 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
+                    />
+                  </label>
 
-              <div className="flex flex-col gap-2 pt-2">
-                <button
-                  onClick={handleUpdateStatus}
-                  disabled={!editingLabel.trim()}
-                  className="w-full px-4 py-2 text-xs font-semibold bg-gradient-to-r from-blue-600 to-blue-800 text-white rounded-lg hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
-                >
-                  Save Changes
-                </button>
-                <button
-                  onClick={handleDeleteStatus}
-                  className="w-full px-4 py-2 text-xs font-semibold bg-gradient-to-r from-red-600 to-red-800 text-white rounded-lg hover:shadow-lg transition-all duration-300"
-                >
-                  Delete Status
-                </button>
-                <button
-                  onClick={closeManagePopup}
-                  className="w-full px-4 py-2 text-xs font-semibold bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600 hover:text-white transition-all duration-300"
-                >
-                  Cancel
-                </button>
+                  <div className="flex flex-col gap-2 pt-2">
+                    <button
+                      onClick={handleUpdateStatus}
+                      disabled={!editingLabel.trim()}
+                      className="w-full px-4 py-2 text-xs font-semibold bg-gradient-to-r from-blue-600 to-blue-800 text-white rounded-lg hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
+                    >
+                      Save Changes
+                    </button>
+                    <button
+                      onClick={handleDeleteStatus}
+                      className="w-full px-4 py-2 text-xs font-semibold bg-gradient-to-r from-red-600 to-red-800 text-white rounded-lg hover:shadow-lg transition-all duration-300"
+                    >
+                      Delete Status
+                    </button>
+                    <button
+                      onClick={closeManagePopup}
+                      className="w-full px-4 py-2 text-xs font-semibold bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600 hover:text-white transition-all duration-300"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
-        </div>
-      )}
+          )
+        }
 
-      {/* Quick Input Popup */}
-      <ExcelDataProcessor
-        isOpen={showQuickInputPopup}
-        onClose={() => setShowQuickInputPopup(false)}
-        onDataProcessed={handleQuickInputData}
-        statuses={statuses}
-        filterArrivedDate={date}
-        filterCalledDate={calledAt}
-      />
+        {/* Quick Input Popup */}
+        <ExcelDataProcessor
+          isOpen={showQuickInputPopup}
+          onClose={() => setShowQuickInputPopup(false)}
+          onDataProcessed={handleQuickInputData}
+          statuses={statuses}
+          filterArrivedDate={date}
+          filterCalledDate={calledAt}
+        />
 
-    </>
-  );
+      </>
+      );
 }
 
-export default Page;
+      export default Page;
