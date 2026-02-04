@@ -372,8 +372,9 @@ function Page() {
     return new Date().toISOString().slice(0, 10);
   };
 
-  // Initialize with today's date in dd/mm/yyyy format
-  const [date, setDate] = useState(formatDateToDDMMYYYY(new Date()));
+  // Initialize with empty arrived date, but called date defaults to today
+  const [date, setDate] = useState<string>("");
+  const [calledAt, setCalledAt] = useState(formatDateToDDMMYYYY(new Date()));
   const [arrivedAt, setArrivedAt] = useState<string>("");
   const [inputType, setInputType] = useState<"new-call" | "recall">("new-call");
   const [entries, setEntries] = useState<Record<string, string>>({});
@@ -789,16 +790,24 @@ function Page() {
         : "/api/calls/reports";
       const method = isUpdate ? "PUT" : "POST";
 
-      const payloadCalledAt = parseDDMMYYYYToInputFormat(date);
+      // Default to today's date if no date is provided
+      const defaultDate = formatDateToDDMMYYYY(new Date());
+
+      let payloadCalledAt = null;
       let payloadArrivedAt = null;
 
       if (inputType === "new-call") {
-        // For new calls, the date is the arrivedAt
-        payloadArrivedAt = payloadCalledAt;
-        // calledAt should be null or same as arrivedAt for new calls
+        // For new calls, use separate calledAt and arrivedAt dates
+        const calledAtToUse = calledAt || defaultDate;
+        const arrivedAtToUse = date || defaultDate;
+        payloadCalledAt = parseDDMMYYYYToInputFormat(calledAtToUse);
+        payloadArrivedAt = parseDDMMYYYYToInputFormat(arrivedAtToUse);
       } else {
-        // For recall, use the auto-set arrivedAt and current date as calledAt
-        payloadArrivedAt = arrivedAt ? parseDDMMYYYYToInputFormat(arrivedAt) : null;
+        // For recall, use both date fields
+        const calledAtToUse = calledAt || defaultDate;
+        const arrivedAtToUse = date || defaultDate;
+        payloadCalledAt = parseDDMMYYYYToInputFormat(calledAtToUse);
+        payloadArrivedAt = parseDDMMYYYYToInputFormat(arrivedAtToUse);
       }
 
       const response = await apiFetch(url, {
@@ -831,7 +840,8 @@ function Page() {
       setRecordRemark("");
       setExpandedRemarks({});
       // Don't reset arrivedAt - keep it from user's past data
-      setDate(formatDateToDDMMYYYY(new Date()));
+      setDate(""); // Reset to empty instead of today's date
+      setCalledAt(formatDateToDDMMYYYY(new Date())); // Reset calledAt to today's date
       setEditingReportId(null);
     } catch (error) {
       console.error(
@@ -897,9 +907,15 @@ function Page() {
     setSelectedBranchId(value ? Number(value) : null);
   };
 
-  const handleQuickInputData = (entries: Record<string, string>) => {
+  const handleQuickInputData = (entries: Record<string, string>, arrivedAt?: string) => {
     setEntries(prev => ({ ...prev, ...entries }));
-    console.log(`Processed data with ${Object.keys(entries).length} status entries`);
+
+    // Set the arrived date if provided from quick input
+    if (arrivedAt && arrivedAt.trim()) {
+      setDate(arrivedAt);
+    }
+
+    console.log(`Processed data with ${Object.keys(entries).length} status entries${arrivedAt ? ` and arrived date: ${arrivedAt}` : ''}`);
   };
 
   const filteredReports = reports.filter((report) => {
@@ -1079,7 +1095,7 @@ function Page() {
               <h2 className="text-2xl font-bold bg-linear-to-r from-orange-400 to-orange-600 bg-clip-text text-transparent">
                 Submit {inputType === "new-call" ? "New Call" : "Recall"} Report
               </h2>
-              
+
             </div>
 
             {/* Call Type Options */}
@@ -1109,7 +1125,7 @@ function Page() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                   </svg>
                   <span className="font-medium">Re-call</span>
-             
+
                 </button>
               </div>
             </div>
@@ -1117,25 +1133,26 @@ function Page() {
             <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between mb-6">
               <div className="flex-1">
                 <label className="block text-xs font-medium text-slate-400 mb-2 uppercase tracking-wider">
-                  {inputType === "new-call" ? "Arrived Date" : "Called Date"}
+                  Arrived Date
                 </label>
                 <CustomDateInput
                   value={date}
                   onChange={(value) => setDate(value)}
-                  placeholder="DD/MM/YYYY"
+                  placeholder="Select date (defaults to today if empty)"
                   className="px-3 py-2 w-full text-sm bg-slate-800 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
                 />
               </div>
-              {inputType === "recall" && (
-                <div className="flex-1">
-                  <label className="block text-xs font-medium text-slate-400 mb-2 uppercase tracking-wider">
-                    Original Arrived Date
-                  </label>
-                  <div className="px-3 py-2 w-full text-sm bg-slate-800 border border-slate-600 rounded-lg text-slate-300">
-                    {arrivedAt || "Loading..."}
-                  </div>
-                </div>
-              )}
+              <div className="flex-1">
+                <label className="block text-xs font-medium text-slate-400 mb-2 uppercase tracking-wider">
+                  Called Date
+                </label>
+                <CustomDateInput
+                  value={calledAt}
+                  onChange={(value) => setCalledAt(value)}
+                  placeholder="Select date (defaults to today if empty)"
+                  className="px-3 py-2 w-full text-sm bg-slate-800 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
+                />
+              </div>
               <div className="flex-1">
                 <label className="block text-xs font-medium text-slate-400 mb-2 uppercase tracking-wider">
                   Branch
@@ -1288,7 +1305,8 @@ function Page() {
                   setRecordRemark("");
                   setExpandedRemarks({});
                   // Don't reset arrivedAt - keep it from user's past data
-                  setDate(formatDateToDDMMYYYY(new Date()));
+                  setDate(""); // Reset to empty instead of today's date
+                  setCalledAt(formatDateToDDMMYYYY(new Date())); // Reset calledAt to today's date
                 }}
                 className="px-4 py-2 text-xs font-semibold bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600 hover:text-white transition-all duration-300"
               >
@@ -1527,8 +1545,8 @@ function Page() {
         onClose={() => setShowQuickInputPopup(false)}
         onDataProcessed={handleQuickInputData}
         statuses={statuses}
-        filterArrivedDate={inputType === "recall" ? arrivedAt : (inputType === "new-call" ? date : undefined)}
-        filterCalledDate={date}
+        filterArrivedDate={date}
+        filterCalledDate={calledAt}
       />
 
     </>

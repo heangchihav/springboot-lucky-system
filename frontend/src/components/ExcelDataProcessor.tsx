@@ -26,7 +26,7 @@ type StatusSummary = {
 interface ExcelDataProcessorProps {
   isOpen: boolean;
   onClose: () => void;
-  onDataProcessed: (entries: Record<string, string>) => void;
+  onDataProcessed: (entries: Record<string, string>, arrivedAt?: string) => void;
   statuses: CallStatusResponse[];
   filterArrivedDate?: string;
   filterCalledDate?: string;
@@ -347,7 +347,27 @@ export function ExcelDataProcessor({
         }
       });
 
-      onDataProcessed(populatedEntries);
+      // Get the most common arrivedAt date from processed records
+      const arrivedAtCounts = new Map<string, number>();
+      processedRecords.forEach(record => {
+        if (record.arrivedAt) {
+          arrivedAtCounts.set(record.arrivedAt, (arrivedAtCounts.get(record.arrivedAt) || 0) + 1);
+        }
+      });
+
+      // Find the most common arrivedAt date
+      let mostCommonArrivedAt = '';
+      if (arrivedAtCounts.size > 0) {
+        let maxCount = 0;
+        arrivedAtCounts.forEach((count, arrivedAt) => {
+          if (count > maxCount) {
+            maxCount = count;
+            mostCommonArrivedAt = arrivedAt;
+          }
+        });
+      }
+
+      onDataProcessed(populatedEntries, mostCommonArrivedAt);
       onClose();
       setQuickInputData("");
     } catch (error) {
