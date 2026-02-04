@@ -202,6 +202,8 @@ function CallDashboard() {
   const [chartGranularity, setChartGranularity] =
     useState<ChartGranularity>("daily");
   const [chartViewMode, setChartViewMode] = useState<"total" | "byStatus">("byStatus");
+  const [leaderboardView, setLeaderboardView] = useState<"compact" | "detailed">("compact");
+  const [selectedStatusForLeaderboard, setSelectedStatusForLeaderboard] = useState<string | null>(null);
 
   const statusLabelMap = useMemo(() => {
     const map: Record<string, string> = { ...DEFAULT_STATUS_LABELS };
@@ -703,6 +705,104 @@ function CallDashboard() {
     [getStatusLabel, totalsByStatus],
   );
 
+  const statusLeaderboard = useMemo(() => {
+    const leaderboard: Record<string, Array<{ name: string; value: number; rank: number }>> = {};
+
+    // Determine the current filter level and data source
+    let dataSource: Array<{ name: string;[key: string]: any }> = [];
+    let filterLevel = "branch";
+
+    if (selectedBranchId !== "all") {
+      // Single branch selected - show data over time
+      filterLevel = "date";
+      dataSource = dateSeries.map(entry => ({
+        name: String(entry.label || entry.date),
+        ...entry
+      }));
+    } else if (selectedSubArea !== "all") {
+      // Sub-area selected - show branches within this sub-area
+      filterLevel = "branch";
+      dataSource = branchStatusSeries
+        .filter(branch => filteredBranches.some(b => b.name === branch.branch))
+        .map(branch => ({
+          name: String(branch.branch),
+          ...branch
+        }));
+    } else if (selectedArea !== "all") {
+      // Area selected - show sub-areas within this area
+      filterLevel = "subarea";
+      const subareaTotals = new Map<string, Record<string, number>>();
+
+      filteredSummaryData.forEach((summary) => {
+        const branch = branches.find(b => b.name === summary.branchName);
+        if (branch && branch.subareaId) {
+          const subarea = subareasData.find(s => s.id === branch.subareaId);
+          if (subarea) {
+            const existing = subareaTotals.get(subarea.name) || {};
+            Object.entries(summary.statusTotals).forEach(([statusKey, value]) => {
+              existing[statusKey] = (existing[statusKey] || 0) + value;
+            });
+            subareaTotals.set(subarea.name, existing);
+          }
+        }
+      });
+
+      dataSource = Array.from(subareaTotals.entries()).map(([name, totals]) => ({
+        name,
+        ...totals
+      }));
+    } else {
+      // No area filter - show areas
+      filterLevel = "area";
+      const areaTotals = new Map<string, Record<string, number>>();
+
+      filteredSummaryData.forEach((summary) => {
+        const branch = branches.find(b => b.name === summary.branchName);
+        if (branch && branch.subareaId) {
+          const subarea = subareasData.find(s => s.id === branch.subareaId);
+          if (subarea) {
+            const area = areasData.find(a => a.id === subarea.areaId);
+            if (area) {
+              const existing = areaTotals.get(area.name) || {};
+              Object.entries(summary.statusTotals).forEach(([statusKey, value]) => {
+                existing[statusKey] = (existing[statusKey] || 0) + value;
+              });
+              areaTotals.set(area.name, existing);
+            }
+          }
+        }
+      });
+
+      dataSource = Array.from(areaTotals.entries()).map(([name, totals]) => ({
+        name,
+        ...totals
+      }));
+    }
+
+    // For each status, sort and rank the entities
+    statusDisplayOrder.forEach((statusKey) => {
+      const rankings = dataSource
+        .map((entity) => ({
+          name: entity.name,
+          value: (entity[statusKey] as number) || 0,
+          rank: 0
+        }))
+        .filter((entity) => entity.value > 0)
+        .sort((a, b) => b.value - a.value)
+        .slice(0, 10) // Show top 10
+        .map((entity, index) => ({
+          ...entity,
+          rank: index + 1
+        }));
+
+      if (rankings.length > 0) {
+        leaderboard[statusKey] = rankings;
+      }
+    });
+
+    return { leaderboard, filterLevel };
+  }, [branchStatusSeries, statusDisplayOrder, selectedBranchId, selectedSubArea, selectedArea, filteredSummaryData, branches, subareasData, areasData, dateSeries, filteredBranches]);
+
   const detailRows = useMemo(() => {
     return filteredSummaryData
       .map((summary, index) => {
@@ -1123,10 +1223,10 @@ function CallDashboard() {
                   </div>
                 ) : (
                   <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart
+                    <BarChart
                       data={chartSeries}
                       margin={{ top: 20, right: 30, left: 10, bottom: 20 }}
-                      key={`area-chart-${selectedArrivalType}-${selectedBranchId}-${selectedArea}-${selectedSubArea}-${chartSeries.length}`}
+                      key={`bar-chart-${selectedArrivalType}-${selectedBranchId}-${selectedArea}-${selectedSubArea}-${chartSeries.length}`}
                     >
                       <defs>
                         {chartStatusKeys.map((statusKey, index) => {
@@ -1144,8 +1244,8 @@ function CallDashboard() {
                               y2="1"
                               gradientUnits="userSpaceOnUse"
                             >
-                              <stop offset="5%" stopColor={color} stopOpacity={0.8} />
-                              <stop offset="95%" stopColor={color} stopOpacity={0.1} />
+                              <stop offset="5%" stopColor={color} stopOpacity={0.9} />
+                              <stop offset="95%" stopColor={color} stopOpacity={0.7} />
                             </linearGradient>
                           );
                         })}
@@ -1155,7 +1255,7 @@ function CallDashboard() {
                         stroke="rgba(255,255,255,0.06)"
                       />
                       <XAxis
-                        dataKey="date"
+                        dataKey="label"
                         stroke="#64748b"
                         tick={{ fill: '#94a3b8', fontSize: 11 }}
                         axisLine={{ stroke: 'rgba(255,255,255,0.1)' }}
@@ -1191,26 +1291,20 @@ function CallDashboard() {
                           : statusColorMap[statusKey] ??
                           STATUS_COLORS[index % STATUS_COLORS.length];
                         return (
-                          <Area
+                          <Bar
                             key={statusKey}
-                            type="monotone"
                             dataKey={statusKey}
-                            stroke={color}
                             fill={`url(#gradient-${statusKey})`}
-                            strokeWidth={3}
-                            activeDot={{
-                              r: 6,
-                              fill: color,
-                              stroke: '#fff',
-                              strokeWidth: 2
-                            }}
+                            barSize={chartViewMode === "total" ? 40 : 30}
+                            radius={[6, 6, 0, 0]}
                             animationBegin={index * 100}
                             animationDuration={1400}
                             animationEasing="ease-out"
+                            maxBarSize={60}
                           />
                         );
                       })}
-                    </AreaChart>
+                    </BarChart>
                   </ResponsiveContainer>
                 )}
               </div>
@@ -1536,8 +1630,121 @@ function CallDashboard() {
                 </div>
               </div>
 
+              {/* Status Leaderboard Section */}
+              <div className="mt-8">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-300">
+                      Status Leaderboard
+                    </p>
+                    <p className="text-xs text-slate-400">
+                      Top performing {statusLeaderboard.filterLevel === "area" ? "areas" :
+                        statusLeaderboard.filterLevel === "subarea" ? "sub-areas" :
+                          statusLeaderboard.filterLevel === "branch" ? "branches" : "dates"}
+                      {" "}for each call status
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="flex rounded-lg border border-white/10 bg-white/5 p-1 overflow-x-auto">
+                      <button
+                        onClick={() => setSelectedStatusForLeaderboard(null)}
+                        className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all whitespace-nowrap ${selectedStatusForLeaderboard === null
+                          ? "bg-orange-500 text-white shadow-sm"
+                          : "text-white/70 hover:text-white hover:bg-white/10"
+                          }`}
+                      >
+                        All Statuses
+                      </button>
+                      {Object.keys(statusLeaderboard.leaderboard || {}).map((statusKey) => (
+                        <button
+                          key={statusKey}
+                          onClick={() => setSelectedStatusForLeaderboard(statusKey)}
+                          className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all whitespace-nowrap ${selectedStatusForLeaderboard === statusKey
+                            ? "bg-orange-500 text-white shadow-sm"
+                            : "text-white/70 hover:text-white hover:bg-white/10"
+                            }`}
+                        >
+                          {getStatusLabel(statusKey)}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <TrendingUp className="h-4 w-4 text-orange-400" />
+                      <span className="text-[10px] uppercase tracking-[0.3em] text-slate-500">
+                        {selectedStatusForLeaderboard ? getStatusLabel(selectedStatusForLeaderboard) : "All Statuses"}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <div className="mt-4 space-y-4">
+                  {Object.keys(statusLeaderboard.leaderboard || {}).length === 0 ? (
+                    <div className="rounded-xl border border-white/5 bg-white/5 p-4 text-center text-sm text-slate-400">
+                      No status data available for leaderboard.
+                    </div>
+                  ) : (
+                    Object.entries(statusLeaderboard.leaderboard || {})
+                      .filter(([statusKey]) => selectedStatusForLeaderboard === null || selectedStatusForLeaderboard === statusKey)
+                      .map(([statusKey, rankings]) => {
+                        const color = statusColorMap[statusKey] ?? STATUS_COLORS[statusDisplayOrder.indexOf(statusKey) % STATUS_COLORS.length];
+                        const topPerformer = rankings[0]; // Get the #1 performer for compact view
 
+                        return (
+                          <div
+                            key={`leaderboard-${statusKey}`}
+                            className={`rounded-xl border border-white/5 bg-gradient-to-r from-white/5 to-white/[0.02] p-4 hover:bg-white/10 transition-all ${selectedStatusForLeaderboard !== null ? "ring-2 ring-orange-500/30" : ""
+                              }`}
+                          >
+                            <div className="flex items-center gap-3 mb-3">
+                              <div
+                                className="h-3 w-3 rounded-full"
+                                style={{ background: color }}
+                              />
+                              <p className="text-sm font-semibold text-white">
+                                {getStatusLabel(statusKey)}
+                              </p>
+                              <span className="text-xs text-slate-400">
+                                {selectedStatusForLeaderboard !== null ? `Top ${rankings.length} ${statusLeaderboard.filterLevel === "area" ? "areas" :
+                                  statusLeaderboard.filterLevel === "subarea" ? "sub-areas" :
+                                    statusLeaderboard.filterLevel === "branch" ? "branches" : "dates"}` : "Champion"}
+                              </span>
+                            </div>
 
+                            <div className="overflow-x-auto">
+                              <div className="flex gap-3 pb-2 min-w-max">
+                                {rankings.map((item, index) => (
+                                  <div
+                                    key={`${statusKey}-${item.name}`}
+                                    className="flex-shrink-0 p-3 rounded-lg bg-white/[0.02] hover:bg-white/[0.05] transition-colors border border-white/5 min-w-[140px]"
+                                  >
+                                    <div className="flex items-center gap-2 mb-2">
+                                      <div className={`flex items-center justify-center w-5 h-5 rounded-full text-xs font-bold ${item.rank === 1 ? "bg-gradient-to-br from-yellow-500/20 to-yellow-600/10 border border-yellow-500/30 text-yellow-400" :
+                                          item.rank === 2 ? "bg-gradient-to-br from-gray-400/20 to-gray-500/10 border border-gray-400/30 text-gray-300" :
+                                            item.rank === 3 ? "bg-gradient-to-br from-orange-600/20 to-orange-700/10 border border-orange-600/30 text-orange-400" :
+                                              "bg-gradient-to-br from-blue-500/20 to-blue-600/10 border border-blue-500/30 text-blue-400"
+                                        }`}>
+                                        {item.rank === 1 ? "🥇" : item.rank === 2 ? "🥈" : item.rank === 3 ? "🥉" : item.rank}
+                                      </div>
+                                      <span className="text-xs text-slate-400">#{item.rank}</span>
+                                    </div>
+                                    <p className="text-sm text-white font-medium mb-1 truncate" title={item.name}>
+                                      {item.name}
+                                    </p>
+                                    <p className="text-sm font-semibold text-white">
+                                      {formatNumber(item.value)}
+                                    </p>
+                                    <p className="text-xs text-slate-400">
+                                      calls
+                                    </p>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })
+                  )}
+                </div>
+              </div>
             </div>
           </section>
 
