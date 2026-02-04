@@ -6,8 +6,6 @@ spring:
     name: gateway
   cloud:
     gateway:
-      default-filters:
-        - DedupeResponseHeader=Access-Control-Allow-Credentials Access-Control-Allow-Origin, RETAIN_FIRST
       server:
         webflux:
           globalcors:
@@ -49,6 +47,12 @@ spring:
                 - PreserveHostHeader
               predicates:
                 - Path=/api/marketing/**
+            - id: branchreport-service
+              uri: ${BRANCHREPORT_SERVICE_URL:http://demo-branchreport-service:8085}
+              filters:
+                - PreserveHostHeader
+              predicates:
+                - Path=/api/branchreport/**
 
 # JWT Configuration
 security:

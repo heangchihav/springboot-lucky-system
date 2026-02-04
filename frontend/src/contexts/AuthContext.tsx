@@ -207,6 +207,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         "delivery-service",
         "user-service",
         "marketing-service",
+        "branchreport-service",
       ];
     }
 
@@ -221,6 +222,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
       user: "user-service",
       marketing: "marketing-service",
       "marketing-service": "marketing-service",
+      branchreport: "branchreport-service",
+      "branchreport-service": "branchreport-service",
     };
 
     return user.userRoles

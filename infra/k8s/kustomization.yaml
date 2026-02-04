@@ -34,6 +34,7 @@ resources:
   - services/backend/call-service.yaml
   - services/backend/delivery-service.yaml
   - services/backend/marketing-service.yaml
+  - services/backend/branchreport-service.yaml
   
   # Services - Gateway
   - services/gateway/gateway.yaml

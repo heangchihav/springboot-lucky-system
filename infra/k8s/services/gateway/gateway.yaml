@@ -33,6 +33,8 @@ spec:
               value: http://delivery-service:8083
             - name: MARKETING_SERVICE_URL
               value: http://marketing-service:8084
+            - name: BRANCHREPORT_SERVICE_URL
+              value: http://branchreport-service:8085
             - name: GATEWAY_CORS_ALLOWED_ORIGIN_PATTERNS
               valueFrom:
                 configMapKeyRef:

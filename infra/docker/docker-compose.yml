@@ -103,6 +103,21 @@ services:
       redis:
         condition: service_healthy
 
+  branchreport-service:
+    image: ${DOCKER_HUB_USERNAME}/branchreport-service:${IMAGE_TAG}
+    container_name: demo-branchreport-service
+    restart: unless-stopped
+    ports:
+      - "8085:8085"
+    env_file:
+      - ./.env
+    environment:
+      DATABASE_URL: ${BRANCHREPORT_DATABASE_URL:-postgres://postgres:postgres@db:5432/branchreport_service_db}
+      PORT: 8085
+    depends_on:
+      db:
+        condition: service_healthy
+    
   delivery-service:
     image: ${DOCKER_HUB_USERNAME}/delivery-service:${IMAGE_TAG}
     container_name: demo-delivery-service
@@ -130,10 +145,14 @@ services:
     restart: unless-stopped
     env_file:
       - ./.env
+    environment:
+      BRANCHREPORT_SERVICE_URL: http://branchreport-service:8085
     ports:
       - "8080:8080"
     depends_on:
       user-service:
+        condition: service_healthy
+      branchreport-service:
         condition: service_healthy
     healthcheck:
       test: [ "CMD-SHELL", "curl -f http://localhost:8080/actuator/health/readiness || exit 1" ]

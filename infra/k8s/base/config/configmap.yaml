@@ -12,6 +12,7 @@ data:
   SPRING_DATASOURCE_URL_CALL_SERVICE: "jdbc:postgresql://postgres-service:5432/call_service_db"
   SPRING_DATASOURCE_URL_MARKETING_SERVICE: "jdbc:postgresql://postgres-service:5432/marketing_service_db"
   SPRING_DATASOURCE_URL_DELIVERY_SERVICE: "jdbc:postgresql://postgres-service:5432/delivery_service_db"
+  SPRING_DATASOURCE_URL_BRANCHREPORT_SERVICE: "jdbc:postgresql://postgres-service:5432/branchreport_service_db"
   REDIS_HOST: "redis-service"
   REDIS_PORT: "6379"
   

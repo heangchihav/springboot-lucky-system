@@ -2,7 +2,7 @@
 
 ## Overview
 
-A Spring Boot microservices application with Next.js frontend, featuring centralized environment configuration.
+A Spring Boot microservices application with Next.js frontend and Rust Actix Web service, featuring centralized environment configuration.
 
 ## Project Structure
 
@@ -11,13 +11,14 @@ demo/
 ├── .env                    # ⭐ CENTRALIZED CONFIGURATION (single source of truth)
 ├── .env.example            # Template for .env
 │
-├── backend/                # Spring Boot microservices
+├── backend/                # Spring Boot microservices + Rust service
 │   ├── .env -> ../.env    # Symlink to root .env
 │   ├── gateway/
 │   ├── user-service/
 │   ├── call-service/
 │   ├── delivery-service/
-│   └── marketing-service/
+│   ├── marketing-service/
+│   └── branchreport-service/  # Rust Actix Web service
 │
 ├── frontend/               # Next.js application
 │   └── .env.local -> ../.env  # Symlink to root .env
@@ -183,6 +184,7 @@ kubectl logs -n demo -l app=cloudflared
 | Call Service | 8082 | Call management |
 | Delivery Service | 8083 | Delivery management |
 | Marketing Service | 8084 | Marketing management |
+| Branch Report Service | 8085 | Branch reporting (Rust) |
 | PostgreSQL | 5433 | Database |
 | Redis | 6380 | Cache |
 | Grafana | 3300 | Monitoring |

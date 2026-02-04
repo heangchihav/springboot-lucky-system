@@ -115,6 +115,29 @@ services:
       redis:
         condition: service_healthy
 
+  branchreport-service:
+    build:
+      context: ../../backend/branchreport-service
+      dockerfile: Dockerfile
+    container_name: demo-branchreport-service
+    restart: unless-stopped
+    ports:
+      - "8085:8085"
+    env_file:
+      - ./.env
+    environment:
+      DATABASE_URL: ${BRANCHREPORT_DATABASE_URL:-postgres://postgres:postgres@db:5432/branchreport_service_db}
+      PORT: 8085
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD-SHELL", "curl -f http://localhost:8085/api/branchreport/health || exit 1" ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
   delivery-service:
     build:
       context: ../..
@@ -150,10 +173,14 @@ services:
     restart: unless-stopped
     env_file:
       - ./.env
+    environment:
+      BRANCHREPORT_SERVICE_URL: http://branchreport-service:8085
     ports:
       - "8080:8080"
     depends_on:
       user-service:
+        condition: service_healthy
+      branchreport-service:
         condition: service_healthy
     healthcheck:
       test: [ "CMD-SHELL", "curl -f http://localhost:8080/actuator/health/readiness || exit 1" ]
