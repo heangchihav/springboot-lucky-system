@@ -6,12 +6,15 @@ import com.example.callservice.entity.branch.Branch;
 import com.example.callservice.repository.area.AreaRepository;
 import com.example.callservice.repository.subarea.SubareaRepository;
 import com.example.callservice.repository.branch.BranchRepository;
+import com.example.callservice.service.userbranch.UserBranchService;
+import com.example.callservice.service.shared.CallAuthorizationService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Service
 @Transactional
@@ -25,6 +28,12 @@ public class BranchService {
 
     @Autowired
     private AreaRepository areaRepository;
+
+    @Autowired
+    private UserBranchService userBranchService;
+
+    @Autowired
+    private CallAuthorizationService callAuthorizationService;
 
     public List<Branch> getAllBranches() {
         return branchRepository.findAll();
@@ -206,5 +215,30 @@ public class BranchService {
 
     public long getActiveBranchCountInArea(Long areaId) {
         return branchRepository.countActiveBranchesInArea(areaId);
+    }
+
+    public List<Branch> getBranchesByUserId(Long userId) {
+        return userBranchService.getUserBranchesByUserId(userId).stream()
+                .filter(ub -> ub.getActive())
+                .map(ub -> ub.getBranch())
+                .filter(branch -> branch != null && branch.getActive())
+                .distinct()
+                .collect(Collectors.toList());
+    }
+
+    public List<Branch> findAllForUser(Long userId) {
+        List<Long> accessibleBranchIds = callAuthorizationService.getAccessibleBranchIds(userId);
+
+        if (accessibleBranchIds == null) {
+            return getAllBranches();
+        }
+
+        if (accessibleBranchIds.isEmpty()) {
+            return List.of();
+        }
+
+        return branchRepository.findAll().stream()
+                .filter(branch -> accessibleBranchIds.contains(branch.getId()))
+                .collect(Collectors.toList());
     }
 }

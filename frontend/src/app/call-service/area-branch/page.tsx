@@ -616,7 +616,7 @@ export default function AreaBranchManagement() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <PermissionGuard
-                        permission="canEditAreas"
+                        permission={CALL_SERVICE_PERMISSIONS.AREAS.EDIT}
                         fallback={
                           <button
                             disabled
@@ -635,7 +635,7 @@ export default function AreaBranchManagement() {
                         </button>
                       </PermissionGuard>
                       <PermissionGuard
-                        permission="canEditAreas"
+                        permission={CALL_SERVICE_PERMISSIONS.AREAS.EDIT}
                         fallback={
                           <button
                             disabled
@@ -656,7 +656,7 @@ export default function AreaBranchManagement() {
                         </button>
                       </PermissionGuard>
                       <PermissionGuard
-                        permission="canDeleteAreas"
+                        permission={CALL_SERVICE_PERMISSIONS.AREAS.DELETE}
                         fallback={
                           <button
                             disabled
@@ -689,7 +689,7 @@ export default function AreaBranchManagement() {
           <div className="mb-4 flex justify-between items-center">
             <h2 className="text-xl font-semibold text-white">Subareas</h2>
             <PermissionGuard
-              permission="canCreateSubareas"
+              permission={CALL_SERVICE_PERMISSIONS.SUBAREAS.CREATE}
               fallback={
                 <button
                   disabled
@@ -882,7 +882,7 @@ export default function AreaBranchManagement() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <PermissionGuard
-                        permission="canEditSubareas"
+                        permission={CALL_SERVICE_PERMISSIONS.SUBAREAS.EDIT}
                         fallback={
                           <button
                             disabled
@@ -901,7 +901,7 @@ export default function AreaBranchManagement() {
                         </button>
                       </PermissionGuard>
                       <PermissionGuard
-                        permission="canDeleteSubareas"
+                        permission={CALL_SERVICE_PERMISSIONS.SUBAREAS.DELETE}
                         fallback={
                           <button
                             disabled
@@ -934,7 +934,7 @@ export default function AreaBranchManagement() {
           <div className="mb-4 flex justify-between items-center">
             <h2 className="text-xl font-semibold text-white">Branches</h2>
             <PermissionGuard
-              permission="canCreateBranches"
+              permission={CALL_SERVICE_PERMISSIONS.BRANCHES.CREATE}
               fallback={
                 <button
                   disabled
@@ -1180,7 +1180,7 @@ export default function AreaBranchManagement() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <PermissionGuard
-                        permission="canUpdateBranches"
+                        permission={CALL_SERVICE_PERMISSIONS.BRANCHES.UPDATE}
                         fallback={
                           <button
                             disabled
@@ -1199,7 +1199,7 @@ export default function AreaBranchManagement() {
                         </button>
                       </PermissionGuard>
                       <PermissionGuard
-                        permission="canUpdateBranches"
+                        permission={CALL_SERVICE_PERMISSIONS.BRANCHES.UPDATE}
                         fallback={
                           <button
                             disabled
@@ -1220,7 +1220,7 @@ export default function AreaBranchManagement() {
                         </button>
                       </PermissionGuard>
                       <PermissionGuard
-                        permission="canDeleteBranches"
+                        permission={CALL_SERVICE_PERMISSIONS.BRANCHES.DELETE}
                         fallback={
                           <button
                             disabled

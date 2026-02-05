@@ -5,6 +5,7 @@ import com.example.callservice.entity.subarea.Subarea;
 import com.example.callservice.entity.area.Area;
 import com.example.callservice.service.subarea.SubareaService;
 import com.example.callservice.service.area.AreaService;
+import com.example.callservice.service.shared.CallAuthorizationService;
 import com.example.callservice.annotation.RequirePermission;
 import com.example.callservice.api.base.BaseController;
 import jakarta.servlet.http.HttpServletRequest;
@@ -27,6 +28,9 @@ public class SubareaController extends BaseController {
 
     @Autowired
     private AreaService areaService;
+
+    @Autowired
+    private CallAuthorizationService callAuthorizationService;
 
     private SubareaDTO convertToDTO(Subarea subarea) {
         SubareaDTO dto = new SubareaDTO();
@@ -63,7 +67,9 @@ public class SubareaController extends BaseController {
         if (permissionCheck != null) {
             return permissionCheck;
         }
-        List<Subarea> subareas = subareaService.getAllSubareas();
+
+        Long userId = getCurrentUserId(request);
+        List<Subarea> subareas = subareaService.findAllForUser(userId);
         List<SubareaDTO> subareaDTOs = subareas.stream().map(this::convertToDTO).collect(Collectors.toList());
         return ResponseEntity.ok(subareaDTOs);
     }
@@ -74,7 +80,9 @@ public class SubareaController extends BaseController {
         if (permissionCheck != null) {
             return permissionCheck;
         }
-        List<Subarea> subareas = subareaService.getActiveSubareasOrderByName();
+
+        Long userId = getCurrentUserId(request);
+        List<Subarea> subareas = subareaService.findAllForUser(userId);
         List<SubareaDTO> subareaDTOs = subareas.stream().map(this::convertToDTO).collect(Collectors.toList());
         return ResponseEntity.ok(subareaDTOs);
     }

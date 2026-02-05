@@ -10,20 +10,20 @@ export const CALL_SERVICE_PERMISSIONS = {
     QUEUE_HEALTH: "menu.6.queue-health",
   },
 
-  // Area Management permissions (Menu 6)
+  // Area Management permissions
   AREAS: {
-    VIEW: "menu.6.area.view",
-    CREATE: "menu.6.area.create",
-    EDIT: "menu.6.area.edit",
-    DELETE: "menu.6.area.delete",
+    VIEW: "area.view",
+    CREATE: "area.create",
+    EDIT: "area.edit",
+    DELETE: "area.delete",
   },
 
-  // Subarea Management permissions (Menu 6)
+  // Subarea Management permissions
   SUBAREAS: {
-    VIEW: "menu.6.subarea.view",
-    CREATE: "menu.6.subarea.create",
-    EDIT: "menu.6.subarea.edit",
-    DELETE: "menu.6.subarea.delete",
+    VIEW: "subarea.view",
+    CREATE: "subarea.create",
+    EDIT: "subarea.edit",
+    DELETE: "subarea.delete",
   },
 
   // Branch Management permissions

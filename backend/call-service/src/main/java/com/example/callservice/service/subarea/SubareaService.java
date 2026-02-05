@@ -4,12 +4,15 @@ import com.example.callservice.entity.subarea.Subarea;
 import com.example.callservice.entity.area.Area;
 import com.example.callservice.repository.subarea.SubareaRepository;
 import com.example.callservice.repository.area.AreaRepository;
+import com.example.callservice.service.userbranch.UserBranchService;
+import com.example.callservice.service.shared.CallAuthorizationService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Service
 @Transactional
@@ -20,6 +23,12 @@ public class SubareaService {
 
     @Autowired
     private AreaRepository areaRepository;
+
+    @Autowired
+    private UserBranchService userBranchService;
+
+    @Autowired
+    private CallAuthorizationService callAuthorizationService;
 
     public List<Subarea> getAllSubareas() {
         return subareaRepository.findAll();
@@ -141,6 +150,31 @@ public class SubareaService {
 
         subarea.setActive(true);
         return subareaRepository.save(subarea);
+    }
+
+    public List<Subarea> getSubareasByUserId(Long userId) {
+        return userBranchService.getUserBranchesByUserId(userId).stream()
+                .filter(ub -> ub.getActive())
+                .map(ub -> ub.getBranch().getSubarea())
+                .filter(subarea -> subarea != null && subarea.getActive())
+                .distinct()
+                .collect(Collectors.toList());
+    }
+
+    public List<Subarea> findAllForUser(Long userId) {
+        List<Long> accessibleSubAreaIds = callAuthorizationService.getAccessibleSubAreaIds(userId);
+
+        if (accessibleSubAreaIds == null) {
+            return getAllSubareas();
+        }
+
+        if (accessibleSubAreaIds.isEmpty()) {
+            return List.of();
+        }
+
+        return subareaRepository.findAll().stream()
+                .filter(subarea -> accessibleSubAreaIds.contains(subarea.getId()))
+                .collect(Collectors.toList());
     }
 
     public long getActiveBranchCount(Long subareaId) {

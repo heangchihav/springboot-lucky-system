@@ -4,6 +4,7 @@ import com.example.callservice.entity.userbranch.UserBranch;
 import com.example.callservice.service.userbranch.UserBranchService;
 import com.example.callservice.dto.shared.AssignUserRequest;
 import com.example.callservice.dto.userbranch.UserBranchResponse;
+import com.example.callservice.api.base.BaseController;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -18,7 +19,7 @@ import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/calls/user-branches")
-public class UserBranchController {
+public class UserBranchController extends BaseController {
 
     private static final Logger logger = LoggerFactory.getLogger(UserBranchController.class);
 
@@ -133,16 +134,26 @@ public class UserBranchController {
     }
 
     @PostMapping("/remove")
-    public ResponseEntity<UserBranchResponse> removeUserFromBranch(@RequestBody Map<String, Long> request) {
+    public ResponseEntity<UserBranchResponse> removeUserFromBranch(@RequestBody Map<String, Long> request,
+            HttpServletRequest httpRequest) {
+        logger.info("=== REMOVE USER FROM BRANCH REQUEST ===");
+        logger.info("Request body: {}", request);
+
         Long userId = request.get("userId");
         Long branchId = request.get("branchId");
 
+        // Get current user ID from request header
+        Long currentUserId = getCurrentUserId(httpRequest);
+
+        logger.info("Extracted - userId: {}, branchId: {}, currentUserId: {}", userId, branchId, currentUserId);
+
         if (userId == null || branchId == null) {
+            logger.error("Validation failed: userId or branchId is null. userId={}, branchId={}", userId, branchId);
             return ResponseEntity.badRequest().build();
         }
 
         try {
-            UserBranch userBranch = userBranchService.removeUserFromBranch(userId, branchId);
+            UserBranch userBranch = userBranchService.removeUserFromBranch(userId, branchId, currentUserId);
             UserBranchResponse response = new UserBranchResponse(
                     userBranch.getId(),
                     userBranch.getUserId(),
@@ -155,6 +166,8 @@ public class UserBranchController {
                     userBranch.getUpdatedAt());
             return ResponseEntity.ok(response);
         } catch (IllegalArgumentException e) {
+            logger.error("Failed to remove user from branch: userId={}, branchId={}, error={}", userId, branchId,
+                    e.getMessage());
             return ResponseEntity.badRequest().build();
         }
     }

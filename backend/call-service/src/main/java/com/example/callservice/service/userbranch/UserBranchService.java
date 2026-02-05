@@ -58,6 +58,23 @@ public class UserBranchService {
         return userBranchRepository.findByUserIdAndBranchIdAndActive(userId, branchId, true);
     }
 
+    private boolean isRootUser(Long userId) {
+        if (userId == null) {
+            return false;
+        }
+
+        try {
+            // TODO: Implement proper user-service API call when user-service is available
+            // For now, check if username is "root" - this is a temporary implementation
+            // In production, this should call user-service to verify root status
+            return userId.equals(1L); // Assuming root user has ID 1, adjust as needed
+        } catch (Exception e) {
+            System.err.println("Error checking root user for userId " + userId + ": " + e.getMessage());
+            // If we can't verify, assume not root for security
+            return false;
+        }
+    }
+
     private boolean isUserActive(Long userId) {
         // TODO: Implement proper user-service API call when user-service is available
         // For now, assume user exists and is active to test branch assignment
@@ -128,20 +145,58 @@ public class UserBranchService {
         return assignments;
     }
 
-    public UserBranch removeUserFromBranch(Long userId, Long branchId) {
+    public UserBranch removeUserFromBranch(Long userId, Long branchId, Long currentUserId) {
+        System.out.println("DEBUG: removeUserFromBranch called for userId: " + userId + ", branchId: " + branchId
+                + ", currentUserId: " + currentUserId);
+
         UserBranch userBranch = userBranchRepository.findByUserIdAndBranchId(userId, branchId)
                 .orElseThrow(() -> new IllegalArgumentException("User-Branch assignment not found"));
+
+        // Check if this is the last active assignment (security measure) - but allow
+        // root users
+        // Check current user's assignments, not target user's assignments
+        List<UserBranch> currentUserActiveAssignments = userBranchRepository
+                .findActiveUserBranchesByUserId(currentUserId);
+        System.out.println("DEBUG: Current user active assignments count: " + currentUserActiveAssignments.size());
+
+        if (currentUserActiveAssignments.size() <= 1 && userBranch.getActive() && !isRootUser(currentUserId)) {
+            System.out.println("DEBUG: Blocking removal - current user would have 0 assignments left");
+            throw new IllegalArgumentException(
+                    "Cannot remove the last active branch assignment. User must have at least one active branch assignment for security reasons.");
+        }
 
         userBranch.setActive(false);
         return userBranchRepository.save(userBranch);
     }
 
     public List<UserBranch> removeUserFromBranches(Long userId, List<Long> branchIds) {
+        // Check if this would remove all active assignments - but allow root users
+        List<UserBranch> currentActiveAssignments = userBranchRepository.findActiveUserBranchesByUserId(userId);
+        List<UserBranch> assignmentsToBeRemoved = new ArrayList<>();
+
+        for (Long branchId : branchIds) {
+            Optional<UserBranch> assignment = userBranchRepository.findByUserIdAndBranchId(userId, branchId);
+            if (assignment.isPresent() && assignment.get().getActive()) {
+                assignmentsToBeRemoved.add(assignment.get());
+            }
+        }
+
+        // Calculate remaining active assignments after removal
+        int remainingActiveAssignments = currentActiveAssignments.size() - assignmentsToBeRemoved.size();
+
+        // Prevent removing all assignments (security measure) - but allow root users
+        // Only apply restriction if user currently has assignments and would end up
+        // with zero
+        if (remainingActiveAssignments <= 0 && !currentActiveAssignments.isEmpty() && !isRootUser(userId)) {
+            throw new IllegalArgumentException(
+                    "Cannot remove all branch assignments. User must have at least one active branch assignment for security reasons.");
+        }
+
         List<UserBranch> assignments = new ArrayList<>();
 
         for (Long branchId : branchIds) {
             try {
-                UserBranch userBranch = removeUserFromBranch(userId, branchId);
+                UserBranch userBranch = removeUserFromBranch(userId, branchId, userId);
                 assignments.add(userBranch);
             } catch (IllegalArgumentException e) {
                 // Skip if assignment not found, continue with others
@@ -156,6 +211,17 @@ public class UserBranchService {
         UserBranch userBranch = userBranchRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("User-Branch assignment not found with id: " + id));
 
+        // Check if this would deactivate the last active assignment (security measure)
+        // - but allow root users
+        if (!userBranchDetails.getActive() && userBranch.getActive() && !isRootUser(userBranch.getUserId())) {
+            List<UserBranch> currentActiveAssignments = userBranchRepository
+                    .findActiveUserBranchesByUserId(userBranch.getUserId());
+            if (currentActiveAssignments.size() <= 1) {
+                throw new IllegalArgumentException(
+                        "Cannot deactivate the last active branch assignment. User must have at least one active branch assignment for security reasons.");
+            }
+        }
+
         userBranch.setActive(userBranchDetails.getActive());
         return userBranchRepository.save(userBranch);
     }
@@ -163,6 +229,17 @@ public class UserBranchService {
     public void deleteUserBranchAssignment(Long id) {
         UserBranch userBranch = userBranchRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("User-Branch assignment not found with id: " + id));
+
+        // Check if this would delete the last active assignment (security measure) -
+        // but allow root users
+        if (userBranch.getActive() && !isRootUser(userBranch.getUserId())) {
+            List<UserBranch> currentActiveAssignments = userBranchRepository
+                    .findActiveUserBranchesByUserId(userBranch.getUserId());
+            if (currentActiveAssignments.size() <= 1) {
+                throw new IllegalArgumentException(
+                        "Cannot delete the last active branch assignment. User must have at least one active branch assignment for security reasons.");
+            }
+        }
 
         userBranchRepository.delete(userBranch);
     }

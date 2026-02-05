@@ -3,6 +3,7 @@ package com.example.callservice.api.area;
 import com.example.callservice.dto.area.AreaDTO;
 import com.example.callservice.entity.area.Area;
 import com.example.callservice.service.area.AreaService;
+import com.example.callservice.service.shared.CallAuthorizationService;
 import com.example.callservice.annotation.RequirePermission;
 import com.example.callservice.api.base.BaseController;
 import jakarta.servlet.http.HttpServletRequest;
@@ -23,6 +24,9 @@ public class AreaController extends BaseController {
     @Autowired
     private AreaService areaService;
 
+    @Autowired
+    private CallAuthorizationService callAuthorizationService;
+
     private AreaDTO convertToDTO(Area area) {
         AreaDTO dto = new AreaDTO();
         dto.setId(area.getId());
@@ -39,7 +43,11 @@ public class AreaController extends BaseController {
         if (permissionCheck != null) {
             return permissionCheck;
         }
-        List<Area> areas = areaService.getAllAreas();
+
+        Long userId = getCurrentUserId(request);
+        System.out.println("DEBUG: AreaController.getAllAreas called for userId: " + userId);
+        List<Area> areas = areaService.findAllForUser(userId);
+        System.out.println("DEBUG: AreaController received " + areas.size() + " areas from service");
         List<AreaDTO> areaDTOs = areas.stream().map(this::convertToDTO).collect(Collectors.toList());
         return ResponseEntity.ok(areaDTOs);
     }
@@ -50,7 +58,9 @@ public class AreaController extends BaseController {
         if (permissionCheck != null) {
             return permissionCheck;
         }
-        List<Area> areas = areaService.getActiveAreasOrderByName();
+
+        Long userId = getCurrentUserId(request);
+        List<Area> areas = areaService.findAllForUser(userId);
         List<AreaDTO> areaDTOs = areas.stream().map(this::convertToDTO).collect(Collectors.toList());
         return ResponseEntity.ok(areaDTOs);
     }

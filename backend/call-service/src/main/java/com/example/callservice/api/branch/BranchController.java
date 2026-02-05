@@ -5,6 +5,7 @@ import com.example.callservice.dto.branch.BranchDTO;
 import com.example.callservice.entity.branch.Branch;
 import com.example.callservice.entity.subarea.Subarea;
 import com.example.callservice.service.branch.BranchService;
+import com.example.callservice.service.shared.CallAuthorizationService;
 import com.example.callservice.api.base.BaseController;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -23,6 +24,9 @@ public class BranchController extends BaseController {
 
     @Autowired
     private BranchService branchService;
+
+    @Autowired
+    private CallAuthorizationService callAuthorizationService;
 
     private BranchDTO convertToDTO(Branch branch) {
         BranchDTO dto = new BranchDTO();
@@ -53,7 +57,8 @@ public class BranchController extends BaseController {
             return permissionCheck;
         }
 
-        List<Branch> branches = branchService.getAllBranches();
+        Long userId = getCurrentUserId(request);
+        List<Branch> branches = branchService.findAllForUser(userId);
         List<BranchDTO> branchDTOs = branches.stream().map(this::convertToDTO).collect(Collectors.toList());
         return ResponseEntity.ok(branchDTOs);
     }
@@ -66,7 +71,8 @@ public class BranchController extends BaseController {
             return permissionCheck;
         }
 
-        List<Branch> branches = branchService.getActiveBranchesOrderByName();
+        Long userId = getCurrentUserId(request);
+        List<Branch> branches = branchService.findAllForUser(userId);
         List<BranchDTO> branchDTOs = branches.stream().map(this::convertToDTO).collect(Collectors.toList());
         return ResponseEntity.ok(branchDTOs);
     }
