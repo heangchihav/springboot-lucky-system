@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { apiFetch } from "@/services/httpClient";
+import { areaBranchService, Area, Subarea, Branch } from "@/services/areaBranchService";
 import { ExcelDataProcessor } from "@/components/ExcelDataProcessor";
 import { processExcelData } from "@/utils/excelDataProcessor";
 import { useToast } from "@/components/ui/Toast";
@@ -348,6 +349,16 @@ function Page() {
   const [selectedStatus, setSelectedStatus] = useState<string>("");
   const [branches, setBranches] = useState<BranchResponse[]>([]);
   const [selectedBranchId, setSelectedBranchId] = useState<number | null>(null);
+
+  // Area, Subarea, Branch cascading selection states
+  const [areas, setAreas] = useState<Area[]>([]);
+  const [subareas, setSubareas] = useState<Subarea[]>([]);
+  const [areaBranches, setAreaBranches] = useState<Branch[]>([]);
+  const [selectedAreaId, setSelectedAreaId] = useState<number | null>(null);
+  const [selectedSubareaId, setSelectedSubareaId] = useState<number | null>(null);
+  const [loadingAreas, setLoadingAreas] = useState(false);
+  const [loadingSubareas, setLoadingSubareas] = useState(false);
+  const [loadingAreaBranches, setLoadingAreaBranches] = useState(false);
 
   // Helper function to format date to dd/mm/yyyy for display
   const formatDateToDDMMYYYY = (date: Date): string => {
@@ -711,6 +722,45 @@ function Page() {
     setSelectedBranchId(activeBranches[0]?.id ?? null);
   };
 
+  // Load all data at once (following dashboard pattern)
+  const loadAreas = async () => {
+    setLoadingAreas(true);
+    try {
+      const areasData = await areaBranchService.getActiveAreas();
+      setAreas(areasData);
+    } catch (error) {
+      console.error("Failed to load areas:", error);
+    } finally {
+      setLoadingAreas(false);
+    }
+  };
+
+  const loadSubareas = async () => {
+    setLoadingSubareas(true);
+    try {
+      const subareasData = await areaBranchService.getActiveSubareas();
+      setSubareas(subareasData);
+    } catch (error) {
+      console.error("Failed to load subareas:", error);
+      setSubareas([]);
+    } finally {
+      setLoadingSubareas(false);
+    }
+  };
+
+  const loadAllBranches = async () => {
+    setLoadingAreaBranches(true);
+    try {
+      const branchesData = await areaBranchService.getActiveBranches();
+      setAreaBranches(branchesData);
+    } catch (error) {
+      console.error("Failed to load branches:", error);
+      setAreaBranches([]);
+    } finally {
+      setLoadingAreaBranches(false);
+    }
+  };
+
   const loadBranches = async () => {
     setLoadingBranches(true);
     setApiError(null);
@@ -785,6 +835,9 @@ function Page() {
     loadStatuses();
     loadBranches();
     loadReports();
+    loadAreas();
+    loadSubareas();
+    loadAllBranches();
   }, []);
 
   const handleSubmit = async () => {
@@ -914,6 +967,52 @@ function Page() {
     const value = event.target.value;
     setSelectedBranchId(value ? Number(value) : null);
   };
+
+  const handleAreaChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
+    const value = event.target.value;
+    const areaId = value ? Number(value) : null;
+    setSelectedAreaId(areaId);
+    setSelectedSubareaId(null);
+    setSelectedBranchId(null);
+    // No API call needed - data is already loaded and filtered client-side
+  };
+
+  const handleSubareaChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
+    const value = event.target.value;
+    const subareaId = value ? Number(value) : null;
+    setSelectedSubareaId(subareaId);
+    setSelectedBranchId(null);
+    // No API call needed - data is already loaded and filtered client-side
+  };
+
+  const handleAreaBranchChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
+    const value = event.target.value;
+    setSelectedBranchId(value ? Number(value) : null);
+  };
+
+  // Filter subareas based on selected area (following dashboard pattern)
+  const filteredSubareas = useMemo(() => {
+    if (!selectedAreaId) {
+      // When no area selected, show all subareas
+      return subareas.filter((subarea) => subarea.active);
+    }
+    // When area is selected, show only subareas within that area
+    return subareas.filter((subarea) => {
+      return subarea.areaId === selectedAreaId && subarea.active;
+    });
+  }, [subareas, selectedAreaId]);
+
+  // Filter branches based on selected subarea (following dashboard pattern)
+  const filteredBranches = useMemo(() => {
+    if (!selectedSubareaId) {
+      // When no subarea selected, show all active branches
+      return areaBranches.filter((branch) => branch.active);
+    }
+    // When subarea is selected, show only branches within that subarea
+    return areaBranches.filter((branch) => {
+      return branch.subareaId === selectedSubareaId && branch.active;
+    });
+  }, [areaBranches, selectedSubareaId]);
 
   const handleQuickInputData = (entries: Record<string, string>, arrivedAt?: string) => {
     setEntries(prev => ({ ...prev, ...entries }));
@@ -1163,6 +1262,42 @@ function Page() {
               </div>
               <div className="flex-1">
                 <label className="block text-xs font-medium text-slate-400 mb-2 uppercase tracking-wider">
+                  Area
+                </label>
+                <select
+                  value={selectedAreaId !== null ? String(selectedAreaId) : ""}
+                  onChange={handleAreaChange}
+                  className="px-3 py-2 w-full text-sm bg-slate-800 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
+                  disabled={loadingAreas}
+                >
+                  <option value="">Select area</option>
+                  {areas.map((area) => (
+                    <option key={area.id} value={String(area.id)}>
+                      {area.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex-1">
+                <label className="block text-xs font-medium text-slate-400 mb-2 uppercase tracking-wider">
+                  Subarea
+                </label>
+                <select
+                  value={selectedSubareaId !== null ? String(selectedSubareaId) : ""}
+                  onChange={handleSubareaChange}
+                  className="px-3 py-2 w-full text-sm bg-slate-800 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
+                  disabled={loadingSubareas || !selectedAreaId}
+                >
+                  <option value="">Select subarea</option>
+                  {filteredSubareas.map((subarea) => (
+                    <option key={subarea.id} value={String(subarea.id)}>
+                      {subarea.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex-1">
+                <label className="block text-xs font-medium text-slate-400 mb-2 uppercase tracking-wider">
                   Branch
                 </label>
                 {hasBranchAssignment ? (
@@ -1177,15 +1312,13 @@ function Page() {
                   </div>
                 ) : (
                   <select
-                    value={
-                      selectedBranchId !== null ? String(selectedBranchId) : ""
-                    }
-                    onChange={handleBranchChange}
+                    value={selectedBranchId !== null ? String(selectedBranchId) : ""}
+                    onChange={handleAreaBranchChange}
                     className="px-3 py-2 w-full text-sm bg-slate-800 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
-                    disabled={loadingBranches || branches.length === 0}
+                    disabled={loadingAreaBranches || !selectedSubareaId}
                   >
-                    <option value="">Select a branch</option>
-                    {branches.map((branch) => (
+                    <option value="">Select branch</option>
+                    {filteredBranches.map((branch) => (
                       <option key={branch.id} value={String(branch.id)}>
                         {branch.name}
                       </option>
@@ -1469,96 +1602,96 @@ function Page() {
           )}
         </div>        </div>
 
-        {/* Manage Status Popup */}
-        {
-          showManagePopup && managingStatusKey && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in">
-              <div
-                className="absolute inset-0 bg-black/60 backdrop-blur-md"
-                onClick={closeManagePopup}
-              ></div>
-              <div className="popup-card w-full max-w-md animate-scale-in">
-                <div className="flex items-start justify-between mb-5">
-                  <div>
-                    <h3 className="text-xl font-bold bg-gradient-to-r from-orange-400 to-orange-600 bg-clip-text text-transparent">
-                      Manage Status
-                    </h3>
-                    <p className="text-[10px] text-slate-500 font-mono mt-1">
-                      {managingStatusKey}
-                    </p>
-                  </div>
+      {/* Manage Status Popup */}
+      {
+        showManagePopup && managingStatusKey && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in">
+            <div
+              className="absolute inset-0 bg-black/60 backdrop-blur-md"
+              onClick={closeManagePopup}
+            ></div>
+            <div className="popup-card w-full max-w-md animate-scale-in">
+              <div className="flex items-start justify-between mb-5">
+                <div>
+                  <h3 className="text-xl font-bold bg-gradient-to-r from-orange-400 to-orange-600 bg-clip-text text-transparent">
+                    Manage Status
+                  </h3>
+                  <p className="text-[10px] text-slate-500 font-mono mt-1">
+                    {managingStatusKey}
+                  </p>
+                </div>
+                <button
+                  onClick={closeManagePopup}
+                  className="menu-button hover:rotate-90"
+                >
+                  <svg
+                    className="h-4 w-4"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M6 18L18 6M6 6l12 12"
+                    />
+                  </svg>
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <label className="flex flex-col gap-1.5">
+                  <span className="text-xs font-medium text-slate-300 uppercase tracking-wider">
+                    Display Name
+                  </span>
+                  <input
+                    type="text"
+                    value={editingLabel}
+                    onChange={(event) => setEditingLabel(event.target.value)}
+                    className="px-3 py-2 text-sm bg-slate-800 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
+                  />
+                </label>
+
+                <div className="flex flex-col gap-2 pt-2">
+                  <button
+                    onClick={handleUpdateStatus}
+                    disabled={!editingLabel.trim()}
+                    className="w-full px-4 py-2 text-xs font-semibold bg-gradient-to-r from-blue-600 to-blue-800 text-white rounded-lg hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
+                  >
+                    Save Changes
+                  </button>
+                  <button
+                    onClick={handleDeleteStatus}
+                    className="w-full px-4 py-2 text-xs font-semibold bg-gradient-to-r from-red-600 to-red-800 text-white rounded-lg hover:shadow-lg transition-all duration-300"
+                  >
+                    Delete Status
+                  </button>
                   <button
                     onClick={closeManagePopup}
-                    className="menu-button hover:rotate-90"
+                    className="w-full px-4 py-2 text-xs font-semibold bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600 hover:text-white transition-all duration-300"
                   >
-                    <svg
-                      className="h-4 w-4"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M6 18L18 6M6 6l12 12"
-                      />
-                    </svg>
+                    Cancel
                   </button>
-                </div>
-
-                <div className="space-y-4">
-                  <label className="flex flex-col gap-1.5">
-                    <span className="text-xs font-medium text-slate-300 uppercase tracking-wider">
-                      Display Name
-                    </span>
-                    <input
-                      type="text"
-                      value={editingLabel}
-                      onChange={(event) => setEditingLabel(event.target.value)}
-                      className="px-3 py-2 text-sm bg-slate-800 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors"
-                    />
-                  </label>
-
-                  <div className="flex flex-col gap-2 pt-2">
-                    <button
-                      onClick={handleUpdateStatus}
-                      disabled={!editingLabel.trim()}
-                      className="w-full px-4 py-2 text-xs font-semibold bg-gradient-to-r from-blue-600 to-blue-800 text-white rounded-lg hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
-                    >
-                      Save Changes
-                    </button>
-                    <button
-                      onClick={handleDeleteStatus}
-                      className="w-full px-4 py-2 text-xs font-semibold bg-gradient-to-r from-red-600 to-red-800 text-white rounded-lg hover:shadow-lg transition-all duration-300"
-                    >
-                      Delete Status
-                    </button>
-                    <button
-                      onClick={closeManagePopup}
-                      className="w-full px-4 py-2 text-xs font-semibold bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600 hover:text-white transition-all duration-300"
-                    >
-                      Cancel
-                    </button>
-                  </div>
                 </div>
               </div>
             </div>
-          )
-        }
+          </div>
+        )
+      }
 
-        {/* Quick Input Popup */}
-        <ExcelDataProcessor
-          isOpen={showQuickInputPopup}
-          onClose={() => setShowQuickInputPopup(false)}
-          onDataProcessed={handleQuickInputData}
-          statuses={statuses}
-          filterArrivedDate={date}
-          filterCalledDate={calledAt}
-        />
+      {/* Quick Input Popup */}
+      <ExcelDataProcessor
+        isOpen={showQuickInputPopup}
+        onClose={() => setShowQuickInputPopup(false)}
+        onDataProcessed={handleQuickInputData}
+        statuses={statuses}
+        filterArrivedDate={date}
+        filterCalledDate={calledAt}
+      />
 
-      </>
-      );
+    </>
+  );
 }
 
-      export default Page;
+export default Page;
