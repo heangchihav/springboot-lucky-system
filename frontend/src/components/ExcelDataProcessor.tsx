@@ -183,6 +183,9 @@ export function ExcelDataProcessor({
 
           // Also check Column K for multi-line content within the same column
           const statusColumn = columns[10]?.trim(); // Column K - might contain multi-line
+          const columnL = columns[11]?.trim(); // Column L
+          const columnM = columns[12]?.trim(); // Column M
+
           if (statusColumn) {
             // Split Column K content by newlines to handle multi-line content
             const kLines = statusColumn.split('\n').filter(kLine => kLine.trim());
@@ -198,6 +201,18 @@ export function ExcelDataProcessor({
 
                 if (!isRecordAllowed(currentArrivedAt, calledAt)) {
                   return;
+                }
+
+                // Special condition for "មិនទាន់តេ" status
+                if (status === "មិនទាន់តេ") {
+                  // Check next 2 columns (L and M) for "មិនទាន់ទទួល"
+                  const hasNotReceivedInL = columnL && columnL.includes("មិនទាន់ទទួល");
+                  const hasNotReceivedInM = columnM && columnM.includes("មិនទាន់ទទួល");
+
+                  // Only count this status if "មិនទាន់ទទួល" is found in either column L or M
+                  if (!hasNotReceivedInL && !hasNotReceivedInM) {
+                    continue; // Skip this status - don't count it
+                  }
                 }
 
                 // For re-call data (when arrivedAt and calledAt are different), exclude "ដឹកដល់ផ្ទះ" status
@@ -236,6 +251,18 @@ export function ExcelDataProcessor({
                   );
 
                   if (isValidStatus) {
+                    // Special condition for "មិនទាន់តេ" status
+                    if (statusOnly === "មិនទាន់តេ") {
+                      // Check next 2 columns (L and M) for "មិនទាន់ទទួល"
+                      const hasNotReceivedInL = columnL && columnL.includes("មិនទាន់ទទួល");
+                      const hasNotReceivedInM = columnM && columnM.includes("មិនទាន់ទទួល");
+
+                      // Only count this status if "មិនទាន់ទទួល" is found in either column L or M
+                      if (!hasNotReceivedInL && !hasNotReceivedInM) {
+                        continue; // Skip this status - don't count it
+                      }
+                    }
+
                     const today = new Date();
                     const day = today.getDate().toString().padStart(2, '0');
                     const month = (today.getMonth() + 1).toString().padStart(2, '0');
