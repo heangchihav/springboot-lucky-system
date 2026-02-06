@@ -7,7 +7,7 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { Activity, RefreshCw, TrendingUp } from "lucide-react";
+import { Activity, Camera, RefreshCw, TrendingUp } from "lucide-react";
 import {
   Area,
   AreaChart,
@@ -15,6 +15,8 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
+  Label,
+  LabelList,
   Legend,
   Pie,
   PieChart,
@@ -24,7 +26,9 @@ import {
   YAxis,
 } from "recharts";
 import type { PieLabelRenderProps } from "recharts";
+import html2canvas from "html2canvas";
 import { apiFetch } from "@/services/httpClient";
+import { useToast } from "@/components/ui/Toast";
 import { areaBranchService, type Area as AreaType, type Subarea, type Branch } from "@/services/areaBranchService";
 
 const STATUS_COLORS = [
@@ -444,6 +448,9 @@ function CallDashboard() {
   const [chartViewMode, setChartViewMode] = useState<"total" | "byStatus">("byStatus");
   const [leaderboardView, setLeaderboardView] = useState<"compact" | "detailed">("compact");
   const [selectedStatusForLeaderboard, setSelectedStatusForLeaderboard] = useState<string | null>(null);
+  const [capturingScreenshot, setCapturingScreenshot] = useState(false);
+
+  const { showToast } = useToast();
 
   const statusLabelMap = useMemo(() => {
     const map: Record<string, string> = { ...DEFAULT_STATUS_LABELS };
@@ -1239,6 +1246,202 @@ function CallDashboard() {
 
   const formatNumber = (value?: number) => (value ?? 0).toLocaleString();
 
+  const handleScreenshot = useCallback(async () => {
+    setCapturingScreenshot(true);
+    try {
+      const dashboardElement = document.getElementById("dashboard-content");
+      if (!dashboardElement) {
+        throw new Error("Dashboard content not found");
+      }
+
+      // Create a clone of element to avoid modifying the original
+      const clonedElement = dashboardElement.cloneNode(true) as HTMLElement;
+
+      // Position the clone off-screen
+      clonedElement.style.position = 'absolute';
+      clonedElement.style.left = '-9999px';
+      clonedElement.style.top = '-9999px';
+      clonedElement.style.width = dashboardElement.scrollWidth + 'px';
+      clonedElement.style.height = dashboardElement.scrollHeight + 'px';
+      clonedElement.style.background = '#0f172a';
+
+      // Add clone to body temporarily
+      document.body.appendChild(clonedElement);
+
+      // Fix text styling for screenshot - only fix text elements, preserve chart colors
+      const allElements = clonedElement.querySelectorAll('*');
+      allElements.forEach((element: Element) => {
+        const htmlElement = element as HTMLElement;
+        const computedStyle = window.getComputedStyle(element);
+
+        // Only apply color fixes to text elements, not charts
+        const isTextElement = element.tagName === 'P' ||
+          element.tagName === 'SPAN' ||
+          element.tagName === 'DIV' &&
+          (element.textContent?.trim().length || 0) > 0 &&
+          !element.closest('.recharts-wrapper, .recharts-surface, svg, canvas');
+
+        if (isTextElement) {
+          // Check for oklab color functions and replace them
+          const color = computedStyle.color;
+          const bgColor = computedStyle.backgroundColor;
+          const borderColor = computedStyle.borderColor;
+
+          if (color && (color.includes('lab') || color.includes('lch') || color.includes('oklab') || color.includes('oklch'))) {
+            htmlElement.style.setProperty('color', '#f8fafc', 'important');
+          }
+
+          if (bgColor && (bgColor.includes('lab') || bgColor.includes('lch') || bgColor.includes('oklab') || bgColor.includes('oklch'))) {
+            htmlElement.style.setProperty('background-color', '#0f172a', 'important');
+          }
+
+          if (borderColor && (borderColor.includes('lab') || borderColor.includes('lch') || borderColor.includes('oklab') || borderColor.includes('oklch'))) {
+            htmlElement.style.setProperty('border-color', '#334155', 'important');
+          }
+        }
+
+        // Remove problematic visual effects from all elements
+        htmlElement.style.backgroundImage = 'none';
+        htmlElement.style.backgroundClip = 'border-box';
+        htmlElement.style.mixBlendMode = 'normal';
+        htmlElement.style.filter = 'none';
+        htmlElement.style.animation = 'none';
+        htmlElement.style.transition = 'none';
+        htmlElement.style.transform = 'none';
+        htmlElement.style.boxShadow = 'none';
+        htmlElement.style.textShadow = 'none';
+
+        // Sanitize color values to remove unsupported color functions
+        const sanitizeColors = (element: Element) => {
+          const htmlEl = element as HTMLElement;
+
+          // Get all inline styles and remove problematic color functions
+          const style = htmlEl.style;
+          const propertiesToCheck = [
+            'color', 'backgroundColor', 'borderColor', 'outlineColor',
+            'textDecorationColor', 'caretColor', 'borderTopColor',
+            'borderRightColor', 'borderBottomColor', 'borderLeftColor',
+            'background', 'backgroundImage', 'border', 'outline'
+          ];
+
+          propertiesToCheck.forEach(prop => {
+            const value = style.getPropertyValue(prop);
+            if (value && (value.includes('lab(') || value.includes('lch(') || value.includes('oklab(') || value.includes('oklch('))) {
+              style.removeProperty(prop);
+            }
+          });
+
+          // Also check computed styles and override them
+          const computedStyle = window.getComputedStyle(htmlEl);
+          propertiesToCheck.forEach(prop => {
+            const value = computedStyle.getPropertyValue(prop);
+            if (value && (value.includes('lab(') || value.includes('lch(') || value.includes('oklab(') || value.includes('oklch('))) {
+              // Set text-related properties to white, others to appropriate colors
+              if (prop === 'color' || prop === 'textDecorationColor' || prop === 'caretColor') {
+                htmlEl.style.setProperty(prop, '#ffffff', 'important');
+              } else if (prop.includes('background')) {
+                htmlEl.style.setProperty(prop, '#0f172a', 'important');
+              } else {
+                htmlEl.style.setProperty(prop, '#334155', 'important');
+              }
+            }
+          });
+        };
+
+        // Apply color sanitization to all elements recursively
+        const sanitizeAllColors = (element: Element) => {
+          sanitizeColors(element);
+          element.querySelectorAll('*').forEach(child => sanitizeColors(child));
+        };
+
+        sanitizeAllColors(htmlElement);
+
+        // Remove all external stylesheets and style tags that might contain problematic colors
+        const styleTags = clonedElement.querySelectorAll('style');
+        styleTags.forEach(styleTag => styleTag.remove());
+
+        const linkTags = clonedElement.querySelectorAll('link[rel="stylesheet"]');
+        linkTags.forEach(linkTag => linkTag.remove());
+
+        // Apply a comprehensive style reset to prevent any inherited problematic colors
+        const allElements = clonedElement.querySelectorAll('*');
+        allElements.forEach((element: Element) => {
+          const htmlEl = element as HTMLElement;
+
+          // Force reset all color-related properties and increase font sizes
+          const resetStyles = {
+            'color': '#ffffff',
+            'background-color': 'transparent',
+            'background': 'none',
+            'background-image': 'none',
+            'border-color': '#334155',
+            'outline-color': '#ffffff',
+            'text-decoration-color': '#ffffff',
+            'caret-color': '#ffffff',
+            'font-size': '25px', // Much bigger font size for better readability
+            'line-height': '1.5' // Improve line spacing
+          };
+
+          Object.entries(resetStyles).forEach(([prop, value]) => {
+            htmlEl.style.setProperty(prop, value, 'important');
+          });
+        });
+      });
+
+      type Html2CanvasOptions = Parameters<typeof html2canvas>[1];
+      const canvas = await html2canvas(clonedElement, {
+        backgroundColor: "#0f172a",
+        logging: false,
+        useCORS: true,
+        scale: 2, // Moderate scale to prevent canvas overflow
+        width: dashboardElement.scrollWidth,
+        height: dashboardElement.scrollHeight,
+        allowTaint: true,
+        ignoreElements: (element: Element) => {
+          // Ignore only truly problematic elements, keep styles for proper layout
+          return element.tagName === 'SCRIPT' ||
+            element.tagName === 'NOSCRIPT' ||
+            element.classList?.contains('animate-blob') ||
+            element.id === 'status-leaderboard' ||
+            element.closest('#status-leaderboard');
+        },
+      } as any);
+
+      // Remove the clone
+      document.body.removeChild(clonedElement);
+
+      const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
+      if (!blob) {
+        throw new Error("Failed to create image");
+      }
+
+      try {
+        await navigator.clipboard.write([
+          new ClipboardItem({ "image/png": blob })
+        ]);
+        showToast("Dashboard screenshot copied to clipboard!", "success");
+      } catch (clipboardError) {
+        console.warn("Clipboard write failed, downloading instead", clipboardError);
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        const now = new Date();
+        const timestamp = now.toISOString().replace(/[:.]/g, "-").slice(0, 19);
+        link.href = url;
+        link.download = `call-dashboard-${timestamp}.png`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        showToast("Dashboard screenshot downloaded!", "success");
+      }
+    } catch (error) {
+      console.error("Screenshot failed:", error);
+      showToast("Failed to capture dashboard screenshot", "error");
+    } finally {
+      setCapturingScreenshot(false);
+    }
+  }, [showToast]);
+
   return (
     <>
       <div className="relative min-h-screen overflow-hidden py-8">
@@ -1262,21 +1465,43 @@ function CallDashboard() {
                   outcome to reveal execution trends instantly.
                 </p>
               </div>
-              <div className="flex items-center gap-3 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/80">
-                <RefreshCw
-                  className={`h-4 w-4 ${summaryLoading ? "animate-spin" : ""} text-cyan-300`}
-                />
-                {lastUpdated ? (
-                  <span>
-                    Updated{" "}
-                    {lastUpdated.toLocaleTimeString([], {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </span>
-                ) : (
-                  <span>Waiting for fresh data…</span>
-                )}
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/80">
+                  <RefreshCw
+                    className={`h-4 w-4 ${summaryLoading ? "animate-spin" : ""} text-cyan-300`}
+                  />
+                  {lastUpdated ? (
+                    <span>
+                      Updated{" "}
+                      {lastUpdated.toLocaleTimeString([], {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </span>
+                  ) : (
+                    <span>Waiting for fresh data…</span>
+                  )}
+                </div>
+                <button
+                  onClick={handleScreenshot}
+                  disabled={capturingScreenshot}
+                  className="flex items-center gap-2 rounded-xl bg-white/10 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {capturingScreenshot ? (
+                    <>
+                      <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <circle className="opacity-30" cx="12" cy="12" r="10" strokeWidth="4" />
+                        <path className="opacity-70" d="M4 12a8 8 0 018-8" strokeWidth="4" strokeLinecap="round" />
+                      </svg>
+                      Capturing...
+                    </>
+                  ) : (
+                    <>
+                      <Camera className="h-4 w-4" />
+                      Screenshot
+                    </>
+                  )}
+                </button>
               </div>
             </div>
           </header>
@@ -1477,7 +1702,7 @@ function CallDashboard() {
             </div>
           )}
 
-          <section className="space-y-6">
+          <section id="dashboard-content" className="space-y-6">
             <div className="rounded-2xl border border-white/5 bg-slate-950/70 p-5">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
@@ -1523,96 +1748,108 @@ function CallDashboard() {
                   ))}
                 </div>
               </div>
-              <div className="mt-6 h-104 w-full">
+              <div className="mt-6 h-120 w-full overflow-x-auto overflow-y-hidden">
                 {chartStatusKeys.length === 0 || chartSeries.length === 0 ? (
                   <div className="flex h-full items-center justify-center text-sm text-slate-400">
                     No status data for the current filters.
                   </div>
                 ) : (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart
-                      data={chartSeries}
-                      margin={{ top: 20, right: 30, left: 10, bottom: 20 }}
-                      key={`bar-chart-${selectedArrivalType}-${selectedBranchId}-${selectedArea}-${selectedSubArea}-${chartSeries.length}`}
-                    >
-                      <defs>
+                  <div className="min-w-[900px] h-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart
+                        data={chartSeries}
+                        margin={{ top: 20, right: 30, left: 10, bottom: 30 }}
+                        key={`bar-chart-${selectedArrivalType}-${selectedBranchId}-${selectedArea}-${selectedSubArea}-${chartSeries.length}`}
+                      >
+                        <defs>
+                          {chartStatusKeys.map((statusKey, index) => {
+                            const color = chartViewMode === "total"
+                              ? "#f97316" // Orange for total
+                              : statusColorMap[statusKey] ??
+                              STATUS_COLORS[index % STATUS_COLORS.length];
+                            return (
+                              <linearGradient
+                                key={statusKey}
+                                id={`gradient-${statusKey}`}
+                                x1="0"
+                                y1="0"
+                                x2="0"
+                                y2="1"
+                                gradientUnits="userSpaceOnUse"
+                              >
+                                <stop offset="5%" stopColor={color} stopOpacity={0.9} />
+                                <stop offset="95%" stopColor={color} stopOpacity={0.7} />
+                              </linearGradient>
+                            );
+                          })}
+                        </defs>
+                        <CartesianGrid
+                          strokeDasharray="3 3"
+                          stroke="rgba(255,255,255,0.06)"
+                        />
+                        <XAxis
+                          dataKey="label"
+                          stroke="#64748b"
+                          tick={{ fill: '#94a3b8', fontSize: 12 }}
+                          axisLine={{ stroke: 'rgba(255,255,255,0.1)' }}
+                          height={70}
+                        />
+                        <YAxis
+                          stroke="#64748b"
+                          tick={{ fill: '#94a3b8', fontSize: 12 }}
+                          axisLine={{ stroke: 'rgba(255,255,255,0.1)' }}
+                        />
+                        <Tooltip
+                          contentStyle={{
+                            backgroundColor: "rgba(15, 23, 42, 0.95)",
+                            borderColor: "rgba(251, 146, 60, 0.3)",
+                            borderWidth: 1,
+                            borderRadius: 12,
+                            backdropFilter: "blur(12px)",
+                            boxShadow: "0 10px 40px rgba(0,0,0,0.3)"
+                          }}
+                          labelStyle={{ color: "#f8fafc", fontWeight: 600 }}
+                          formatter={(value, name) => [
+                            formatNumber(value as number),
+                            getStatusLabel(name as string),
+                          ]}
+                          labelFormatter={(label) => String(label)}
+                        />
+                        <Legend
+                          wrapperStyle={{ color: "#cbd5f5", paddingTop: "20px" }}
+                          formatter={(value) => chartViewMode === "total" ? "Total Calls" : getStatusLabel(value as string)}
+                        />
                         {chartStatusKeys.map((statusKey, index) => {
                           const color = chartViewMode === "total"
                             ? "#f97316" // Orange for total
                             : statusColorMap[statusKey] ??
                             STATUS_COLORS[index % STATUS_COLORS.length];
                           return (
-                            <linearGradient
+                            <Bar
                               key={statusKey}
-                              id={`gradient-${statusKey}`}
-                              x1="0"
-                              y1="0"
-                              x2="0"
-                              y2="1"
-                              gradientUnits="userSpaceOnUse"
+                              dataKey={statusKey}
+                              fill={`url(#gradient-${statusKey})`}
+                              barSize={chartViewMode === "total" ? 50 : 40}
+                              radius={[6, 6, 0, 0]}
+                              animationBegin={index * 100}
+                              animationDuration={1400}
+                              animationEasing="ease-out"
+                              maxBarSize={70}
                             >
-                              <stop offset="5%" stopColor={color} stopOpacity={0.9} />
-                              <stop offset="95%" stopColor={color} stopOpacity={0.7} />
-                            </linearGradient>
+                              <LabelList
+                                dataKey={statusKey}
+                                position="top"
+                                fill="#f8fafc"
+                                fontSize={12}
+                                fontWeight={600}
+                                formatter={(value: any) => formatNumber(value as number)}
+                              />
+                            </Bar>
                           );
                         })}
-                      </defs>
-                      <CartesianGrid
-                        strokeDasharray="3 3"
-                        stroke="rgba(255,255,255,0.06)"
-                      />
-                      <XAxis
-                        dataKey="label"
-                        stroke="#64748b"
-                        tick={{ fill: '#94a3b8', fontSize: 11 }}
-                        axisLine={{ stroke: 'rgba(255,255,255,0.1)' }}
-                      />
-                      <YAxis
-                        stroke="#64748b"
-                        tick={{ fill: '#94a3b8', fontSize: 11 }}
-                        axisLine={{ stroke: 'rgba(255,255,255,0.1)' }}
-                      />
-                      <Tooltip
-                        contentStyle={{
-                          backgroundColor: "rgba(15, 23, 42, 0.95)",
-                          borderColor: "rgba(251, 146, 60, 0.3)",
-                          borderWidth: 1,
-                          borderRadius: 12,
-                          backdropFilter: "blur(12px)",
-                          boxShadow: "0 10px 40px rgba(0,0,0,0.3)"
-                        }}
-                        labelStyle={{ color: "#f8fafc", fontWeight: 600 }}
-                        formatter={(value, name) => [
-                          formatNumber(value as number),
-                          getStatusLabel(name as string),
-                        ]}
-                        labelFormatter={(label) => String(label)}
-                      />
-                      <Legend
-                        wrapperStyle={{ color: "#cbd5f5", paddingTop: "20px" }}
-                        formatter={(value) => chartViewMode === "total" ? "Total Calls" : getStatusLabel(value as string)}
-                      />
-                      {chartStatusKeys.map((statusKey, index) => {
-                        const color = chartViewMode === "total"
-                          ? "#f97316" // Orange for total
-                          : statusColorMap[statusKey] ??
-                          STATUS_COLORS[index % STATUS_COLORS.length];
-                        return (
-                          <Bar
-                            key={statusKey}
-                            dataKey={statusKey}
-                            fill={`url(#gradient-${statusKey})`}
-                            barSize={chartViewMode === "total" ? 40 : 30}
-                            radius={[6, 6, 0, 0]}
-                            animationBegin={index * 100}
-                            animationDuration={1400}
-                            animationEasing="ease-out"
-                            maxBarSize={60}
-                          />
-                        );
-                      })}
-                    </BarChart>
-                  </ResponsiveContainer>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
                 )}
               </div>
             </div>
@@ -1636,8 +1873,8 @@ function CallDashboard() {
                   </p>
                 </div>
               </div>
-              <div className="mt-6 grid gap-6 grid-cols-1 lg:grid-cols-2">
-                <div className="h-90">
+              <div className="mt-6 grid gap-6 grid-cols-1 lg:grid-cols-12">
+                <div className="lg:col-span-8 h-90">
                   {statusDistribution.length === 0 ? (
                     <div className="flex h-full items-center justify-center text-sm text-slate-400">
                       No status distribution to chart.
@@ -1647,10 +1884,10 @@ function CallDashboard() {
                       <ResponsiveContainer width="100%" height="100%">
                         <PieChart
                           margin={{
-                            top: 40,
-                            right: 120,
-                            bottom: 40,
-                            left: 120,
+                            top: 20,
+                            right: 20,
+                            bottom: 20,
+                            left: 20,
                           }}
                         >
                           <defs>
@@ -1798,7 +2035,7 @@ function CallDashboard() {
                     </div>
                   )}
                 </div>
-                <div className="space-y-3">
+                <div className="lg:col-span-4 space-y-3 max-w-xs">
                   {statusDistribution.map((entry, index) => {
                     const color =
                       statusColorMap[entry.statusKey] ??
@@ -1856,96 +2093,98 @@ function CallDashboard() {
                         compositionData.filterLevel === "branch" ? "branches" : "dates"}
                   </span>
                 </div>
-                <div className="mt-4 h-72">
+                <div className="mt-4 h-96 overflow-x-auto overflow-y-hidden">
                   {compositionData.data.length === 0 ? (
                     <div className="flex h-full items-center justify-center text-sm text-slate-400">
                       No {compositionData.filterLevel} data available.
                     </div>
                   ) : (
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart
-                        data={compositionData.data}
-                        margin={{ top: 20, right: 30, left: 10, bottom: 30 }}
-                        key={`composition-chart-${selectedArrivalType}-${selectedBranchId}-${selectedArea}-${selectedSubArea}-${compositionData.data.length}`}
-                      >
-                        <defs>
-                          <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#f97316" stopOpacity={0.9} />
-                            <stop offset="95%" stopColor="#fb923c" stopOpacity={0.7} />
-                          </linearGradient>
-                        </defs>
-                        <CartesianGrid
-                          strokeDasharray="3 3"
-                          stroke="rgba(255,255,255,0.06)"
-                        />
-                        <XAxis
-                          dataKey="name"
-                          stroke="#64748b"
-                          tick={{ fill: '#94a3b8', fontSize: 11 }}
-                          interval={0}
-                          angle={-25}
-                          textAnchor="end"
-                          height={70}
-                          axisLine={{ stroke: 'rgba(255,255,255,0.1)' }}
-                        />
-                        <YAxis
-                          stroke="#64748b"
-                          tick={{ fill: '#94a3b8', fontSize: 11 }}
-                          axisLine={{ stroke: 'rgba(255,255,255,0.1)' }}
-                        />
-                        <Tooltip
-                          cursor={{ fill: "rgba(255,255,255,0.05)" }}
-                          contentStyle={{
-                            backgroundColor: "#0f172a",
-                            borderRadius: 12,
-                            border: "1px solid rgba(255,255,255,0.15)",
-                          }}
-                          labelStyle={{
-                            color: "#f8fafc",
-                            fontSize: 12,
-                            letterSpacing: "0.12em",
-                            textTransform: "uppercase"
-                          }}
-                          itemStyle={{
-                            color: "#e2e8f0",
-                          }}
-                          formatter={(value: number, name: any, props: any) => {
-                            const data = props.payload;
-                            const total = data.total || 0;
+                    <div className="min-w-[800px] h-full">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart
+                          data={compositionData.data}
+                          margin={{ top: 20, right: 30, left: 10, bottom: 40 }}
+                          key={`composition-chart-${selectedArrivalType}-${selectedBranchId}-${selectedArea}-${selectedSubArea}-${compositionData.data.length}`}
+                        >
+                          <defs>
+                            <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor="#f97316" stopOpacity={0.9} />
+                              <stop offset="95%" stopColor="#fb923c" stopOpacity={0.7} />
+                            </linearGradient>
+                          </defs>
+                          <CartesianGrid
+                            strokeDasharray="3 3"
+                            stroke="rgba(255,255,255,0.06)"
+                          />
+                          <XAxis
+                            dataKey="name"
+                            stroke="#64748b"
+                            tick={{ fill: '#94a3b8', fontSize: 12 }}
+                            interval={0}
+                            angle={-25}
+                            textAnchor="end"
+                            height={80}
+                            axisLine={{ stroke: 'rgba(255,255,255,0.1)' }}
+                          />
+                          <YAxis
+                            stroke="#64748b"
+                            tick={{ fill: '#94a3b8', fontSize: 12 }}
+                            axisLine={{ stroke: 'rgba(255,255,255,0.1)' }}
+                          />
+                          <Tooltip
+                            cursor={{ fill: "rgba(255,255,255,0.05)" }}
+                            contentStyle={{
+                              backgroundColor: "#0f172a",
+                              borderRadius: 12,
+                              border: "1px solid rgba(255,255,255,0.15)",
+                            }}
+                            labelStyle={{
+                              color: "#f8fafc",
+                              fontSize: 12,
+                              letterSpacing: "0.12em",
+                              textTransform: "uppercase"
+                            }}
+                            itemStyle={{
+                              color: "#e2e8f0",
+                            }}
+                            formatter={(value: number, name: any, props: any) => {
+                              const data = props.payload;
+                              const total = data.total || 0;
 
-                            // Build detailed breakdown
-                            const details = [
-                              `Total: ${formatNumber(total)}`,
-                              ...chartStatusKeys
-                                .filter(key => (data[key] as number) > 0)
-                                .map(key => `${getStatusLabel(key)}: ${formatNumber(data[key] as number)}`)
-                            ];
+                              // Build detailed breakdown
+                              const details = [
+                                `Total: ${formatNumber(total)}`,
+                                ...chartStatusKeys
+                                  .filter(key => (data[key] as number) > 0)
+                                  .map(key => `${getStatusLabel(key)}: ${formatNumber(data[key] as number)}`)
+                              ];
 
-                            return [details.join("\n"), data.name || name];
-                          }}
-                        />
-                        <Legend
-                          wrapperStyle={{ color: "#cbd5f5" }}
-                          formatter={() => "Total Calls"}
-                        />
-                        <Bar
-                          dataKey="total"
-                          fill="url(#barGradient)"
-                          barSize={45}
-                          radius={[8, 8, 0, 0]}
-                          animationBegin={100}
-                          animationDuration={1500}
-                          animationEasing="ease-out"
-                          maxBarSize={60}
-                        />
-                      </BarChart>
-                    </ResponsiveContainer>
+                              return [details.join("\n"), data.name || name];
+                            }}
+                          />
+                          <Legend
+                            wrapperStyle={{ color: "#cbd5f5" }}
+                            formatter={() => "Total Calls"}
+                          />
+                          <Bar
+                            dataKey="total"
+                            fill="url(#barGradient)"
+                            barSize={60}
+                            radius={[8, 8, 0, 0]}
+                            animationBegin={100}
+                            animationDuration={1500}
+                            animationEasing="ease-out"
+                            maxBarSize={80}
+                          />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
                   )}
                 </div>
               </div>
 
               {/* Status Leaderboard Section */}
-              <div className="mt-8">
+              <div id="status-leaderboard" className="mt-8">
                 <div className="flex items-center justify-between gap-4">
                   <div>
                     <p className="text-sm font-semibold text-slate-300">
@@ -1990,72 +2229,102 @@ function CallDashboard() {
                     </div>
                   </div>
                 </div>
-                <div className="mt-4 space-y-4">
+                <div className="mt-4">
                   {Object.keys(statusLeaderboard.leaderboard || {}).length === 0 ? (
                     <div className="rounded-xl border border-white/5 bg-white/5 p-4 text-center text-sm text-slate-400">
                       No status data available for leaderboard.
                     </div>
                   ) : (
-                    Object.entries(statusLeaderboard.leaderboard || {})
-                      .filter(([statusKey]) => selectedStatusForLeaderboard === null || selectedStatusForLeaderboard === statusKey)
-                      .map(([statusKey, rankings]) => {
-                        const color = statusColorMap[statusKey] ?? STATUS_COLORS[statusDisplayOrder.indexOf(statusKey) % STATUS_COLORS.length];
-                        const topPerformer = rankings[0]; // Get the #1 performer for compact view
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full text-sm">
+                        <thead>
+                          <tr className="border-b border-white/10">
+                            <th className="text-left py-3 px-4 text-xs font-medium text-slate-400 uppercase tracking-wider">
+                              Rank
+                            </th>
+                            {Object.entries(statusLeaderboard.leaderboard || {})
+                              .filter(([statusKey]) => selectedStatusForLeaderboard === null || selectedStatusForLeaderboard === statusKey)
+                              .map(([statusKey]) => {
+                                const color = statusColorMap[statusKey] ?? STATUS_COLORS[statusDisplayOrder.indexOf(statusKey) % STATUS_COLORS.length];
+                                return (
+                                  <th key={statusKey} className="text-center py-3 px-4 text-xs font-medium uppercase tracking-wider">
+                                    <div className="flex flex-col items-center gap-2">
+                                      <div className="flex items-center gap-2">
+                                        <div
+                                          className="h-2 w-2 rounded-full"
+                                          style={{ background: color }}
+                                        />
+                                        <span style={{ color }}>
+                                          {getStatusLabel(statusKey)}
+                                        </span>
+                                      </div>
+                                      <span className="text-xs text-slate-500 font-normal">
+                                        ({statusLeaderboard.filterLevel === "area" ? "Area" :
+                                          statusLeaderboard.filterLevel === "subarea" ? "Sub-Area" :
+                                            statusLeaderboard.filterLevel === "branch" ? "Branch" : "Date"})
+                                      </span>
+                                    </div>
+                                  </th>
+                                );
+                              })}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(() => {
+                            // Find the maximum number of rankings across all statuses
+                            const maxRankings = Math.max(
+                              ...Object.entries(statusLeaderboard.leaderboard || {})
+                                .filter(([statusKey]) => selectedStatusForLeaderboard === null || selectedStatusForLeaderboard === statusKey)
+                                .map(([, rankings]) => rankings.length)
+                            );
 
-                        return (
-                          <div
-                            key={`leaderboard-${statusKey}`}
-                            className={`rounded-xl border border-white/5 bg-gradient-to-r from-white/5 to-white/[0.02] p-4 hover:bg-white/10 transition-all ${selectedStatusForLeaderboard !== null ? "ring-2 ring-orange-500/30" : ""
-                              }`}
-                          >
-                            <div className="flex items-center gap-3 mb-3">
-                              <div
-                                className="h-3 w-3 rounded-full"
-                                style={{ background: color }}
-                              />
-                              <p className="text-sm font-semibold text-white">
-                                {getStatusLabel(statusKey)}
-                              </p>
-                              <span className="text-xs text-slate-400">
-                                {selectedStatusForLeaderboard !== null ? `Top ${rankings.length} ${statusLeaderboard.filterLevel === "area" ? "areas" :
-                                  statusLeaderboard.filterLevel === "subarea" ? "sub-areas" :
-                                    statusLeaderboard.filterLevel === "branch" ? "branches" : "dates"}` : "Champion"}
-                              </span>
-                            </div>
-
-                            <div className="overflow-x-auto">
-                              <div className="flex gap-3 pb-2 min-w-max">
-                                {rankings.map((item, index) => (
-                                  <div
-                                    key={`${statusKey}-${item.name}`}
-                                    className="flex-shrink-0 p-3 rounded-lg bg-white/[0.02] hover:bg-white/[0.05] transition-colors border border-white/5 min-w-[140px]"
-                                  >
-                                    <div className="flex items-center gap-2 mb-2">
-                                      <div className={`flex items-center justify-center w-5 h-5 rounded-full text-xs font-bold ${item.rank === 1 ? "bg-gradient-to-br from-yellow-500/20 to-yellow-600/10 border border-yellow-500/30 text-yellow-400" :
-                                        item.rank === 2 ? "bg-gradient-to-br from-gray-400/20 to-gray-500/10 border border-gray-400/30 text-gray-300" :
-                                          item.rank === 3 ? "bg-gradient-to-br from-orange-600/20 to-orange-700/10 border border-orange-600/30 text-orange-400" :
+                            // Generate rows for each rank position
+                            return Array.from({ length: maxRankings }, (_, rankIndex) => {
+                              const rank = rankIndex + 1;
+                              return (
+                                <tr key={rank} className="border-b border-white/5 hover:bg-white/5 transition-colors">
+                                  <td className="py-3 px-4">
+                                    <div className="flex items-center gap-2">
+                                      <div className={`flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold ${rank === 1 ? "bg-gradient-to-br from-yellow-500/20 to-yellow-600/10 border border-yellow-500/30 text-yellow-400" :
+                                        rank === 2 ? "bg-gradient-to-br from-gray-400/20 to-gray-500/10 border border-gray-400/30 text-gray-300" :
+                                          rank === 3 ? "bg-gradient-to-br from-orange-600/20 to-orange-700/10 border border-orange-600/30 text-orange-400" :
                                             "bg-gradient-to-br from-blue-500/20 to-blue-600/10 border border-blue-500/30 text-blue-400"
                                         }`}>
-                                        {item.rank === 1 ? "🥇" : item.rank === 2 ? "🥈" : item.rank === 3 ? "🥉" : item.rank}
+                                        {rank === 1 ? "🥇" : rank === 2 ? "🥈" : rank === 3 ? "🥉" : rank}
                                       </div>
-                                      <span className="text-xs text-slate-400">#{item.rank}</span>
+                                      <span className="text-xs text-slate-400">#{rank}</span>
                                     </div>
-                                    <p className="text-sm text-white font-medium mb-1 truncate" title={item.name}>
-                                      {item.name}
-                                    </p>
-                                    <p className="text-sm font-semibold text-white">
-                                      {formatNumber(item.value)}
-                                    </p>
-                                    <p className="text-xs text-slate-400">
-                                      calls
-                                    </p>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })
+                                  </td>
+                                  {Object.entries(statusLeaderboard.leaderboard || {})
+                                    .filter(([statusKey]) => selectedStatusForLeaderboard === null || selectedStatusForLeaderboard === statusKey)
+                                    .map(([statusKey, rankings]) => (
+                                      <td key={statusKey} className="py-3 px-4">
+                                        {rankings[rankIndex] ? (
+                                          <div className="text-center">
+                                            <p className="text-sm text-white font-medium truncate mb-1" title={rankings[rankIndex].name}>
+                                              {rankings[rankIndex].name}
+                                            </p>
+                                            <p className="text-sm font-semibold text-white">
+                                              {formatNumber(rankings[rankIndex].value)}
+                                            </p>
+                                            <p className="text-xs text-slate-400">
+                                              calls
+                                            </p>
+                                          </div>
+                                        ) : (
+                                          <div className="text-center">
+                                            <span className="text-sm text-slate-500">-</span>
+                                          </div>
+                                        )}
+                                      </td>
+                                    ))}
+                                </tr>
+                              );
+                            });
+                          })()}
+                        </tbody>
+                      </table>
+                    </div>
                   )}
                 </div>
               </div>
