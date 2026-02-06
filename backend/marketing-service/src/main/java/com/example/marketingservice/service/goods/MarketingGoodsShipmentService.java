@@ -1,6 +1,8 @@
 package com.example.marketingservice.service.goods;
 
+import com.example.marketingservice.dto.goods.BulkGoodsResponse;
 import com.example.marketingservice.dto.goods.GoodsDashboardStatsResponse;
+import com.example.marketingservice.dto.goods.OptimizedBulkGoodsRequest;
 import com.example.marketingservice.dto.goods.PaginatedGoodsShipmentResponse;
 import com.example.marketingservice.dto.goods.MarketingGoodsShipmentResponse;
 import com.example.marketingservice.dto.goods.MarketingGoodsShipmentUpdateRequest;
@@ -27,9 +29,12 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
@@ -78,6 +83,209 @@ public class MarketingGoodsShipmentService {
 
         List<MarketingGoodsShipment> savedShipments = shipmentRepository.saveAll(shipmentsToSave);
         return savedShipments.size();
+    }
+
+    @Transactional
+    public BulkGoodsResponse recordOptimizedBatch(OptimizedBulkGoodsRequest request, Long creatorId) {
+        long startTime = System.currentTimeMillis();
+        String batchId = UUID.randomUUID().toString();
+        LocalDate sendDate = request.getSendDate();
+        List<OptimizedBulkGoodsRequest.UserGoodsRecord> records = request.getRecords();
+
+        List<String> errors = new ArrayList<>();
+        int successfulRecords = 0;
+        int failedRecords = 0;
+
+        // For very large datasets (>5000 records), use async processing
+        if (records.size() > 5000) {
+            return recordOptimizedBatchAsync(request, creatorId, batchId, startTime);
+        }
+
+        // Batch size for processing
+        final int BATCH_SIZE = 500;
+
+        // Pre-validate all user IDs to fail fast
+        Map<String, VipMember> memberCache = preloadMembers(records);
+
+        // Process records in chunks to avoid memory issues
+        for (int i = 0; i < records.size(); i += BATCH_SIZE) {
+            int endIndex = Math.min(i + BATCH_SIZE, records.size());
+            List<OptimizedBulkGoodsRequest.UserGoodsRecord> chunk = records.subList(i, endIndex);
+
+            try {
+                // Process chunk
+                List<MarketingGoodsShipment> shipmentsToSave = new ArrayList<>();
+
+                for (OptimizedBulkGoodsRequest.UserGoodsRecord record : chunk) {
+                    try {
+                        VipMember member = memberCache.get(record.getUserId());
+                        if (member == null) {
+                            errors.add("Record " + (i + chunk.indexOf(record) + 1) +
+                                    ": VIP member not found: " + record.getUserId());
+                            failedRecords++;
+                            continue;
+                        }
+
+                        // Check if a record already exists for this member and date
+                        Optional<MarketingGoodsShipment> existingRecord = shipmentRepository
+                                .findByMemberIdAndSendDate(member.getId(), sendDate);
+
+                        if (existingRecord.isPresent()) {
+                            // Update existing record
+                            MarketingGoodsShipment shipment = existingRecord.get();
+                            shipment.setTotalGoods(record.getTotalGoods());
+                            shipment.setCreatedBy(creatorId);
+                            shipmentsToSave.add(shipment);
+                        } else {
+                            // Create new record
+                            MarketingGoodsShipment shipment = new MarketingGoodsShipment();
+                            shipment.setMember(member);
+                            shipment.setSendDate(sendDate);
+                            shipment.setTotalGoods(record.getTotalGoods());
+                            shipment.setCreatedBy(creatorId);
+                            shipmentsToSave.add(shipment);
+                        }
+
+                        successfulRecords++;
+                    } catch (Exception e) {
+                        errors.add("Record " + (i + chunk.indexOf(record) + 1) +
+                                ": Error processing userId " + record.getUserId() + " - " + e.getMessage());
+                        failedRecords++;
+                    }
+                }
+
+                // Save chunk
+                if (!shipmentsToSave.isEmpty()) {
+                    shipmentRepository.saveAll(shipmentsToSave);
+                    // Clear entity manager to prevent memory buildup
+                    entityManager.flush();
+                    entityManager.clear();
+                }
+
+            } catch (Exception e) {
+                errors.add("Chunk processing error at records " + (i + 1) + "-" + endIndex + ": " + e.getMessage());
+                failedRecords += chunk.size();
+            }
+        }
+
+        long processingTime = System.currentTimeMillis() - startTime;
+
+        return new BulkGoodsResponse(
+                records.size(),
+                successfulRecords,
+                failedRecords,
+                errors,
+                batchId,
+                processingTime);
+    }
+
+    @Transactional
+    public BulkGoodsResponse recordOptimizedBatchAsync(OptimizedBulkGoodsRequest request, Long creatorId,
+            String batchId, long startTime) {
+        List<String> errors = new ArrayList<>();
+        int successfulRecords = 0;
+        int failedRecords = 0;
+        LocalDate sendDate = request.getSendDate();
+        List<OptimizedBulkGoodsRequest.UserGoodsRecord> records = request.getRecords();
+
+        // For async processing, use larger batch sizes and more aggressive memory
+        // management
+        final int BATCH_SIZE = 1000;
+
+        // Pre-validate all user IDs to fail fast
+        Map<String, VipMember> memberCache = preloadMembers(records);
+
+        errors.add("Processing " + records.size() + " records with optimized batch size " + BATCH_SIZE);
+
+        // Process records in larger chunks for better performance
+        for (int i = 0; i < records.size(); i += BATCH_SIZE) {
+            int endIndex = Math.min(i + BATCH_SIZE, records.size());
+            List<OptimizedBulkGoodsRequest.UserGoodsRecord> chunk = records.subList(i, endIndex);
+
+            try {
+                // Process chunk with optimized memory usage
+                List<MarketingGoodsShipment> shipmentsToSave = new ArrayList<>();
+
+                for (OptimizedBulkGoodsRequest.UserGoodsRecord record : chunk) {
+                    try {
+                        VipMember member = memberCache.get(record.getUserId());
+                        if (member == null) {
+                            failedRecords++;
+                            continue;
+                        }
+
+                        // Use existing record check for better performance
+                        Optional<MarketingGoodsShipment> existingRecord = shipmentRepository
+                                .findByMemberIdAndSendDate(member.getId(), sendDate);
+
+                        if (existingRecord.isPresent()) {
+                            MarketingGoodsShipment shipment = existingRecord.get();
+                            shipment.setTotalGoods(record.getTotalGoods());
+                            shipment.setCreatedBy(creatorId);
+                            shipmentsToSave.add(shipment);
+                        } else {
+                            MarketingGoodsShipment shipment = new MarketingGoodsShipment();
+                            shipment.setMember(member);
+                            shipment.setSendDate(sendDate);
+                            shipment.setTotalGoods(record.getTotalGoods());
+                            shipment.setCreatedBy(creatorId);
+                            shipmentsToSave.add(shipment);
+                        }
+
+                        successfulRecords++;
+                    } catch (Exception e) {
+                        failedRecords++;
+                    }
+                }
+
+                // Save chunk with immediate memory cleanup
+                if (!shipmentsToSave.isEmpty()) {
+                    shipmentRepository.saveAll(shipmentsToSave);
+                    entityManager.flush();
+                    entityManager.clear();
+                }
+
+                // Log progress for large datasets
+                if (i % 5000 == 0) {
+                    System.out.println("Processed " + Math.min(endIndex, records.size()) + " of " + records.size()
+                            + " records...");
+                }
+
+            } catch (Exception e) {
+                errors.add(
+                        "Large batch processing error at records " + (i + 1) + "-" + endIndex + ": " + e.getMessage());
+                failedRecords += chunk.size();
+            }
+        }
+
+        long processingTime = System.currentTimeMillis() - startTime;
+
+        return new BulkGoodsResponse(
+                records.size(),
+                successfulRecords,
+                failedRecords,
+                errors,
+                batchId,
+                processingTime);
+    }
+
+    private Map<String, VipMember> preloadMembers(List<OptimizedBulkGoodsRequest.UserGoodsRecord> records) {
+        // Extract all unique user IDs
+        List<Long> userIds = records.stream()
+                .map(record -> Long.valueOf(record.getUserId()))
+                .distinct()
+                .collect(Collectors.toList());
+
+        // Batch load all members at once
+        List<VipMember> members = vipMemberRepository.findAllById(userIds);
+
+        // Create map for fast lookup
+        Map<String, VipMember> memberMap = new HashMap<>();
+        for (VipMember member : members) {
+            memberMap.put(member.getId().toString(), member);
+        }
+
+        return memberMap;
     }
 
     @Transactional(readOnly = true)

@@ -1,7 +1,9 @@
 package com.example.marketingservice.controller.goods;
 
 import com.example.marketingservice.controller.base.BaseController;
+import com.example.marketingservice.dto.goods.BulkGoodsResponse;
 import com.example.marketingservice.dto.goods.GoodsDashboardStatsResponse;
+import com.example.marketingservice.dto.goods.OptimizedBulkGoodsRequest;
 import com.example.marketingservice.dto.goods.PaginatedGoodsShipmentResponse;
 import com.example.marketingservice.dto.goods.MarketingGoodsShipmentResponse;
 import com.example.marketingservice.dto.goods.MarketingGoodsShipmentUpdateRequest;
@@ -46,6 +48,15 @@ public class MarketingGoodsShipmentController extends BaseController {
         return ResponseEntity.ok().body(
                 java.util.Map.of(
                         "accepted", accepted));
+    }
+
+    @PostMapping("/bulk")
+    public ResponseEntity<BulkGoodsResponse> recordOptimizedBulk(@Valid @RequestBody OptimizedBulkGoodsRequest request,
+            HttpServletRequest httpRequest) {
+        checkPermission(httpRequest, "goods.create");
+        Long creatorId = requireUserId(httpRequest);
+        BulkGoodsResponse response = shipmentService.recordOptimizedBatch(request, creatorId);
+        return ResponseEntity.ok(response);
     }
 
     @GetMapping

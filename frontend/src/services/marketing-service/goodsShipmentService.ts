@@ -47,6 +47,24 @@ export type UserGoodsRecord = {
   totalGoods: number;
 };
 
+export type OptimizedBulkGoodsRequest = {
+  sendDate: string;
+  records: Array<{
+    userId: string;
+    totalGoods: number;
+  }>;
+};
+
+export type BulkGoodsResponse = {
+  totalRecords: number;
+  successfulRecords: number;
+  failedRecords: number;
+  errors: string[];
+  processedAt: string;
+  batchId: string;
+  processingTimeMs: number;
+};
+
 export type MarketingGoodsShipmentRecord = {
   id: number;
   memberId: number;
@@ -104,6 +122,13 @@ export type GoodsDashboardStatsResponse = {
 export const goodsShipmentService = {
   createBatch(payload: UserGoodsRecord[]): Promise<{ accepted: number }> {
     return request("/goods-shipments", {
+      method: "POST",
+      body: payload,
+    });
+  },
+
+  createOptimizedBulk(payload: OptimizedBulkGoodsRequest): Promise<BulkGoodsResponse> {
+    return request("/goods-shipments/bulk", {
       method: "POST",
       body: payload,
     });

@@ -19,6 +19,7 @@ import {
 import {
   goodsShipmentService,
   MarketingGoodsShipmentRecord,
+  OptimizedBulkGoodsRequest,
   UserGoodsRecord,
 } from "@/services/marketing-service/goodsShipmentService";
 import {
@@ -827,15 +828,37 @@ export default function GoodsInputPage() {
 
     setSubmitting(true);
     try {
-      const batchPayload: UserGoodsRecord[] = validEntries.map(entry => ({
-        userId: entry.member!.id.toString(),
+      // Use optimized bulk endpoint for better performance
+      const optimizedPayload: OptimizedBulkGoodsRequest = {
         sendDate: entryForm.goodsDate,
-        totalGoods: entry.totalGoods
-      }));
+        records: validEntries.map(entry => ({
+          userId: entry.member!.id.toString(),
+          totalGoods: entry.totalGoods
+        }))
+      };
 
-      await goodsShipmentService.createBatch(batchPayload);
+      const response = await goodsShipmentService.createOptimizedBulk(optimizedPayload);
 
-      showToast(`Successfully submitted ${validEntries.length} entries.`);
+      if (response.failedRecords > 0) {
+        showToast(
+          `Processed ${response.totalRecords} entries: ${response.successfulRecords} successful, ${response.failedRecords} failed. Processing time: ${response.processingTimeMs}ms`,
+          response.failedRecords > 0 ? "warning" : "success"
+        );
+
+        // Show errors if any
+        if (response.errors.length > 0) {
+          console.error("Bulk processing errors:", response.errors);
+          response.errors.slice(0, 5).forEach(error => {
+            showToast(error, "error");
+          });
+          if (response.errors.length > 5) {
+            showToast(`... and ${response.errors.length - 5} more errors`, "error");
+          }
+        }
+      } else {
+        showToast(`Successfully submitted ${response.successfulRecords} entries in ${response.processingTimeMs}ms.`);
+      }
+
       setShowQuickInput(false);
       setPastedData("");
       setParsedEntries([]);
