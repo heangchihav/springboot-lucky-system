@@ -1247,7 +1247,12 @@ function CallDashboard() {
   const formatNumber = (value?: number) => (value ?? 0).toLocaleString();
 
   const handleScreenshot = useCallback(async () => {
+    // Show loading immediately
     setCapturingScreenshot(true);
+
+    // Small delay to ensure UI updates before heavy processing
+    await new Promise(resolve => setTimeout(resolve, 50));
+
     try {
       const dashboardElement = document.getElementById("dashboard-content");
       if (!dashboardElement) {
@@ -1257,7 +1262,7 @@ function CallDashboard() {
       // Create a clone of element to avoid modifying the original
       const clonedElement = dashboardElement.cloneNode(true) as HTMLElement;
 
-      // Position the clone off-screen
+      // Position clone off-screen
       clonedElement.style.position = 'absolute';
       clonedElement.style.left = '-9999px';
       clonedElement.style.top = '-9999px';
@@ -1268,124 +1273,48 @@ function CallDashboard() {
       // Add clone to body temporarily
       document.body.appendChild(clonedElement);
 
-      // Fix text styling for screenshot - only fix text elements, preserve chart colors
+      // Simplified text styling for screenshot - only fix critical text elements
+      const textElements = clonedElement.querySelectorAll('p, span, div, h1, h2, h3, h4, h5, h6');
+      textElements.forEach((element: Element) => {
+        const htmlElement = element as HTMLElement;
+
+        // Only fix text elements that are not part of charts
+        if (!htmlElement.closest('.recharts-wrapper, .recharts-surface, svg, canvas')) {
+          const computedStyle = window.getComputedStyle(element);
+          const color = computedStyle.color;
+
+          // Only fix problematic color functions
+          if (color && (color.includes('lab') || color.includes('lch') || color.includes('oklab') || color.includes('oklch'))) {
+            htmlElement.style.setProperty('color', '#f8fafc', 'important');
+          }
+        }
+      });
+
+      // Additional color sanitization to prevent html2canvas errors
       const allElements = clonedElement.querySelectorAll('*');
       allElements.forEach((element: Element) => {
         const htmlElement = element as HTMLElement;
         const computedStyle = window.getComputedStyle(element);
 
-        // Only apply color fixes to text elements, not charts
-        const isTextElement = element.tagName === 'P' ||
-          element.tagName === 'SPAN' ||
-          element.tagName === 'DIV' &&
-          (element.textContent?.trim().length || 0) > 0 &&
-          !element.closest('.recharts-wrapper, .recharts-surface, svg, canvas');
-
-        if (isTextElement) {
-          // Check for oklab color functions and replace them
-          const color = computedStyle.color;
-          const bgColor = computedStyle.backgroundColor;
-          const borderColor = computedStyle.borderColor;
-
-          if (color && (color.includes('lab') || color.includes('lch') || color.includes('oklab') || color.includes('oklch'))) {
-            htmlElement.style.setProperty('color', '#f8fafc', 'important');
-          }
-
-          if (bgColor && (bgColor.includes('lab') || bgColor.includes('lch') || bgColor.includes('oklab') || bgColor.includes('oklch'))) {
-            htmlElement.style.setProperty('background-color', '#0f172a', 'important');
-          }
-
-          if (borderColor && (borderColor.includes('lab') || borderColor.includes('lch') || borderColor.includes('oklab') || borderColor.includes('oklch'))) {
-            htmlElement.style.setProperty('border-color', '#334155', 'important');
-          }
-        }
-
-        // Remove problematic visual effects from all elements
-        htmlElement.style.backgroundImage = 'none';
-        htmlElement.style.backgroundClip = 'border-box';
-        htmlElement.style.mixBlendMode = 'normal';
-        htmlElement.style.filter = 'none';
-        htmlElement.style.animation = 'none';
-        htmlElement.style.transition = 'none';
-        htmlElement.style.transform = 'none';
-        htmlElement.style.boxShadow = 'none';
-        htmlElement.style.textShadow = 'none';
-
-        // Sanitize color values to remove unsupported color functions
-        const sanitizeColors = (element: Element) => {
-          const htmlEl = element as HTMLElement;
-
-          // Get all inline styles and remove problematic color functions
-          const style = htmlEl.style;
-          const propertiesToCheck = [
-            'color', 'backgroundColor', 'borderColor', 'outlineColor',
-            'textDecorationColor', 'caretColor', 'borderTopColor',
-            'borderRightColor', 'borderBottomColor', 'borderLeftColor',
-            'background', 'backgroundImage', 'border', 'outline'
-          ];
-
-          propertiesToCheck.forEach(prop => {
-            const value = style.getPropertyValue(prop);
-            if (value && (value.includes('lab(') || value.includes('lch(') || value.includes('oklab(') || value.includes('oklch('))) {
-              style.removeProperty(prop);
+        // Check and replace any problematic color functions in computed styles
+        const colorProps = ['color', 'background-color', 'border-color', 'outline-color', 'text-decoration-color'];
+        colorProps.forEach(prop => {
+          const value = computedStyle.getPropertyValue(prop);
+          if (value && (value.includes('oklab(') || value.includes('oklch(') || value.includes('lab(') || value.includes('lch('))) {
+            // Set appropriate colors based on property type
+            if (prop.includes('background')) {
+              htmlElement.style.setProperty(prop, '#0f172a', 'important');
+            } else if (prop.includes('border')) {
+              htmlElement.style.setProperty(prop, '#334155', 'important');
+            } else {
+              htmlElement.style.setProperty(prop, '#f8fafc', 'important');
             }
-          });
-
-          // Also check computed styles and override them
-          const computedStyle = window.getComputedStyle(htmlEl);
-          propertiesToCheck.forEach(prop => {
-            const value = computedStyle.getPropertyValue(prop);
-            if (value && (value.includes('lab(') || value.includes('lch(') || value.includes('oklab(') || value.includes('oklch('))) {
-              // Set text-related properties to white, others to appropriate colors
-              if (prop === 'color' || prop === 'textDecorationColor' || prop === 'caretColor') {
-                htmlEl.style.setProperty(prop, '#ffffff', 'important');
-              } else if (prop.includes('background')) {
-                htmlEl.style.setProperty(prop, '#0f172a', 'important');
-              } else {
-                htmlEl.style.setProperty(prop, '#334155', 'important');
-              }
-            }
-          });
-        };
-
-        // Apply color sanitization to all elements recursively
-        const sanitizeAllColors = (element: Element) => {
-          sanitizeColors(element);
-          element.querySelectorAll('*').forEach(child => sanitizeColors(child));
-        };
-
-        sanitizeAllColors(htmlElement);
-
-        // Remove all external stylesheets and style tags that might contain problematic colors
-        const styleTags = clonedElement.querySelectorAll('style');
-        styleTags.forEach(styleTag => styleTag.remove());
-
-        const linkTags = clonedElement.querySelectorAll('link[rel="stylesheet"]');
-        linkTags.forEach(linkTag => linkTag.remove());
-
-        // Apply a comprehensive style reset to prevent any inherited problematic colors
-        const allElements = clonedElement.querySelectorAll('*');
-        allElements.forEach((element: Element) => {
-          const htmlEl = element as HTMLElement;
-
-          // Force reset all color-related properties and increase font sizes
-          const resetStyles = {
-            'color': '#ffffff',
-            'background-color': 'transparent',
-            'background': 'none',
-            'background-image': 'none',
-            'border-color': '#334155',
-            'outline-color': '#ffffff',
-            'text-decoration-color': '#ffffff',
-            'caret-color': '#ffffff',
-            'font-size': '25px', // Much bigger font size for better readability
-            'line-height': '1.5' // Improve line spacing
-          };
-
-          Object.entries(resetStyles).forEach(([prop, value]) => {
-            htmlEl.style.setProperty(prop, value, 'important');
-          });
+          }
         });
+
+        // Also set font size for better readability
+        htmlElement.style.setProperty('font-size', '25px', 'important');
+        htmlElement.style.setProperty('line-height', '1.5', 'important');
       });
 
       type Html2CanvasOptions = Parameters<typeof html2canvas>[1];
@@ -1817,7 +1746,20 @@ function CallDashboard() {
                         />
                         <Legend
                           wrapperStyle={{ color: "#cbd5f5", paddingTop: "20px" }}
-                          formatter={(value) => chartViewMode === "total" ? "Total Calls" : getStatusLabel(value as string)}
+                          formatter={(value, entry) => {
+                            if (chartViewMode === "total") {
+                              return "Total Calls";
+                            }
+                            return getStatusLabel(value as string);
+                          }}
+                          iconType="rect"
+                          payload={chartStatusKeys.map((statusKey, index) => ({
+                            value: statusKey,
+                            color: chartViewMode === "total"
+                              ? "#f97316"
+                              : statusColorMap[statusKey] ?? STATUS_COLORS[index % STATUS_COLORS.length],
+                            type: "rect"
+                          }))}
                         />
                         {chartStatusKeys.map((statusKey, index) => {
                           const color = chartViewMode === "total"
@@ -2165,6 +2107,12 @@ function CallDashboard() {
                           <Legend
                             wrapperStyle={{ color: "#cbd5f5" }}
                             formatter={() => "Total Calls"}
+                            iconType="rect"
+                            payload={[{
+                              value: "total",
+                              color: "#f97316",
+                              type: "rect"
+                            }]}
                           />
                           <Bar
                             dataKey="total"
