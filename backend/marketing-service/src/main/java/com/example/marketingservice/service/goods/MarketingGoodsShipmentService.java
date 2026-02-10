@@ -2,8 +2,11 @@ package com.example.marketingservice.service.goods;
 
 import com.example.marketingservice.dto.goods.BulkGoodsResponse;
 import com.example.marketingservice.dto.goods.GoodsDashboardStatsResponse;
+import com.example.marketingservice.dto.goods.GoodsShipmentRecord;
+import com.example.marketingservice.dto.goods.GroupedGoodsShipmentResponse;
 import com.example.marketingservice.dto.goods.OptimizedBulkGoodsRequest;
 import com.example.marketingservice.dto.goods.PaginatedGoodsShipmentResponse;
+import com.example.marketingservice.dto.goods.PaginatedGroupedGoodsShipmentResponse;
 import com.example.marketingservice.dto.goods.MarketingGoodsShipmentResponse;
 import com.example.marketingservice.dto.goods.MarketingGoodsShipmentUpdateRequest;
 import com.example.marketingservice.dto.goods.UserGoodsRecordRequest;
@@ -30,6 +33,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -975,5 +979,292 @@ public class MarketingGoodsShipmentService {
         if (memberId != null) {
             query.setParameter("memberId", memberId);
         }
+    }
+
+    private String buildNativeWhereClause(Long memberId, Long branchId, Long subAreaId, Long areaId, Long createdBy,
+            String memberQuery, LocalDate startDate, LocalDate endDate,
+            List<Long> branchIds, List<Long> subAreaIds, List<Long> areaIds) {
+        List<String> conditions = new ArrayList<>();
+
+        if (memberId != null) {
+            conditions.add("m.id = :memberId");
+        }
+        if (branchId != null) {
+            conditions.add("b.id = :branchId");
+        } else if (branchIds != null && !branchIds.isEmpty()) {
+            conditions.add("b.id IN :branchIds");
+        }
+        if (subAreaId != null) {
+            conditions.add("b.sub_area_id = :subAreaId");
+        } else if (subAreaIds != null && !subAreaIds.isEmpty()) {
+            conditions.add("b.sub_area_id IN :subAreaIds");
+        }
+        if (areaId != null) {
+            conditions.add("b.area_id = :areaId");
+        } else if (areaIds != null && !areaIds.isEmpty()) {
+            conditions.add("b.area_id IN :areaIds");
+        }
+        if (createdBy != null) {
+            conditions.add("s.created_by = :createdBy");
+        }
+        if (memberQuery != null && !memberQuery.trim().isEmpty()) {
+            conditions.add("(LOWER(m.name) LIKE :memberQuery OR LOWER(m.phone) LIKE :memberQuery)");
+        }
+        if (startDate != null) {
+            conditions.add("s.send_date >= :startDate");
+        }
+        if (endDate != null) {
+            conditions.add("s.send_date <= :endDate");
+        }
+
+        // If no conditions, add "1=1" to avoid empty WHERE clause
+        return conditions.isEmpty() ? "1=1" : String.join(" AND ", conditions);
+    }
+
+    private void setNativeQueryParameters(Query query, Long memberId, Long branchId, Long subAreaId, Long areaId,
+            Long createdBy, String memberQuery, LocalDate startDate, LocalDate endDate,
+            List<Long> branchIds, List<Long> subAreaIds, List<Long> areaIds) {
+        if (memberId != null)
+            query.setParameter("memberId", memberId);
+        if (branchId != null)
+            query.setParameter("branchId", branchId);
+        if (subAreaId != null)
+            query.setParameter("subAreaId", subAreaId);
+        if (areaId != null)
+            query.setParameter("areaId", areaId);
+        if (createdBy != null)
+            query.setParameter("createdBy", createdBy);
+        if (memberQuery != null && !memberQuery.trim().isEmpty()) {
+            query.setParameter("memberQuery", "%" + memberQuery.toLowerCase() + "%");
+        }
+        if (startDate != null)
+            query.setParameter("startDate", startDate);
+        if (endDate != null)
+            query.setParameter("endDate", endDate);
+        if (branchIds != null && !branchIds.isEmpty())
+            query.setParameter("branchIds", branchIds);
+        if (subAreaIds != null && !subAreaIds.isEmpty())
+            query.setParameter("subAreaIds", subAreaIds);
+        if (areaIds != null && !areaIds.isEmpty())
+            query.setParameter("areaIds", areaIds);
+    }
+
+    @Transactional(readOnly = true)
+    public List<GroupedGoodsShipmentResponse> findRecentGrouped(
+            Long memberId,
+            Long branchId,
+            Long subAreaId,
+            Long areaId,
+            Long createdBy,
+            String memberQuery,
+            Integer limit,
+            LocalDate startDate,
+            LocalDate endDate,
+            List<Long> branchIds,
+            List<Long> subAreaIds,
+            List<Long> areaIds) {
+        // If no limit specified, use a large number to fetch all records
+        int sanitizedLimit = limit != null ? Math.min(Math.max(limit, 1), 10000) : 10000;
+
+        // Build the JPQL query to fetch shipments grouped by member
+        String jpql = "SELECT DISTINCT s FROM MarketingGoodsShipment s " +
+                "LEFT JOIN FETCH s.member m " +
+                "LEFT JOIN FETCH m.branch b " +
+                "LEFT JOIN FETCH b.area " +
+                "LEFT JOIN FETCH b.subArea " +
+                "WHERE " + buildWhereClause(memberId, branchId, subAreaId, areaId, createdBy, memberQuery, startDate,
+                        endDate, branchIds, subAreaIds, areaIds)
+                +
+                " ORDER BY m.id, s.sendDate DESC";
+
+        Query query = entityManager.createQuery(jpql, MarketingGoodsShipment.class);
+        query.setMaxResults(sanitizedLimit * 2); // Fetch more to account for grouping
+        setQueryParameters(query, memberId, branchId, subAreaId, areaId, createdBy, memberQuery, startDate,
+                endDate, branchIds, subAreaIds, areaIds);
+
+        @SuppressWarnings("unchecked")
+        List<MarketingGoodsShipment> shipments = query.getResultList();
+
+        // Group shipments by member
+        Map<Long, GroupedGoodsShipmentResponse> groupedMap = new HashMap<>();
+
+        for (MarketingGoodsShipment shipment : shipments) {
+            Long memberIdKey = shipment.getMember().getId();
+
+            GroupedGoodsShipmentResponse grouped = groupedMap.computeIfAbsent(memberIdKey, id -> {
+                GroupedGoodsShipmentResponse response = new GroupedGoodsShipmentResponse();
+                response.setMemberId(shipment.getMember().getId());
+                response.setMemberName(shipment.getMember().getName());
+                response.setMemberPhone(shipment.getMember().getPhone());
+                response.setBranchId(shipment.getMember().getBranch().getId());
+                response.setBranchName(shipment.getMember().getBranch().getName());
+                response.setRecords(new ArrayList<>());
+                return response;
+            });
+
+            // Add shipment record
+            GoodsShipmentRecord record = new GoodsShipmentRecord(
+                    shipment.getSendDate(),
+                    shipment.getTotalGoods());
+            grouped.getRecords().add(record);
+        }
+
+        return new ArrayList<>(groupedMap.values());
+    }
+
+    @Transactional(readOnly = true)
+    public PaginatedGroupedGoodsShipmentResponse findRecentGroupedPaginated(
+            Long memberId,
+            Long branchId,
+            Long subAreaId,
+            Long areaId,
+            Long createdBy,
+            String memberQuery,
+            LocalDate startDate,
+            LocalDate endDate,
+            List<Long> branchIds,
+            List<Long> subAreaIds,
+            List<Long> areaIds,
+            int currentPage,
+            int pageSize) {
+
+        // First, get distinct member count for pagination
+        String countJpql = "SELECT COUNT(DISTINCT m.id) FROM MarketingGoodsShipment s " +
+                "LEFT JOIN s.member m " +
+                "LEFT JOIN m.branch b " +
+                "LEFT JOIN b.area " +
+                "LEFT JOIN b.subArea " +
+                "WHERE " + buildWhereClause(memberId, branchId, subAreaId, areaId, createdBy, memberQuery, startDate,
+                        endDate, branchIds, subAreaIds, areaIds);
+
+        Query countQuery = entityManager.createQuery(countJpql, Long.class);
+        setQueryParameters(countQuery, memberId, branchId, subAreaId, areaId, createdBy, memberQuery, startDate,
+                endDate, branchIds, subAreaIds, areaIds);
+
+        Long totalCount = ((Number) countQuery.getSingleResult()).longValue();
+
+        // Calculate offset for member-based pagination
+        int offset = (currentPage - 1) * pageSize;
+
+        // Use a more efficient approach with native SQL for proper grouped pagination
+        // First, get distinct members for this page
+        String memberSql = """
+                SELECT DISTINCT
+                    m.id as member_id,
+                    m.name as member_name,
+                    m.phone as member_phone,
+                    b.id as branch_id,
+                    b.name as branch_name
+                FROM marketing_goods_shipments s
+                LEFT JOIN marketing_vip_members m ON s.member_id = m.id
+                LEFT JOIN marketing_branches b ON m.branch_id = b.id
+                LEFT JOIN marketing_areas a ON b.area_id = a.id
+                LEFT JOIN marketing_sub_areas sa ON b.sub_area_id = sa.id
+                WHERE %s
+                ORDER BY m.id
+                LIMIT :limit OFFSET :offset
+                """.trim();
+
+        // Build WHERE clause for native SQL
+        String whereClause = buildNativeWhereClause(memberId, branchId, subAreaId, areaId, createdBy, memberQuery,
+                startDate,
+                endDate, branchIds, subAreaIds, areaIds);
+
+        String finalMemberSql = String.format(memberSql, whereClause);
+
+        Query memberQueryObj = entityManager.createNativeQuery(finalMemberSql);
+
+        // Set parameters for member query
+        setNativeQueryParameters(memberQueryObj, memberId, branchId, subAreaId, areaId, createdBy, memberQuery,
+                startDate,
+                endDate, branchIds, subAreaIds, areaIds);
+
+        memberQueryObj.setParameter("limit", pageSize);
+        memberQueryObj.setParameter("offset", offset);
+
+        @SuppressWarnings("unchecked")
+        List<Object[]> memberResults = memberQueryObj.getResultList();
+
+        // Get member IDs for this page
+        List<Long> memberIdsForPage = memberResults.stream()
+                .map(row -> ((Number) row[0]).longValue())
+                .collect(Collectors.toList());
+
+        // If no members found, return empty result
+        if (memberIdsForPage.isEmpty()) {
+            return new PaginatedGroupedGoodsShipmentResponse(new ArrayList<>(), totalCount, currentPage, pageSize);
+        }
+
+        // Now get all shipments for these members
+        String shipmentSql = """
+                SELECT
+                    m.id as member_id,
+                    m.name as member_name,
+                    m.phone as member_phone,
+                    b.id as branch_id,
+                    b.name as branch_name,
+                    s.send_date as send_date,
+                    s.total_goods as total_goods
+                FROM marketing_goods_shipments s
+                LEFT JOIN marketing_vip_members m ON s.member_id = m.id
+                LEFT JOIN marketing_branches b ON m.branch_id = b.id
+                WHERE m.id IN :memberIds
+                AND (%s)
+                ORDER BY m.id, s.send_date DESC
+                """.trim();
+
+        String finalShipmentSql = String.format(shipmentSql, whereClause);
+
+        Query shipmentQueryObj = entityManager.createNativeQuery(finalShipmentSql);
+
+        // Set parameters for shipment query
+        setNativeQueryParameters(shipmentQueryObj, memberId, branchId, subAreaId, areaId, createdBy, memberQuery,
+                startDate,
+                endDate, branchIds, subAreaIds, areaIds);
+
+        shipmentQueryObj.setParameter("memberIds", memberIdsForPage);
+
+        @SuppressWarnings("unchecked")
+        List<Object[]> shipmentResults = shipmentQueryObj.getResultList();
+
+        // Group results by member
+        Map<Long, GroupedGoodsShipmentResponse> groupedMap = new LinkedHashMap<>(); // Preserve order
+
+        for (Object[] row : shipmentResults) {
+            Long memberIdKey = ((Number) row[0]).longValue();
+            String memberName = (String) row[1];
+            String memberPhone = (String) row[2];
+            Long branchIdKey = ((Number) row[3]).longValue();
+            String branchName = (String) row[4];
+            LocalDate sendDate = row[5] != null ? (LocalDate) row[5] : null;
+            Integer totalGoods = ((Number) row[6]).intValue();
+
+            GroupedGoodsShipmentResponse grouped = groupedMap.computeIfAbsent(memberIdKey, id -> {
+                GroupedGoodsShipmentResponse response = new GroupedGoodsShipmentResponse();
+                response.setMemberId(memberIdKey);
+                response.setMemberName(memberName);
+                response.setMemberPhone(memberPhone);
+                response.setBranchId(branchIdKey);
+                response.setBranchName(branchName);
+                response.setRecords(new ArrayList<>());
+                return response;
+            });
+
+            // Add shipment record if we have date data
+            if (sendDate != null) {
+                GoodsShipmentRecord record = new GoodsShipmentRecord(
+                        sendDate,
+                        totalGoods);
+                grouped.getRecords().add(record);
+            }
+        }
+
+        // Convert to list maintaining order
+        List<GroupedGoodsShipmentResponse> pageData = memberIdsForPage.stream()
+                .map(id -> groupedMap.get(id))
+                .filter(java.util.Objects::nonNull)
+                .collect(Collectors.toList());
+
+        return new PaginatedGroupedGoodsShipmentResponse(pageData, totalCount, currentPage, pageSize);
     }
 }

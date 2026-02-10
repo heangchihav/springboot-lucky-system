@@ -30,6 +30,8 @@ import {
   goodsShipmentService,
   MarketingGoodsShipmentRecord,
   GoodsDashboardStatsResponse,
+  GroupedGoodsShipmentResponse,
+  PaginatedGroupedGoodsShipmentResponse,
 } from "@/services/marketing-service/goodsShipmentService";
 import {
   vipMemberService,
@@ -197,6 +199,10 @@ type MemberShipmentSummary = {
   subAreaName?: string | null;
   totalGoods: number;
   lastDate: string;
+  records?: Array<{
+    sendDate: string;
+    totalGoods: number;
+  }>;
 };
 
 const compareIsoDatesDesc = (a: string, b: string) =>
@@ -244,7 +250,7 @@ export default function GoodsDashboardPage() {
   const [subAreas, setSubAreas] = useState<MarketingSubArea[]>([]);
   const [branches, setBranches] = useState<MarketingBranch[]>([]);
   const [members, setMembers] = useState<VipMember[]>([]);
-  const [shipments, setShipments] = useState<MarketingGoodsShipmentRecord[]>(
+  const [groupedShipments, setGroupedShipments] = useState<GroupedGoodsShipmentResponse[]>(
     [],
   );
   const [dashboardStats, setDashboardStats] = useState<
@@ -448,14 +454,14 @@ export default function GoodsDashboardPage() {
         params.memberQuery = searchQuery.trim();
       }
 
-      const paginatedResponse = await goodsShipmentService.listRecentPaginated(params);
+      const paginatedResponse = await goodsShipmentService.listRecentGroupedPaginated(params);
 
-      // Use the data directly from backend - no client-side processing
-      setShipments(paginatedResponse.data);
+      // Use the grouped data directly from backend
+      setGroupedShipments(paginatedResponse.data);
       setTotalRecords(paginatedResponse.totalCount);
 
     } catch (err) {
-      setShipments([]);
+      setGroupedShipments([]);
       setTotalRecords(0);
       setError(
         err instanceof Error ? err.message : "Failed to load shipments.",
@@ -556,23 +562,27 @@ export default function GoodsDashboardPage() {
   );
 
   const memberSummaries = useMemo(() => {
-    const summaryMap = new Map<number, MemberShipmentSummary>();
-
-    shipments.forEach((shipment) => {
-      const existing = summaryMap.get(shipment.memberId);
-      const memberInfo = memberMap.get(shipment.memberId);
-      const branch = branchMap.get(shipment.branchId);
+    return groupedShipments.map((groupedShipment) => {
+      const memberInfo = memberMap.get(groupedShipment.memberId);
+      const branch = branchMap.get(groupedShipment.branchId);
       const areaId = branch?.areaId ?? memberInfo?.areaId ?? undefined;
       const subAreaId = branch?.subAreaId ?? memberInfo?.subAreaId ?? null;
       const area = areaId ? areaMap.get(areaId) : undefined;
       const subArea = subAreaId ? subAreaMap.get(subAreaId) : undefined;
 
-      const summary = existing ?? {
-        memberId: shipment.memberId,
-        memberName: shipment.memberName,
-        phone: memberInfo?.phone ?? null,
-        branchId: shipment.branchId,
-        branchName: shipment.branchName,
+      // Calculate total goods and find last date
+      const totalGoods = groupedShipment.records.reduce((sum, record) => sum + record.totalGoods, 0);
+      const lastDate = groupedShipment.records
+        .map((record) => record.sendDate)
+        .sort()
+        .pop() || "";
+
+      return {
+        memberId: groupedShipment.memberId,
+        memberName: groupedShipment.memberName,
+        phone: groupedShipment.memberPhone,
+        branchId: groupedShipment.branchId,
+        branchName: groupedShipment.branchName,
         areaId,
         areaName: area?.name ?? memberInfo?.areaName ?? "Unassigned area",
         subAreaId,
@@ -580,25 +590,12 @@ export default function GoodsDashboardPage() {
           subArea?.name ??
           memberInfo?.subAreaName ??
           (subAreaId ? "Unassigned sub-area" : null),
-        totalGoods: 0,
-        lastDate: "",
+        totalGoods,
+        lastDate,
+        records: groupedShipment.records, // Keep the records for calendar view
       };
-
-      summary.totalGoods += shipment.totalGoods || 0;
-
-      const shipmentDate = new Date(shipment.sendDate).getTime();
-      const recordedDate = summary.lastDate
-        ? new Date(summary.lastDate).getTime()
-        : 0;
-      if (shipmentDate > recordedDate) {
-        summary.lastDate = shipment.sendDate;
-      }
-
-      summaryMap.set(shipment.memberId, summary);
     });
-
-    return Array.from(summaryMap.values());
-  }, [shipments, memberMap, branchMap, areaMap, subAreaMap]);
+  }, [groupedShipments, memberMap, branchMap, areaMap, subAreaMap]);
 
   const filteredSummaries = useMemo(() => {
     let summaries = memberSummaries;
@@ -825,36 +822,128 @@ export default function GoodsDashboardPage() {
     }
   }, [trendView, dailyGoodsTrend, weeklyGoodsTrend, monthlyGoodsTrend]);
 
-  // Keep the existing shipments logic for the detailed records table
-  const shipmentRows = useMemo(
-    () =>
-      shipments.map((record) => {
-        const memberInfo = memberMap.get(record.memberId);
-        return {
-          id: record.id,
-          member: record.memberName,
-          phone: memberInfo?.phone ?? "—",
-          date: formatDate(record.sendDate),
-          totalGoods: record.totalGoods || 0,
-        };
-      }),
-    [shipments, memberMap],
-  );
+  // Calculate total days for calendar display
+  const calendarDays = useMemo(() => {
+    const startDateObj = startDate ? new Date(startDate) : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    let endDateObj = endDate ? new Date(endDate) : new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0);
 
-  // Filter shipments based on search query
-  const filteredShipmentRows = useMemo(() => {
+    // If no filters, default to current month
+    if (!startDate && !endDate) {
+      startDateObj.setDate(1);
+      endDateObj = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0);
+    }
+
+    return Math.ceil((endDateObj.getTime() - startDateObj.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+  }, [startDate, endDate]);
+
+  // Prepare calendar data from grouped shipments
+  const calendarData = useMemo(() => {
+    // Calculate date range based on filters
+    const startDateObj = startDate ? new Date(startDate) : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    let endDateObj = endDate ? new Date(endDate) : new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0);
+
+    // If no filters, default to current month
+    if (!startDate && !endDate) {
+      startDateObj.setDate(1);
+      endDateObj = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0);
+    }
+
+    const totalDays = Math.ceil((endDateObj.getTime() - startDateObj.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+
+    const calendarRows = filteredSummaries.map((member) => {
+      const dailyData: Record<string, number> = {};
+
+      // Initialize all days in the range with 0 using full date string as key
+      for (let day = 0; day < totalDays; day++) {
+        const currentDate = new Date(startDateObj);
+        currentDate.setDate(startDateObj.getDate() + day);
+        const dateKey = currentDate.toISOString().split('T')[0]; // YYYY-MM-DD format
+        dailyData[dateKey] = 0;
+      }
+
+      // Fill in actual shipment data
+      member.records?.forEach((record) => {
+        const date = new Date(record.sendDate);
+        const dateKey = date.toISOString().split('T')[0]; // YYYY-MM-DD format
+        // Only include records within the filtered date range
+        if (date >= startDateObj && date <= endDateObj) {
+          dailyData[dateKey] = (dailyData[dateKey] || 0) + record.totalGoods;
+        }
+      });
+
+      return {
+        memberId: member.memberId,
+        memberName: member.memberName,
+        phone: member.phone,
+        branchName: member.branchName,
+        dailyData,
+        totalGoods: member.totalGoods,
+      };
+    });
+
+    return calendarRows;
+  }, [filteredSummaries, startDate, endDate]);
+
+  // Filter calendar data based on search query (for display only)
+  const filteredCalendarData = useMemo(() => {
     if (!searchQuery.trim()) {
-      return shipmentRows;
+      return groupedShipments;
     }
 
     const query = searchQuery.toLowerCase();
-    return shipmentRows.filter((row) =>
-      row.member.toLowerCase().includes(query) ||
-      row.phone.toLowerCase().includes(query)
+    return groupedShipments.filter((row) =>
+      row.memberName.toLowerCase().includes(query) ||
+      (row.memberPhone && row.memberPhone.toLowerCase().includes(query))
     );
-  }, [shipmentRows, searchQuery]);
+  }, [groupedShipments, searchQuery]);
 
-  // Calculate pagination info
+  // Transform grouped shipments to calendar format
+  const calendarDisplayData = useMemo(() => {
+    // Calculate date range based on filters
+    const startDateObj = startDate ? new Date(startDate) : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    let endDateObj = endDate ? new Date(endDate) : new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0);
+
+    // If no filters, default to current month
+    if (!startDate && !endDate) {
+      startDateObj.setDate(1);
+      endDateObj = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0);
+    }
+
+    const totalDays = Math.ceil((endDateObj.getTime() - startDateObj.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+
+    return filteredCalendarData.map((groupedShipment) => {
+      const dailyData: Record<string, number> = {};
+
+      // Initialize all days in the range with 0 using full date string as key
+      for (let day = 0; day < totalDays; day++) {
+        const currentDate = new Date(startDateObj);
+        currentDate.setDate(startDateObj.getDate() + day);
+        const dateKey = currentDate.toISOString().split('T')[0]; // YYYY-MM-DD format
+        dailyData[dateKey] = 0;
+      }
+
+      // Fill in actual shipment data
+      groupedShipment.records?.forEach((record) => {
+        const recordDate = new Date(record.sendDate);
+        const dateKey = recordDate.toISOString().split('T')[0]; // YYYY-MM-DD format
+        // Only include records within the filtered date range
+        if (recordDate >= startDateObj && recordDate <= endDateObj) {
+          dailyData[dateKey] = (dailyData[dateKey] || 0) + record.totalGoods;
+        }
+      });
+
+      return {
+        memberId: groupedShipment.memberId,
+        memberName: groupedShipment.memberName,
+        phone: groupedShipment.memberPhone,
+        branchName: groupedShipment.branchName,
+        dailyData,
+        totalGoods: groupedShipment.records?.reduce((sum, record) => sum + record.totalGoods, 0) || 0,
+      };
+    });
+  }, [filteredCalendarData, startDate, endDate]);
+
+  // Calculate pagination info (based on backend response)
   const totalPages = Math.ceil(totalRecords / pageSize);
   const startIndex = totalRecords === 0 ? 0 : (currentPage - 1) * pageSize + 1;
   const endIndex = Math.min(currentPage * pageSize, totalRecords);
@@ -864,6 +953,11 @@ export default function GoodsDashboardPage() {
     setPageSize(newSize);
     setCurrentPage(1); // Reset to first page when changing page size
   };
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedAreaId, selectedSubAreaId, selectedBranchId, selectedMemberId, startDate, endDate]);
 
   const handleAreaChange = (value: string) => {
     const next = value === "all" ? "all" : Number(value);
@@ -1309,186 +1403,220 @@ export default function GoodsDashboardPage() {
             </div>
           </div>
           <div className="mt-6 overflow-x-auto">
-            <table className="min-w-full text-left text-sm text-slate-200">
-              <thead>
-                <tr className="text-xs uppercase tracking-[0.3em] text-slate-400">
-                  <th className="pb-3 pr-6 whitespace-nowrap">Member</th>
-                  <th className="pb-3 pr-6 whitespace-nowrap">Phone</th>
-                  <th className="pb-3 pr-6 whitespace-nowrap">Date</th>
-                  <th className="pb-3 whitespace-nowrap">Total Goods</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-white/5">
-                {filteredShipmentRows.length === 0 && !shipmentsLoading ? (
-                  <tr>
-                    <td colSpan={4} className="py-6 text-center text-slate-400">
-                      {searchQuery.trim()
-                        ? "No shipments match your search."
-                        : "No shipment details for the current filters."}
-                    </td>
-                  </tr>
-                ) : (
-                  filteredShipmentRows.map((row, index) => (
-                    <tr key={`${row.member}-${row.phone}-${index}`}>
-                      <td className="py-3 pr-6 whitespace-nowrap">
-                        {row.member}
-                      </td>
-                      <td className="py-3 pr-6 whitespace-nowrap text-slate-300">
-                        {row.phone}
-                      </td>
-                      <td className="py-3 pr-6 whitespace-nowrap">
-                        {row.date}
-                      </td>
-                      <td className="py-3 whitespace-nowrap">
-                        <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-white font-semibold">
-                          {row.totalGoods.toLocaleString()}
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-
-            {/* Enhanced Pagination Controls */}
-            <div className="mt-6 rounded-2xl border border-white/10 bg-linear-to-br from-slate-900/50 to-slate-800/30 p-4 backdrop-blur-sm">
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                {/* Records Info & Page Size Selector */}
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
-                  <div className="text-sm">
-                    <span className="text-slate-400">Showing</span>
-                    <span className="mx-2 font-semibold text-white">
-                      {startIndex}-{endIndex}
-                    </span>
-                    <span className="text-slate-400">of</span>
-                    <span className="mx-1 font-semibold text-white">{totalRecords}</span>
-                    <span className="text-slate-400">shipments</span>
-                  </div>
-
-                  {/* Page Size Selector */}
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-slate-400">Show:</span>
-                    <select
-                      value={pageSize}
-                      onChange={(e) => handlePageSizeChange(Number(e.target.value))}
-                      disabled={isPaginating}
-                      className="rounded-lg border border-white/20 bg-slate-900/60 px-3 py-1.5 text-sm text-white focus:border-amber-400/60 focus:outline-none focus:ring-2 focus:ring-amber-400/20 disabled:opacity-50"
-                    >
-                      {pageSizeOptions.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                    <span className="text-xs text-slate-400">per page</span>
-                  </div>
-                </div>
-
-                {/* Page Navigation */}
-                {totalPages > 1 && (
-                  <div className="flex items-center gap-2">
-                    {/* Previous Button */}
-                    <button
-                      type="button"
-                      onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                      disabled={currentPage === 1 || isPaginating}
-                      className="group relative rounded-xl border border-white/20 bg-slate-900/40 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:border-amber-400/40 hover:bg-amber-500/10 disabled:opacity-40 disabled:cursor-not-allowed"
-                    >
-                      <span className="flex items-center gap-2">
-                        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                        </svg>
-                        Previous
-                      </span>
-                    </button>
-
-                    {/* Page Numbers */}
-                    <div className="flex items-center">
-                      {currentPage > 3 && totalPages > 5 && (
-                        <>
-                          <button
-                            type="button"
-                            onClick={() => setCurrentPage(1)}
-                            disabled={isPaginating}
-                            className="mx-1 rounded-lg border border-white/20 bg-slate-900/40 px-3 py-2 text-sm text-white transition-all duration-200 hover:border-amber-400/40 hover:bg-amber-500/10 disabled:opacity-40"
-                          >
-                            1
-                          </button>
-                          {currentPage > 4 && (
-                            <span className="mx-1 text-slate-500">...</span>
-                          )}
-                        </>
-                      )}
-
-                      {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                        let pageNum;
-                        if (totalPages <= 5) {
-                          pageNum = i + 1;
-                        } else if (currentPage <= 3) {
-                          pageNum = i + 1;
-                        } else if (currentPage >= totalPages - 2) {
-                          pageNum = totalPages - 4 + i;
-                        } else {
-                          pageNum = currentPage - 2 + i;
-                        }
-
-                        return (
-                          <button
-                            key={pageNum}
-                            type="button"
-                            onClick={() => setCurrentPage(pageNum)}
-                            disabled={isPaginating}
-                            className={`mx-1 rounded-xl px-3 py-2 text-sm font-medium transition-all duration-200 ${currentPage === pageNum
-                              ? "border border-amber-400/60 bg-linear-to-r from-amber-500/20 to-amber-400/20 text-amber-200 shadow-lg shadow-amber-500/20"
-                              : "border border-white/20 bg-slate-900/40 text-white transition-all duration-200 hover:border-amber-400/40 hover:bg-amber-500/10 disabled:opacity-40"
-                              }`}
-                          >
-                            {pageNum}
-                          </button>
-                        );
-                      })}
-
-                      {currentPage < totalPages - 2 && totalPages > 5 && (
-                        <>
-                          {currentPage < totalPages - 3 && (
-                            <span className="mx-1 text-slate-500">...</span>
-                          )}
-                          <button
-                            type="button"
-                            onClick={() => setCurrentPage(totalPages)}
-                            disabled={isPaginating}
-                            className="mx-1 rounded-lg border border-white/20 bg-slate-900/40 px-3 py-2 text-sm text-white transition-all duration-200 hover:border-amber-400/40 hover:bg-amber-500/10 disabled:opacity-40"
-                          >
-                            {totalPages}
-                          </button>
-                        </>
-                      )}
+            {/* Calendar Header */}
+            <div className="min-w-full text-left text-sm text-slate-200">
+              <div className="flex gap-2 pb-3 border-b border-white/10 min-w-max">
+                <div className="text-xs uppercase tracking-[0.3em] text-slate-400 w-[120px] flex-shrink-0">N0</div>
+                <div className="text-xs uppercase tracking-[0.3em] text-slate-400 w-[200px] flex-shrink-0">Member Name</div>
+                <div className="text-xs uppercase tracking-[0.3em] text-slate-400 w-[150px] flex-shrink-0">Phone</div>
+                <div className="text-xs uppercase tracking-[0.3em] text-slate-400 w-[120px] flex-shrink-0">Branch</div>
+                {Array.from({ length: calendarDays }, (_, i) => {
+                  const currentDate = new Date(startDate ? startDate : new Date(new Date().getFullYear(), new Date().getMonth(), 1));
+                  currentDate.setDate(currentDate.getDate() + i);
+                  return (
+                    <div key={`header-${i}`} className="text-xs uppercase tracking-[0.3em] text-slate-400 text-center w-[40px] flex-shrink-0">
+                      {currentDate.getDate()}
                     </div>
-
-                    {/* Next Button */}
-                    <button
-                      type="button"
-                      onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                      disabled={currentPage === totalPages || isPaginating}
-                      className="group relative rounded-xl border border-white/20 bg-slate-900/40 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:border-amber-400/40 hover:bg-amber-500/10 disabled:opacity-40 disabled:cursor-not-allowed"
-                    >
-                      <span className="flex items-center gap-2">
-                        Next
-                        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                        </svg>
-                      </span>
-                    </button>
-                  </div>
-                )}
+                  );
+                })}
               </div>
 
-              {/* Additional Info */}
-              <div className="mt-4 pt-3 border-t border-white/5">
-                <div className="flex items-center justify-between text-xs text-slate-400">
-                  <span>Page {currentPage} of {totalPages}</span>
-                  <span>{totalRecords} total records</span>
+              {/* Calendar Body - Members as rows */}
+              <div className="mt-2">
+                {calendarDisplayData.length === 0 && !shipmentsLoading ? (
+                  <div className="py-6 text-center text-slate-400">
+                    {searchQuery.trim()
+                      ? "No shipments match your search."
+                      : "No shipment details for the current filters."}
+                  </div>
+                ) : (
+                  calendarDisplayData.map((member) => (
+                    <div key={member.memberId} className="flex gap-2 py-3 border-b border-white/5 hover:bg-white/5 transition-colors min-w-max">
+                      {/* N0 (Member Number) - First Column */}
+                      <div className="flex items-center text-xs text-slate-300 w-[120px] flex-shrink-0">
+                        #{member.memberId}
+                      </div>
+
+                      {/* Member Name */}
+                      <div className="flex items-center w-[200px] flex-shrink-0">
+                        <div className="font-medium text-white">{member.memberName}</div>
+                      </div>
+
+                      {/* Phone Number */}
+                      <div className="flex items-center text-xs text-slate-300 w-[150px] flex-shrink-0">
+                        {member.phone || '—'}
+                      </div>
+
+                      {/* Branch Name */}
+                      <div className="flex items-center text-xs text-slate-300 w-[120px] flex-shrink-0">
+                        {member.branchName}
+                      </div>
+
+                      {/* Daily Goods Columns */}
+                      {Array.from({ length: calendarDays }, (_, i) => {
+                        const currentDate = new Date(startDate ? startDate : new Date(new Date().getFullYear(), new Date().getMonth(), 1));
+                        currentDate.setDate(currentDate.getDate() + i);
+                        const dateKey = currentDate.toISOString().split('T')[0]; // YYYY-MM-DD format
+                        const goods = member.dailyData[dateKey] || 0;
+                        return (
+                          <div key={`${member.memberId}-${dateKey}-${i}`} className="flex items-center justify-center w-[40px] flex-shrink-0">
+                            {goods > 0 ? (
+                              <div className="rounded-lg border border-amber-400/30 bg-amber-500/10 px-1 py-1 text-xs font-medium text-amber-300 text-center w-full">
+                                {goods}
+                              </div>
+                            ) : (
+                              <div className="w-full h-6 flex items-center justify-center text-xs text-slate-600">
+                                —
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Enhanced Pagination Controls */}
+          <div className="mt-6 rounded-2xl border border-white/10 bg-linear-to-br from-slate-900/50 to-slate-800/30 p-4 backdrop-blur-sm">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              {/* Records Info & Page Size Selector */}
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
+                <div className="text-sm">
+                  <span className="text-slate-400">Showing</span>
+                  <span className="mx-2 font-semibold text-white">
+                    {startIndex}-{endIndex}
+                  </span>
+                  <span className="text-slate-400">of</span>
+                  <span className="mx-1 font-semibold text-white">{totalRecords}</span>
+                  <span className="text-slate-400">shipments</span>
                 </div>
+
+                {/* Page Size Selector */}
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-slate-400">Show:</span>
+                  <select
+                    value={pageSize}
+                    onChange={(e) => handlePageSizeChange(Number(e.target.value))}
+                    disabled={isPaginating}
+                    className="rounded-lg border border-white/20 bg-slate-900/60 px-3 py-1.5 text-sm text-white focus:border-amber-400/60 focus:outline-none focus:ring-2 focus:ring-amber-400/20 disabled:opacity-50"
+                  >
+                    {pageSizeOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                  <span className="text-xs text-slate-400">per page</span>
+                </div>
+              </div>
+
+              {/* Page Navigation */}
+              {totalPages > 1 && (
+                <div className="flex items-center gap-2">
+                  {/* Previous Button */}
+                  <button
+                    type="button"
+                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                    disabled={currentPage === 1 || isPaginating}
+                    className="group relative rounded-xl border border-white/20 bg-slate-900/40 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:border-amber-400/40 hover:bg-amber-500/10 disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    <span className="flex items-center gap-2">
+                      <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                      </svg>
+                      Previous
+                    </span>
+                  </button>
+
+                  {/* Page Numbers */}
+                  <div className="flex items-center">
+                    {currentPage > 3 && totalPages > 5 && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => setCurrentPage(1)}
+                          disabled={isPaginating}
+                          className="mx-1 rounded-lg border border-white/20 bg-slate-900/40 px-3 py-2 text-sm text-white transition-all duration-200 hover:border-amber-400/40 hover:bg-amber-500/10 disabled:opacity-40"
+                        >
+                          1
+                        </button>
+                        {currentPage > 4 && (
+                          <span className="mx-1 text-slate-500">...</span>
+                        )}
+                      </>
+                    )}
+
+                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                      let pageNum;
+                      if (totalPages <= 5) {
+                        pageNum = i + 1;
+                      } else if (currentPage <= 3) {
+                        pageNum = i + 1;
+                      } else if (currentPage >= totalPages - 2) {
+                        pageNum = totalPages - 4 + i;
+                      } else {
+                        pageNum = currentPage - 2 + i;
+                      }
+
+                      return (
+                        <button
+                          key={pageNum}
+                          type="button"
+                          onClick={() => setCurrentPage(pageNum)}
+                          disabled={isPaginating}
+                          className={`mx-1 rounded-xl px-3 py-2 text-sm font-medium transition-all duration-200 ${currentPage === pageNum
+                            ? "border border-amber-400/60 bg-linear-to-r from-amber-500/20 to-amber-400/20 text-amber-200 shadow-lg shadow-amber-500/20"
+                            : "border border-white/20 bg-slate-900/40 text-white transition-all duration-200 hover:border-amber-400/40 hover:bg-amber-500/10 disabled:opacity-40"
+                            }`}
+                        >
+                          {pageNum}
+                        </button>
+                      );
+                    })}
+
+                    {currentPage < totalPages - 2 && totalPages > 5 && (
+                      <>
+                        {currentPage < totalPages - 3 && (
+                          <span className="mx-1 text-slate-500">...</span>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => setCurrentPage(totalPages)}
+                          disabled={isPaginating}
+                          className="mx-1 rounded-lg border border-white/20 bg-slate-900/40 px-3 py-2 text-sm text-white transition-all duration-200 hover:border-amber-400/40 hover:bg-amber-500/10 disabled:opacity-40"
+                        >
+                          {totalPages}
+                        </button>
+                      </>
+                    )}
+                  </div>
+
+                  {/* Next Button */}
+                  <button
+                    type="button"
+                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                    disabled={currentPage === totalPages || isPaginating}
+                    className="group relative rounded-xl border border-white/20 bg-slate-900/40 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:border-amber-400/40 hover:bg-amber-500/10 disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    <span className="flex items-center gap-2">
+                      Next
+                      <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
+                    </span>
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Additional Info */}
+            <div className="mt-4 pt-3 border-t border-white/5">
+              <div className="flex items-center justify-between text-xs text-slate-400">
+                <span>Page {currentPage} of {totalPages}</span>
+                <span>{totalRecords} total records</span>
               </div>
             </div>
           </div>

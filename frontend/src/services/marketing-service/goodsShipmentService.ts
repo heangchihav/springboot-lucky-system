@@ -78,6 +78,20 @@ export type MarketingGoodsShipmentRecord = {
   createdBy: number;
 };
 
+export type GoodsShipmentRecord = {
+  sendDate: string;
+  totalGoods: number;
+};
+
+export type GroupedGoodsShipmentResponse = {
+  memberId: number;
+  memberName: string;
+  memberPhone: string;
+  branchId: number;
+  branchName: string;
+  records: GoodsShipmentRecord[];
+};
+
 export type GoodsDashboardStatsResponse = {
   statusMetrics: Array<{
     metric: string;
@@ -232,6 +246,73 @@ export const goodsShipmentService = {
     const response = await request<GoodsDashboardStatsResponse>(`/goods-shipments/dashboard-stats?${searchParams.toString()}`);
     return response;
   },
+
+  listRecentGrouped: async (params: {
+    memberId?: number;
+    branchId?: number;
+    subAreaId?: number;
+    areaId?: number;
+    limit?: number;
+    page?: number;
+    size?: number;
+    myOnly?: boolean;
+    memberQuery?: string;
+    startDate?: string;
+    endDate?: string;
+  }) => {
+    const searchParams = new URLSearchParams();
+
+    if (params.memberId !== undefined) searchParams.append('memberId', params.memberId.toString());
+    if (params.branchId !== undefined) searchParams.append('branchId', params.branchId.toString());
+    if (params.subAreaId !== undefined) searchParams.append('subAreaId', params.subAreaId.toString());
+    if (params.areaId !== undefined) searchParams.append('areaId', params.areaId.toString());
+    if (params.limit !== undefined) searchParams.append('limit', params.limit.toString());
+    if (params.page !== undefined) searchParams.append('page', params.page.toString());
+    if (params.size !== undefined) searchParams.append('size', params.size.toString());
+    if (params.myOnly !== undefined) searchParams.append('myOnly', params.myOnly.toString());
+    if (params.memberQuery) searchParams.append('memberQuery', params.memberQuery);
+    if (params.startDate) searchParams.append('startDate', params.startDate);
+    if (params.endDate) searchParams.append('endDate', params.endDate);
+
+    // If pagination parameters are provided, expect paginated response
+    if (params.page !== undefined && params.size !== undefined) {
+      const response = await request<PaginatedGroupedGoodsShipmentResponse>(`/goods-shipments/grouped?${searchParams.toString()}`);
+      return response.data; // Return just the data array for compatibility
+    } else {
+      // Legacy limit-based response
+      const response = await request<GroupedGoodsShipmentResponse[]>(`/goods-shipments/grouped?${searchParams.toString()}`);
+      return response;
+    }
+  },
+
+  listRecentGroupedPaginated: async (params: {
+    memberId?: number;
+    branchId?: number;
+    subAreaId?: number;
+    areaId?: number;
+    page?: number;
+    size?: number;
+    myOnly?: boolean;
+    memberQuery?: string;
+    startDate?: string;
+    endDate?: string;
+  }) => {
+    const searchParams = new URLSearchParams();
+
+    if (params.memberId !== undefined) searchParams.append('memberId', params.memberId.toString());
+    if (params.branchId !== undefined) searchParams.append('branchId', params.branchId.toString());
+    if (params.subAreaId !== undefined) searchParams.append('subAreaId', params.subAreaId.toString());
+    if (params.areaId !== undefined) searchParams.append('areaId', params.areaId.toString());
+    if (params.page !== undefined) searchParams.append('page', params.page.toString());
+    if (params.size !== undefined) searchParams.append('size', params.size.toString());
+    if (params.myOnly !== undefined) searchParams.append('myOnly', params.myOnly.toString());
+    if (params.memberQuery) searchParams.append('memberQuery', params.memberQuery);
+    if (params.startDate) searchParams.append('startDate', params.startDate);
+    if (params.endDate) searchParams.append('endDate', params.endDate);
+
+    const response = await request<PaginatedGroupedGoodsShipmentResponse>(`/goods-shipments/grouped?${searchParams.toString()}`);
+    return response;
+  },
 };
 
 export type PaginatedGoodsShipmentResponse = {
@@ -240,6 +321,16 @@ export type PaginatedGoodsShipmentResponse = {
   currentPage: number;
   pageSize: number;
   totalPages: number;
+};
+
+export type PaginatedGroupedGoodsShipmentResponse = {
+  data: GroupedGoodsShipmentResponse[];
+  totalCount: number;
+  currentPage: number;
+  pageSize: number;
+  totalPages: number;
+  hasNext: boolean;
+  hasPrevious: boolean;
 };
 
 export type MarketingGoodsShipmentRecordUpdatePayload = {
