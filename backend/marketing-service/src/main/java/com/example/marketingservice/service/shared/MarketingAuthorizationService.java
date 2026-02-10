@@ -6,7 +6,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
+import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;
 import java.util.Optional;
 
@@ -270,5 +273,27 @@ public class MarketingAuthorizationService {
                 .map(assignment -> assignment.getBranch().getId())
                 .distinct()
                 .toList();
+    }
+
+    public Long getCurrentUserId() {
+        try {
+            ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder
+                    .getRequestAttributes();
+            if (attributes != null) {
+                HttpServletRequest request = attributes.getRequest();
+                String userIdHeader = request.getHeader("X-User-Id");
+                if (userIdHeader != null) {
+                    return Long.parseLong(userIdHeader);
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("Error getting current user ID: " + e.getMessage());
+        }
+        return null;
+    }
+
+    public boolean canManageUsers() {
+        Long currentUserId = getCurrentUserId();
+        return currentUserId != null && isRootUser(currentUserId);
     }
 }

@@ -1,16 +1,103 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePreferences } from "@/contexts/PreferencesContext";
+import { useToast } from "@/components/ui/Toast";
 import { SUPPORTED_LOCALES, type SupportedLocale } from "@/i18n/messages";
+import { marketingUserProfileService, type MarketingUserProfile, type MarketingUserProfileRequest } from "@/services/marketing-service/marketingUserProfileService";
 
 const AVATAR_FALLBACK_TEXT = "LS";
 
 export default function AccountPage() {
-  const { user, logout, logoutAll } = useAuth();
+  const { user, logout, logoutAll, hasServiceAccess } = useAuth();
   const { theme, toggleTheme } = usePreferences();
+  const { showToast } = useToast();
   const [language, setLanguage] = useState<SupportedLocale>("en");
+
+  // Marketing profile state
+  const [marketingProfile, setMarketingProfile] = useState<MarketingUserProfile | null>(null);
+  const [marketingProfileLoading, setMarketingProfileLoading] = useState(false);
+  const [marketingProfileForm, setMarketingProfileForm] = useState<MarketingUserProfileRequest>({
+    departmentManager: "",
+    managerName: "",
+    userSignature: "",
+  });
+  const [signatureFile, setSignatureFile] = useState<File | null>(null);
+  const [savingProfile, setSavingProfile] = useState(false);
+
+  const canAccessMarketing = hasServiceAccess("marketing");
+
+  // Load marketing profile
+  useEffect(() => {
+    if (canAccessMarketing && user?.id) {
+      loadMarketingProfile();
+    }
+  }, [canAccessMarketing, user?.id]);
+
+  const loadMarketingProfile = async () => {
+    if (!user?.id) return;
+
+    setMarketingProfileLoading(true);
+    try {
+      const profile = await marketingUserProfileService.getCurrentUserProfile();
+      setMarketingProfile(profile);
+      setMarketingProfileForm({
+        departmentManager: profile.departmentManager || "",
+        managerName: profile.managerName || "",
+        userSignature: profile.userSignature || "",
+      });
+    } catch (error) {
+      console.error("Failed to load marketing profile:", error);
+      // Don't show error toast for new users (profile might not exist yet)
+    } finally {
+      setMarketingProfileLoading(false);
+    }
+  };
+
+  const handleSignatureFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      // Check file type and size
+      if (!file.type.startsWith('image/')) {
+        showToast('Please select an image file', 'error');
+        return;
+      }
+      if (file.size > 5 * 1024 * 1024) { // 5MB limit
+        showToast('File size must be less than 5MB', 'error');
+        return;
+      }
+
+      setSignatureFile(file);
+
+      // Convert to base64
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const base64 = e.target?.result as string;
+        setMarketingProfileForm(prev => ({
+          ...prev,
+          userSignature: base64
+        }));
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleMarketingProfileSave = async () => {
+    if (!user?.id) return;
+
+    setSavingProfile(true);
+    try {
+      const updatedProfile = await marketingUserProfileService.updateCurrentUserProfile(marketingProfileForm);
+      setMarketingProfile(updatedProfile);
+      showToast('Marketing profile updated successfully', 'success');
+    } catch (error) {
+      console.error("Failed to update marketing profile:", error);
+      showToast('Failed to update marketing profile', 'error');
+    } finally {
+      setSavingProfile(false);
+    }
+  };
 
   const displayName = user?.fullName ?? user?.username ?? "Operator";
   const derivedEmail = user
@@ -130,6 +217,100 @@ export default function AccountPage() {
             </div>
           </div>
         </div>
+
+        {/* Marketing Profile Section - Only for marketing service users */}
+        {canAccessMarketing && (
+          <div className="rounded-3xl border border-white/10 bg-slate-900/60 p-6">
+            <h2 className="text-lg font-semibold text-white">
+              Marketing Service Profile
+            </h2>
+            <p className="mt-1 text-sm text-slate-400">
+              Department manager information and digital signature for marketing operations.
+            </p>
+
+            {marketingProfileLoading ? (
+              <div className="mt-4 text-center text-slate-400">
+                Loading marketing profile...
+              </div>
+            ) : (
+              <div className="mt-6 space-y-4">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="flex flex-col text-xs text-slate-300">
+                    <label className="text-[0.6rem] uppercase tracking-[0.25em] text-slate-400">
+                      Department Manager
+                    </label>
+                    <input
+                      type="text"
+                      value={marketingProfileForm.departmentManager}
+                      onChange={(e) => setMarketingProfileForm(prev => ({
+                        ...prev,
+                        departmentManager: e.target.value
+                      }))}
+                      className="mt-1 rounded-xl border border-white/10 bg-slate-900/60 px-3 py-2 text-sm text-white focus:border-amber-400/60 focus:outline-none"
+                      placeholder="Enter department manager name"
+                    />
+                  </div>
+
+                  <div className="flex flex-col text-xs text-slate-300">
+                    <label className="text-[0.6rem] uppercase tracking-[0.25em] text-slate-400">
+                      Manager Name
+                    </label>
+                    <input
+                      type="text"
+                      value={marketingProfileForm.managerName}
+                      onChange={(e) => setMarketingProfileForm(prev => ({
+                        ...prev,
+                        managerName: e.target.value
+                      }))}
+                      className="mt-1 rounded-xl border border-white/10 bg-slate-900/60 px-3 py-2 text-sm text-white focus:border-amber-400/60 focus:outline-none"
+                      placeholder="Enter manager name"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex flex-col text-xs text-slate-300">
+                  <label className="text-[0.6rem] uppercase tracking-[0.25em] text-slate-400">
+                    Digital Signature
+                  </label>
+                  <div className="mt-1 space-y-2">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleSignatureFileChange}
+                      className="w-full rounded-xl border border-white/10 bg-slate-900/60 px-3 py-2 text-sm text-white file:border-0 file:bg-amber-500/20 file:text-amber-200 file:rounded-lg file:px-3 file:py-1 file:text-xs file:font-semibold focus:border-amber-400/60 focus:outline-none"
+                    />
+                    <p className="text-xs text-slate-500">
+                      Upload signature image (max 5MB, JPG/PNG)
+                    </p>
+
+                    {marketingProfileForm.userSignature && (
+                      <div className="mt-2">
+                        <p className="text-xs text-slate-400 mb-2">Current signature:</p>
+                        <div className="inline-block rounded-lg border border-white/20 overflow-hidden">
+                          <img
+                            src={marketingProfileForm.userSignature}
+                            alt="Signature"
+                            className="h-20 w-auto object-contain bg-white"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex justify-end">
+                  <button
+                    onClick={handleMarketingProfileSave}
+                    disabled={savingProfile}
+                    className="rounded-full border border-amber-400/60 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-amber-200/80 transition hover:border-amber-400 hover:bg-amber-400/10 disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    {savingProfile ? "Saving..." : "Save Marketing Profile"}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="rounded-3xl border border-white/10 bg-slate-900/60 p-6">
           <h2 className="text-lg font-semibold text-white">
