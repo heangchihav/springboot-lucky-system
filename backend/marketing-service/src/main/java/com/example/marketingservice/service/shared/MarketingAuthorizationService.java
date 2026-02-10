@@ -2,6 +2,8 @@ package com.example.marketingservice.service.shared;
 
 import com.example.marketingservice.entity.userassignment.MarketingUserAssignment;
 import com.example.marketingservice.repository.userassignment.MarketingUserAssignmentRepository;
+import com.example.marketingservice.entity.branch.MarketingBranch;
+import com.example.marketingservice.repository.branch.MarketingBranchRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -18,6 +20,9 @@ public class MarketingAuthorizationService {
 
     @Autowired
     private MarketingUserAssignmentRepository assignmentRepository;
+
+    @Autowired
+    private MarketingBranchRepository branchRepository;
 
     @Autowired
     private RestTemplate restTemplate;
@@ -164,28 +169,71 @@ public class MarketingAuthorizationService {
         return false;
     }
 
-    public boolean canCreateBranch(Long userId, Long areaId, Long subAreaId) {
-        Optional<MarketingUserAssignment> assignment = getUserAssignment(userId);
-
-        if (assignment.isEmpty()) {
+    public boolean canCreateBranch(Long userId, Long areaId, Long branchId) {
+        if (isRootUser(userId)) {
             return true;
         }
 
-        MarketingUserAssignment userAssignment = assignment.get();
+        List<MarketingUserAssignment> assignments = assignmentRepository.findActiveByUserId(userId);
 
-        if (userAssignment.getBranch() != null) {
-            return false;
-        }
+        // Check each assignment to see if any allows creation in the requested branch
+        for (MarketingUserAssignment userAssignment : assignments) {
+            // If user is assigned to a specific branch, they can only create in that branch
+            if (userAssignment.getBranch() != null) {
+                boolean canCreate = userAssignment.getBranch().getId().equals(branchId);
+                if (canCreate) {
+                    return true;
+                }
+            }
 
-        if (userAssignment.getSubArea() != null) {
-            return userAssignment.getSubArea().getId().equals(subAreaId);
-        }
+            // If user is assigned to a sub-area, they can create in any branch within that
+            // sub-area
+            if (userAssignment.getSubArea() != null) {
+                // Check if the requested branch belongs to user's assigned sub-area
+                if (branchId != null && userAssignment.getSubArea().getId().equals(
+                        getBranchSubAreaId(branchId))) {
+                    return true;
+                }
+            }
 
-        if (userAssignment.getArea() != null) {
-            return userAssignment.getArea().getId().equals(areaId);
+            // If user is assigned to an area, they can create in any branch within that
+            // area
+            if (userAssignment.getArea() != null) {
+                // Check if the requested branch belongs to user's assigned area
+                if (branchId != null && userAssignment.getArea().getId().equals(
+                        getBranchAreaId(branchId))) {
+                    return true;
+                }
+            }
         }
 
         return false;
+    }
+
+    private Long getBranchSubAreaId(Long branchId) {
+        if (branchId == null) {
+            return null;
+        }
+        try {
+            MarketingBranch branch = branchRepository.findById(branchId).orElse(null);
+            return branch != null && branch.getSubArea() != null ? branch.getSubArea().getId() : null;
+        } catch (Exception e) {
+            System.err.println("Error getting branch sub-area: " + e.getMessage());
+            return null;
+        }
+    }
+
+    private Long getBranchAreaId(Long branchId) {
+        if (branchId == null) {
+            return null;
+        }
+        try {
+            MarketingBranch branch = branchRepository.findById(branchId).orElse(null);
+            return branch != null && branch.getArea() != null ? branch.getArea().getId() : null;
+        } catch (Exception e) {
+            System.err.println("Error getting branch area: " + e.getMessage());
+            return null;
+        }
     }
 
     public List<Long> getAccessibleAreaIds(Long userId) {

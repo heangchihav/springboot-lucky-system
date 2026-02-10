@@ -156,15 +156,18 @@ public class VipMemberService {
 
                     if (!authorizationService.canCreateBranch(creatorId,
                             branch.getArea().getId(),
-                            branch.getSubArea() != null ? branch.getSubArea().getId() : null)) {
+                            branch.getId())) {
                         continue; // Skip if no permission
                     }
+                } else {
+                    // Create without branch assignment
                 }
 
                 VipMember member = new VipMember();
                 applyRequest(member, request);
                 member.setCreatedBy(creatorId);
-                createdMembers.add(vipMemberRepository.save(member));
+                VipMember savedMember = vipMemberRepository.save(member);
+                createdMembers.add(savedMember);
             } catch (Exception e) {
                 // Log error but continue with other members
                 System.err.println("Error creating member: " + e.getMessage());
