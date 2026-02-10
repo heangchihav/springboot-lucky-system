@@ -5,6 +5,7 @@ import { usePortal } from "@/hooks/marketing-service/DailyReports/usePortal";
 import { useCopyReportImage } from "@/hooks/marketing-service/DailyReports/useCopyReportImage";
 import { useAuth } from "@/contexts/AuthContext";
 import { marketingUserAssignmentService, MarketingUserAssignment } from "@/services/marketingUserAssignmentService";
+import { marketingUserProfileService, type MarketingUserProfile } from "@/services/marketing-service/marketingUserProfileService";
 import { apiService } from "@/services/api";
 import { apiFetch } from "@/services/httpClient";
 
@@ -57,10 +58,11 @@ export const ReportViewModal = ({ report, onClose }: ReportViewModalProps) => {
     const { user } = useAuth();
     const { day: footerDay, month: footerMonth, year: footerYear } = getKhmerDateParts(report.reportDate);
     const [userAssignments, setUserAssignments] = useState<MarketingUserAssignment[]>([]);
+    const [marketingProfile, setMarketingProfile] = useState<MarketingUserProfile | null>(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        const fetchUserAssignments = async () => {
+        const fetchData = async () => {
             // Use report creator's username, not current user's ID
             if (!report.createdBy) return;
 
@@ -73,6 +75,7 @@ export const ReportViewModal = ({ report, onClose }: ReportViewModalProps) => {
                 if (!userIdResponse.ok) {
                     console.warn("User not found for username:", report.createdBy);
                     setUserAssignments([]);
+                    setMarketingProfile(null);
                     return;
                 }
 
@@ -81,14 +84,25 @@ export const ReportViewModal = ({ report, onClose }: ReportViewModalProps) => {
                 // Now get the assignments using the user ID
                 const assignments = await marketingUserAssignmentService.getUserAssignments(userId);
                 setUserAssignments(assignments);
+
+                // Also fetch the marketing user profile
+                try {
+                    const profile = await marketingUserProfileService.getUserProfile(userId);
+                    setMarketingProfile(profile);
+                } catch (profileError) {
+                    console.log("No marketing profile found for user:", report.createdBy);
+                    setMarketingProfile(null);
+                }
             } catch (error) {
-                console.error("Failed to fetch report creator assignments:", error);
+                console.error("Failed to fetch report creator data:", error);
+                setUserAssignments([]);
+                setMarketingProfile(null);
             } finally {
                 setLoading(false);
             }
         };
 
-        fetchUserAssignments();
+        fetchData();
     }, [report.createdBy]);
 
     const getUserSubAreas = () => {
@@ -304,26 +318,47 @@ export const ReportViewModal = ({ report, onClose }: ReportViewModalProps) => {
                             <p className="font-medium text-black">
                                 ហត្ថលេខាសាមីខ្លួន
                             </p>
-                            <br /><br />
-                            <div className="border-gray-300 pb-1 mb-2">
-                                <p className="text-sm font-semibold text-black inline-block font-khmer-os-muol">
-                                    {report.createdByFullName || report.createdBy}
-                                </p>
+
+                            {/* User Signature */}
+                            <div className="min-h-20 flex flex-col justify-between">
+                                {marketingProfile?.userSignature ? (
+                                    <div className="flex justify-center mb-2">
+                                        <img
+                                            src={marketingProfile.userSignature}
+                                            alt="User Signature"
+                                            className="h-20 w-auto object-contain"
+                                        />
+                                    </div>
+                                ) : (
+                                    <div className="h-20 flex items-center justify-center">
+                                    </div>
+                                )}
+
+                                <div className="border-gray-300 pb-1 mb-2">
+                                    <p className="text-sm font-semibold text-black inline-block font-khmer-os-muol">
+                                        {report.createdByFullName || report.createdBy}
+                                    </p>
+                                </div>
                             </div>
                         </div>
                         <div className="text-center">
                             <p className="font-medium text-black">
-                                ហត្ថលេខាប្រធាននាយកដ្ឋានទីផ្សារ
+                                {marketingProfile?.departmentManager || "ហត្ថលេខាប្រធាននាយកដ្ឋានទីផ្សារ"}
                             </p>
                             <br /><br />
-                            <div className="border-gray-300 pb-1 mb-2">
-                                <p className="text-sm font-semibold text-black inline-block font-khmer-os-muol">
-                                    លោក សោម តារា
-                                </p>
+                            <div className="min-h-20 flex flex-col justify-end">
+                                <div className="border-gray-300 pb-1 mb-2">
+                                    <div className="text-sm font-semibold text-black inline-block font-khmer-os-muol">
+                                        <div className="mt-2">
+                                            <span className="text-xs text-gray-600">
+                                                {marketingProfile?.managerName || "លោក សោម តារា"}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
-
                 </div>
             </div>
         </div>,
