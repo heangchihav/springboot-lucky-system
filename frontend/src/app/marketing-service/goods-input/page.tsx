@@ -122,6 +122,7 @@ export default function GoodsInputPage() {
   }>>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [fileInputRef, setFileInputRef] = useState<HTMLInputElement | null>(null);
+  const [activeTab, setActiveTab] = useState<'valid' | 'invalid'>('valid');
 
 
   useEffect(() => {
@@ -873,6 +874,11 @@ export default function GoodsInputPage() {
     }
   };
 
+  // Filter entries based on active tab
+  const validEntries = parsedEntries.filter(entry => entry.member);
+  const invalidEntries = parsedEntries.filter(entry => !entry.member);
+  const displayEntries = activeTab === 'valid' ? validEntries : invalidEntries;
+
   return (
     <MarketingServiceGuard>
       <div className="space-y-8">
@@ -1503,9 +1509,33 @@ export default function GoodsInputPage() {
 
               {parsedEntries.length > 0 && (
                 <div>
-                  <h3 className="text-sm font-medium text-white mb-3">
-                    Parsed Entries ({parsedEntries.length})
-                  </h3>
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-sm font-medium text-white">
+                      Parsed Entries ({parsedEntries.length})
+                    </h3>
+                    <div className="flex rounded-lg border border-white/10 bg-slate-800/40 p-1">
+                      <button
+                        type="button"
+                        className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${activeTab === 'valid'
+                            ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                            : 'text-slate-400 hover:text-white hover:bg-white/5'
+                          }`}
+                        onClick={() => setActiveTab('valid')}
+                      >
+                        Valid Users ({validEntries.length})
+                      </button>
+                      <button
+                        type="button"
+                        className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${activeTab === 'invalid'
+                            ? 'bg-red-500/20 text-red-300 border border-red-500/30'
+                            : 'text-slate-400 hover:text-white hover:bg-white/5'
+                          }`}
+                        onClick={() => setActiveTab('invalid')}
+                      >
+                        Invalid Users ({invalidEntries.length})
+                      </button>
+                    </div>
+                  </div>
                   <div className="max-h-60 overflow-y-auto rounded-2xl border border-white/10 bg-slate-800/40">
                     <table className="w-full text-sm">
                       <thead className="sticky top-0 bg-slate-900/90 border-b border-white/20">
@@ -1519,7 +1549,7 @@ export default function GoodsInputPage() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-white/5">
-                        {parsedEntries.map((entry, index) => (
+                        {displayEntries.map((entry, index) => (
                           <tr key={index} className={entry.member && entry.totalGoods > 0 ? '' : 'opacity-50'}>
                             <td className="p-3 text-white text-center font-mono text-xs">{index + 1}</td>
                             <td className="p-3 text-white">{entry.phone}</td>
