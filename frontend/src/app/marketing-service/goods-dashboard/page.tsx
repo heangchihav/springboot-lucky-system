@@ -446,6 +446,23 @@ export default function GoodsDashboardPage() {
         sortOrder,
       };
 
+      // Add hierarchy filters
+      if (selectedAreaId !== "all") {
+        params.areaId = selectedAreaId;
+      }
+      if (selectedSubAreaId !== "all") {
+        params.subAreaId = selectedSubAreaId;
+      }
+      if (selectedBranchId !== "all") {
+        params.branchId = selectedBranchId;
+      }
+      if (selectedMemberId !== "all") {
+        params.memberId = selectedMemberId;
+      }
+      if (searchQuery.trim()) {
+        params.memberQuery = searchQuery.trim();
+      }
+
       const paginatedResponse = await goodsShipmentService.listRecentGroupedPaginated(params);
 
       console.log("API CALL - Params sent:", JSON.stringify(params, null, 2));

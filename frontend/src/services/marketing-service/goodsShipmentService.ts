@@ -298,6 +298,8 @@ export const goodsShipmentService = {
     memberQuery?: string;
     startDate?: string;
     endDate?: string;
+    sortBy?: string;
+    sortOrder?: string;
   }) => {
     const searchParams = new URLSearchParams();
 
