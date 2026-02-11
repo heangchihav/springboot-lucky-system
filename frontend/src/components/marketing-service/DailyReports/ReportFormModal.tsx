@@ -25,10 +25,10 @@ export const ReportFormModal = ({ editingReport, onSave, onClose, loading }: Rep
 
     const [reportDate, setReportDate] = useState(yesterday.toISOString().split('T')[0]);
     const [reportItems, setReportItems] = useState<ReportItem[]>([
-        { name: "ផែនការប្រចាំថ្ងៃ", values: ["• "] },
-        { name: "លិទ្ធផលការងារសម្រេចបានប្រចាំថ្ងៃ", values: ["• "] },
-        { name: "លិទ្ធផលការងារមិនទាន់បានសម្រេច", values: ["• "] },
-        { name: "ព័តមានអំពីដៃគូប្រកួតប្រជែង", values: ["• "] }
+        { name: "ផែនការប្រចាំថ្ងៃ", values: [""] },
+        { name: "លិទ្ធផលការងារសម្រេចបានប្រចាំថ្ងៃ", values: [""] },
+        { name: "លិទ្ធផលការងារមិនទាន់បានសម្រេច", values: [""] },
+        { name: "ព័តមានអំពីដៃគូប្រកួតប្រជែង", values: [""] }
     ]);
     const [focusedField, setFocusedField] = useState<string | null>(null);
 
@@ -36,10 +36,10 @@ export const ReportFormModal = ({ editingReport, onSave, onClose, loading }: Rep
         if (editingReport) {
             setReportDate(editingReport.reportDate);
             setReportItems(editingReport.items.length > 0 ? editingReport.items : [
-                { name: "ផែនការប្រចាំថ្ងៃ", values: ["• "] },
-                { name: "លិទ្ធផលការងារសម្រេចបានប្រចាំថ្ងៃ", values: ["• "] },
-                { name: "លិទ្ធផលការងារមិនទាន់បានសម្រេច", values: ["• "] },
-                { name: "ព័តមានអំពីដៃគូប្រកួតប្រជែង", values: ["• "] }
+                { name: "ផែនការប្រចាំថ្ងៃ", values: [""] },
+                { name: "លិទ្ធផលការងារសម្រេចបានប្រចាំថ្ងៃ", values: [""] },
+                { name: "លិទ្ធផលការងារមិនទាន់បានសម្រេច", values: [""] },
+                { name: "ព័តមានអំពីដៃគូប្រកួតប្រជែង", values: [""] }
             ]);
         } else {
             // For new reports, default to yesterday
@@ -47,16 +47,16 @@ export const ReportFormModal = ({ editingReport, onSave, onClose, loading }: Rep
             yesterday.setDate(yesterday.getDate() - 1);
             setReportDate(yesterday.toISOString().split('T')[0]);
             setReportItems([
-                { name: "ផែនការប្រចាំថ្ងៃ", values: ["• "] },
-                { name: "លិទ្ធផលការងារសម្រេចបានប្រចាំថ្ងៃ", values: ["• "] },
-                { name: "លិទ្ធផលការងារមិនទាន់បានសម្រេច", values: ["• "] },
-                { name: "ព័តមានអំពីដៃគូប្រកួតប្រជែង", values: ["• "] }
+                { name: "ផែនការប្រចាំថ្ងៃ", values: [""] },
+                { name: "លិទ្ធផលការងារសម្រេចបានប្រចាំថ្ងៃ", values: [""] },
+                { name: "លិទ្ធផលការងារមិនទាន់បានសម្រេច", values: [""] },
+                { name: "ព័តមានអំពីដៃគូប្រកួតប្រជែង", values: [""] }
             ]);
         }
     }, [editingReport]);
 
     const addReportItem = () => {
-        setReportItems([...reportItems, { name: "", values: ["• "] }]);
+        setReportItems([...reportItems, { name: "", values: [""] }]);
     };
 
     const removeReportItem = (index: number) => {
@@ -71,7 +71,7 @@ export const ReportFormModal = ({ editingReport, onSave, onClose, loading }: Rep
 
     const addValueToItem = (itemIndex: number) => {
         const updated = [...reportItems];
-        updated[itemIndex].values.push("• ");
+        updated[itemIndex].values.push("");
         setReportItems(updated);
     };
 

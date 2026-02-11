@@ -320,7 +320,7 @@ export const ReportViewModal = ({ report, onClose }: ReportViewModalProps) => {
                             </p>
 
                             {/* User Signature */}
-                            <div className="min-h-20 flex flex-col justify-between">
+                            <div className="min-h-20 flex flex-col justify-between mt-2">
                                 {marketingProfile?.userSignature ? (
                                     <div className="flex justify-center mb-2">
                                         <img
@@ -334,7 +334,7 @@ export const ReportViewModal = ({ report, onClose }: ReportViewModalProps) => {
                                     </div>
                                 )}
 
-                                <div className="border-gray-300 pb-1 mb-2">
+                                <div className="border-gray-300  ">
                                     <p className="text-sm font-semibold text-black inline-block font-khmer-os-muol">
                                         {report.createdByFullName || report.createdBy}
                                     </p>
@@ -347,7 +347,7 @@ export const ReportViewModal = ({ report, onClose }: ReportViewModalProps) => {
                             </p>
                             <br /><br />
                             <div className="min-h-20 flex flex-col justify-end">
-                                <div className="border-gray-300 pb-1 mb-2">
+                                <div className="border-gray-300">
                                     <div className="text-sm font-semibold text-black inline-block font-khmer-os-muol">
                                         <div className="mt-2">
                                             <span className="text-xs text-gray-600">

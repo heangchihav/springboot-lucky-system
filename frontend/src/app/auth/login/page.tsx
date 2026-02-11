@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
@@ -14,6 +14,172 @@ interface FormData {
 interface FieldErrors {
   [key: string]: string;
 }
+
+// Professional Particle Animation Component
+const ParticleBackground = () => {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const mouseRef = useRef({ x: 0, y: 0 });
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const resizeCanvas = () => {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    };
+
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
+
+    // Particle class
+    class Particle {
+      x: number;
+      y: number;
+      vx: number;
+      vy: number;
+      radius: number;
+
+      constructor(canvasWidth: number, canvasHeight: number) {
+        this.x = Math.random() * canvasWidth;
+        this.y = Math.random() * canvasHeight;
+        this.vx = (Math.random() - 0.5) * 0.5;
+        this.vy = (Math.random() - 0.5) * 0.5;
+        this.radius = Math.random() * 2 + 1;
+      }
+
+      update(canvasWidth: number, canvasHeight: number, mouseX: number, mouseY: number) {
+        this.x += this.vx;
+        this.y += this.vy;
+
+        // Bounce off walls
+        if (this.x < 0 || this.x > canvasWidth) this.vx *= -1;
+        if (this.y < 0 || this.y > canvasHeight) this.vy *= -1;
+
+        // Mouse interaction
+        const dx = mouseX - this.x;
+        const dy = mouseY - this.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+
+        if (distance < 150) {
+          const force = (150 - distance) / 150;
+          this.vx += (dx / distance) * force * 0.03;
+          this.vy += (dy / distance) * force * 0.03;
+        }
+
+        // Limit velocity
+        const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+        if (speed > 2) {
+          this.vx = (this.vx / speed) * 2;
+          this.vy = (this.vy / speed) * 2;
+        }
+      }
+
+      draw(context: CanvasRenderingContext2D) {
+        context.fillStyle = 'rgba(59, 130, 246, 1)';
+        context.beginPath();
+        context.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+        context.fill();
+
+        // Add glow effect
+        context.shadowBlur = 10;
+        context.shadowColor = 'rgba(59, 130, 246, 0.8)';
+        context.fill();
+        context.shadowBlur = 0;
+      }
+    }
+
+    // Create particles
+    const particles: Particle[] = [];
+    for (let i = 0; i < 60; i++) {
+      particles.push(new Particle(canvas.width, canvas.height));
+    }
+
+    const handleMouseMove = (e: MouseEvent) => {
+      mouseRef.current = { x: e.clientX, y: e.clientY };
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+
+    const animate = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // Update and draw particles
+      particles.forEach((particle, i) => {
+        particle.update(canvas.width, canvas.height, mouseRef.current.x, mouseRef.current.y);
+        particle.draw(ctx);
+
+        // Draw connections
+        particles.forEach((otherParticle, j) => {
+          if (i !== j) {
+            const dx = otherParticle.x - particle.x;
+            const dy = otherParticle.y - particle.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+
+            if (distance < 120) {
+              ctx.strokeStyle = `rgba(59, 130, 246, ${0.6 * (1 - distance / 120)})`;
+              ctx.lineWidth = 1.5;
+              ctx.shadowBlur = 5;
+              ctx.shadowColor = 'rgba(59, 130, 246, 0.8)';
+              ctx.beginPath();
+              ctx.moveTo(particle.x, particle.y);
+              ctx.lineTo(otherParticle.x, otherParticle.y);
+              ctx.stroke();
+              ctx.shadowBlur = 0;
+            }
+          }
+        });
+
+        // Draw mouse connections
+        const dx = mouseRef.current.x - particle.x;
+        const dy = mouseRef.current.y - particle.y;
+        const mouseDistance = Math.sqrt(dx * dx + dy * dy);
+
+        if (mouseDistance < 200) {
+          ctx.strokeStyle = `rgba(34, 211, 238, ${0.9 * (1 - mouseDistance / 200)})`;
+          ctx.lineWidth = 2;
+          ctx.shadowBlur = 8;
+          ctx.shadowColor = 'rgba(34, 211, 238, 1)';
+          ctx.beginPath();
+          ctx.moveTo(particle.x, particle.y);
+          ctx.lineTo(mouseRef.current.x, mouseRef.current.y);
+          ctx.stroke();
+          ctx.shadowBlur = 0;
+        }
+      });
+
+      // Draw cursor glow
+      const gradient = ctx.createRadialGradient(mouseRef.current.x, mouseRef.current.y, 0, mouseRef.current.x, mouseRef.current.y, 40);
+      gradient.addColorStop(0, 'rgba(34, 211, 238, 0.3)');
+      gradient.addColorStop(0.5, 'rgba(34, 211, 238, 0.15)');
+      gradient.addColorStop(1, 'rgba(34, 211, 238, 0)');
+      ctx.fillStyle = gradient;
+      ctx.beginPath();
+      ctx.arc(mouseRef.current.x, mouseRef.current.y, 40, 0, Math.PI * 2);
+      ctx.fill();
+
+      requestAnimationFrame(animate);
+    };
+
+    animate();
+
+    return () => {
+      window.removeEventListener('resize', resizeCanvas);
+      window.removeEventListener('mousemove', handleMouseMove);
+    };
+  }, []);
+
+  return (
+    <canvas
+      ref={canvasRef}
+      className="absolute inset-0 w-full h-full"
+      style={{ background: 'transparent' }}
+    />
+  );
+};
 
 export default function LoginPage() {
   const [formData, setFormData] = useState<FormData>({
@@ -93,11 +259,11 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen relative flex items-center justify-center overflow-hidden bg-slate-950">
-      {/* Subtle Grid Background */}
-      <div className="absolute inset-0 bg-slate-950">
-        <div className="absolute inset-0 bg-[linear-gradient(to_right,#1e293b_1px,transparent_1px),linear-gradient(to_bottom,#1e293b_1px,transparent_1px)] bg-[size:4rem_4rem] opacity-20"></div>
-        <div className="absolute inset-0 bg-linear-to-br from-blue-950/20 via-slate-950 to-slate-950"></div>
-      </div>
+      {/* Professional Particle Background Animation */}
+      <ParticleBackground />
+
+      {/* Subtle overlay for better readability */}
+      <div className="absolute inset-0 bg-slate-950/30"></div>
 
       {/* Main Container */}
       <div className="relative max-w-7xl w-full z-10 px-4 sm:px-6 lg:px-8">
@@ -118,18 +284,18 @@ export default function LoginPage() {
               </div>
 
               {/* Content Overlay */}
-              <div className="relative h-full flex flex-col justify-between p-8 lg:p-12">
+              <div className="relative h-full flex flex-col justify-between p-8 lg:p-8">
                 {/* Top Section - Logo & Branding */}
                 <div className="space-y-6">
                   <div className="inline-flex items-center space-x-3">
                     <img
                       src="/Logo.png"
                       alt="VET System Logo"
-                      className="w-15 h-15 object-contain"
+                      className="w-13 h-13 object-contain"
                     />
                     <div>
-                      <h2 className="text-2xl font-bold text-white tracking-tight">VET Report System</h2>
-                      <div className="h-0.5 w-12 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-full mt-1"></div>
+                      <h2 className="text-3xl font-bold  tracking-tight animate-text-gradient bg-gradient-to-r from-orange-500 via-orange-100 to-blue-600 bg-clip-text text-transparent bg-[length:200%_100%]">VET REPORT</h2>
+                      <div className="h-0.5 w-45 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-full mt-1"></div>
                     </div>
                   </div>
                 </div>
@@ -148,16 +314,16 @@ export default function LoginPage() {
             </div>
 
             {/* Right Side - Login Form */}
-            <div className="lg:w-[55%] flex items-center justify-center p-8 lg:p-12 bg-slate-900/30">
+            <div className="lg:w-[55%] flex items-center justify-center p-6 lg:p-8 bg-slate-900/30">
               <div className="w-full max-w-md">
                 {/* Header */}
-                <div className="text-center mb-8">
+                <div className="text-center mb-6">
                   <h1 className="text-3xl font-bold text-white mb-2">Sign In</h1>
                   <p className="text-slate-400 text-sm">Access your secure dashboard</p>
                 </div>
 
                 {/* Form */}
-                <form onSubmit={handleSubmit} className="space-y-5">
+                <form onSubmit={handleSubmit} className="space-y-4">
                   {/* Username Field */}
                   <div>
                     <label htmlFor="username" className="block text-sm font-medium text-slate-300 mb-2">
