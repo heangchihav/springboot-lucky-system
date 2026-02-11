@@ -137,9 +137,13 @@ public class MarketingGoodsShipmentController extends BaseController {
             @RequestParam(required = false) Integer size,
             @RequestParam(required = false) LocalDate startDate,
             @RequestParam(required = false) LocalDate endDate,
+            @RequestParam(defaultValue = "totalgoods") String sortBy,
+            @RequestParam(defaultValue = "desc") String sortOrder,
             HttpServletRequest httpRequest) {
         checkPermission(httpRequest, "goods.view");
         Long userId = requireUserId(httpRequest);
+
+        System.out.println("DEBUG CONTROLLER: sortBy=" + sortBy + ", sortOrder=" + sortOrder);
 
         // Apply user's hierarchy assignments when not explicitly filtering
         List<Long> branchIds = null;
@@ -183,12 +187,12 @@ public class MarketingGoodsShipmentController extends BaseController {
 
             return shipmentService.findRecentGroupedPaginated(memberId, branchId, subAreaId, areaId, createdBy,
                     memberQuery,
-                    startDate, endDate, branchIds, subAreaIds, areaIds, page, pageSizeValue);
+                    startDate, endDate, branchIds, subAreaIds, areaIds, page, pageSizeValue, sortBy, sortOrder);
         } else {
             // Use existing limit-based logic for backward compatibility
             return shipmentService.findRecentGrouped(memberId, branchId, subAreaId, areaId, createdBy, memberQuery,
                     limit,
-                    startDate, endDate, branchIds, subAreaIds, areaIds);
+                    startDate, endDate, branchIds, subAreaIds, areaIds, sortBy, sortOrder);
         }
     }
 

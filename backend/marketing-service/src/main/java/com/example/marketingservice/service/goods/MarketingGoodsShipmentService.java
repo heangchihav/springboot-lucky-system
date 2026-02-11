@@ -33,7 +33,6 @@ import org.springframework.web.server.ResponseStatusException;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -981,74 +980,6 @@ public class MarketingGoodsShipmentService {
         }
     }
 
-    private String buildNativeWhereClause(Long memberId, Long branchId, Long subAreaId, Long areaId, Long createdBy,
-            String memberQuery, LocalDate startDate, LocalDate endDate,
-            List<Long> branchIds, List<Long> subAreaIds, List<Long> areaIds) {
-        List<String> conditions = new ArrayList<>();
-
-        if (memberId != null) {
-            conditions.add("m.id = :memberId");
-        }
-        if (branchId != null) {
-            conditions.add("b.id = :branchId");
-        } else if (branchIds != null && !branchIds.isEmpty()) {
-            conditions.add("b.id IN :branchIds");
-        }
-        if (subAreaId != null) {
-            conditions.add("b.sub_area_id = :subAreaId");
-        } else if (subAreaIds != null && !subAreaIds.isEmpty()) {
-            conditions.add("b.sub_area_id IN :subAreaIds");
-        }
-        if (areaId != null) {
-            conditions.add("b.area_id = :areaId");
-        } else if (areaIds != null && !areaIds.isEmpty()) {
-            conditions.add("b.area_id IN :areaIds");
-        }
-        if (createdBy != null) {
-            conditions.add("s.created_by = :createdBy");
-        }
-        if (memberQuery != null && !memberQuery.trim().isEmpty()) {
-            conditions.add("(LOWER(m.name) LIKE :memberQuery OR LOWER(m.phone) LIKE :memberQuery)");
-        }
-        if (startDate != null) {
-            conditions.add("s.send_date >= :startDate");
-        }
-        if (endDate != null) {
-            conditions.add("s.send_date <= :endDate");
-        }
-
-        // If no conditions, add "1=1" to avoid empty WHERE clause
-        return conditions.isEmpty() ? "1=1" : String.join(" AND ", conditions);
-    }
-
-    private void setNativeQueryParameters(Query query, Long memberId, Long branchId, Long subAreaId, Long areaId,
-            Long createdBy, String memberQuery, LocalDate startDate, LocalDate endDate,
-            List<Long> branchIds, List<Long> subAreaIds, List<Long> areaIds) {
-        if (memberId != null)
-            query.setParameter("memberId", memberId);
-        if (branchId != null)
-            query.setParameter("branchId", branchId);
-        if (subAreaId != null)
-            query.setParameter("subAreaId", subAreaId);
-        if (areaId != null)
-            query.setParameter("areaId", areaId);
-        if (createdBy != null)
-            query.setParameter("createdBy", createdBy);
-        if (memberQuery != null && !memberQuery.trim().isEmpty()) {
-            query.setParameter("memberQuery", "%" + memberQuery.toLowerCase() + "%");
-        }
-        if (startDate != null)
-            query.setParameter("startDate", startDate);
-        if (endDate != null)
-            query.setParameter("endDate", endDate);
-        if (branchIds != null && !branchIds.isEmpty())
-            query.setParameter("branchIds", branchIds);
-        if (subAreaIds != null && !subAreaIds.isEmpty())
-            query.setParameter("subAreaIds", subAreaIds);
-        if (areaIds != null && !areaIds.isEmpty())
-            query.setParameter("areaIds", areaIds);
-    }
-
     @Transactional(readOnly = true)
     public List<GroupedGoodsShipmentResponse> findRecentGrouped(
             Long memberId,
@@ -1062,7 +993,9 @@ public class MarketingGoodsShipmentService {
             LocalDate endDate,
             List<Long> branchIds,
             List<Long> subAreaIds,
-            List<Long> areaIds) {
+            List<Long> areaIds,
+            String sortBy,
+            String sortOrder) {
         // If no limit specified, use a large number to fetch all records
         int sanitizedLimit = limit != null ? Math.min(Math.max(limit, 1), 10000) : 10000;
 
@@ -1099,6 +1032,7 @@ public class MarketingGoodsShipmentService {
                 response.setBranchId(shipment.getMember().getBranch().getId());
                 response.setBranchName(shipment.getMember().getBranch().getName());
                 response.setRecords(new ArrayList<>());
+                response.setTotalGoods(0);
                 return response;
             });
 
@@ -1107,9 +1041,79 @@ public class MarketingGoodsShipmentService {
                     shipment.getSendDate(),
                     shipment.getTotalGoods());
             grouped.getRecords().add(record);
+
+            // Update total goods
+            grouped.setTotalGoods(grouped.getTotalGoods() + shipment.getTotalGoods());
         }
 
-        return new ArrayList<>(groupedMap.values());
+        // Convert to list and sort by total goods descending for ranking
+        List<GroupedGoodsShipmentResponse> result = new ArrayList<>(groupedMap.values());
+
+        // Apply sorting based on parameters
+        boolean ascending = "asc".equalsIgnoreCase(sortOrder);
+        switch (sortBy.toLowerCase()) {
+            case "totalgoods":
+                result.sort((a, b) -> {
+                    Integer aTotal = a.getTotalGoods() != null ? a.getTotalGoods() : 0;
+                    Integer bTotal = b.getTotalGoods() != null ? b.getTotalGoods() : 0;
+                    return ascending ? aTotal.compareTo(bTotal) : bTotal.compareTo(aTotal);
+                });
+                break;
+            case "membername":
+                result.sort((a, b) -> {
+                    String aName = a.getMemberName() != null ? a.getMemberName() : "";
+                    String bName = b.getMemberName() != null ? b.getMemberName() : "";
+                    return ascending ? aName.compareToIgnoreCase(bName) : bName.compareToIgnoreCase(aName);
+                });
+                break;
+            case "branchname":
+                result.sort((a, b) -> {
+                    String aBranch = a.getBranchName() != null ? a.getBranchName() : "";
+                    String bBranch = b.getBranchName() != null ? b.getBranchName() : "";
+                    return ascending ? aBranch.compareToIgnoreCase(bBranch) : bBranch.compareToIgnoreCase(aBranch);
+                });
+                break;
+            case "rank":
+            default:
+                // Sort by total goods descending for ranking
+                result.sort((a, b) -> {
+                    Integer aTotal = a.getTotalGoods() != null ? a.getTotalGoods() : 0;
+                    Integer bTotal = b.getTotalGoods() != null ? b.getTotalGoods() : 0;
+                    return bTotal.compareTo(aTotal);
+                });
+                break;
+        }
+
+        // Assign ranks (always based on total goods descending)
+        List<GroupedGoodsShipmentResponse> sortedForRanking = new ArrayList<>(result);
+        sortedForRanking.sort((a, b) -> {
+            Integer aTotal = a.getTotalGoods() != null ? a.getTotalGoods() : 0;
+            Integer bTotal = b.getTotalGoods() != null ? b.getTotalGoods() : 0;
+            return bTotal.compareTo(aTotal);
+        });
+
+        // Handle ties: same total goods should get same rank
+        Map<Long, Integer> rankMap = new HashMap<>();
+        int currentRank = 1;
+        for (int i = 0; i < sortedForRanking.size(); i++) {
+            GroupedGoodsShipmentResponse currentItem = sortedForRanking.get(i);
+            Integer currentTotal = currentItem.getTotalGoods() != null ? currentItem.getTotalGoods() : 0;
+
+            // If this is the first item or has different total goods than previous, assign
+            // new rank
+            if (i == 0 || !currentTotal.equals(
+                    sortedForRanking.get(i - 1).getTotalGoods() != null ? sortedForRanking.get(i - 1).getTotalGoods()
+                            : 0)) {
+                currentRank = i + 1;
+            }
+            // If same total goods as previous, use same rank
+            rankMap.put(currentItem.getMemberId(), currentRank);
+        }
+        for (GroupedGoodsShipmentResponse item : result) {
+            item.setRank(rankMap.get(item.getMemberId()));
+        }
+
+        return result;
     }
 
     @Transactional(readOnly = true)
@@ -1126,144 +1130,130 @@ public class MarketingGoodsShipmentService {
             List<Long> subAreaIds,
             List<Long> areaIds,
             int currentPage,
-            int pageSize) {
+            int pageSize,
+            String sortBy,
+            String sortOrder) {
 
-        // First, get distinct member count for pagination
-        String countJpql = "SELECT COUNT(DISTINCT m.id) FROM MarketingGoodsShipment s " +
-                "LEFT JOIN s.member m " +
-                "LEFT JOIN m.branch b " +
-                "LEFT JOIN b.area " +
-                "LEFT JOIN b.subArea " +
+        // Build the JPQL query to fetch all shipments grouped by member
+        String jpql = "SELECT DISTINCT s FROM MarketingGoodsShipment s " +
+                "LEFT JOIN FETCH s.member m " +
+                "LEFT JOIN FETCH m.branch b " +
+                "LEFT JOIN FETCH b.area " +
+                "LEFT JOIN FETCH b.subArea " +
                 "WHERE " + buildWhereClause(memberId, branchId, subAreaId, areaId, createdBy, memberQuery, startDate,
-                        endDate, branchIds, subAreaIds, areaIds);
+                        endDate, branchIds, subAreaIds, areaIds)
+                +
+                " ORDER BY m.id, s.sendDate DESC";
 
-        Query countQuery = entityManager.createQuery(countJpql, Long.class);
-        setQueryParameters(countQuery, memberId, branchId, subAreaId, areaId, createdBy, memberQuery, startDate,
+        Query query = entityManager.createQuery(jpql, MarketingGoodsShipment.class);
+        setQueryParameters(query, memberId, branchId, subAreaId, areaId, createdBy, memberQuery, startDate,
                 endDate, branchIds, subAreaIds, areaIds);
-
-        Long totalCount = ((Number) countQuery.getSingleResult()).longValue();
-
-        // Calculate offset for member-based pagination
-        int offset = (currentPage - 1) * pageSize;
-
-        // Use a more efficient approach with native SQL for proper grouped pagination
-        // First, get distinct members for this page
-        String memberSql = """
-                SELECT DISTINCT
-                    m.id as member_id,
-                    m.name as member_name,
-                    m.phone as member_phone,
-                    b.id as branch_id,
-                    b.name as branch_name
-                FROM marketing_goods_shipments s
-                LEFT JOIN marketing_vip_members m ON s.member_id = m.id
-                LEFT JOIN marketing_branches b ON m.branch_id = b.id
-                LEFT JOIN marketing_areas a ON b.area_id = a.id
-                LEFT JOIN marketing_sub_areas sa ON b.sub_area_id = sa.id
-                WHERE %s
-                ORDER BY m.id
-                LIMIT :limit OFFSET :offset
-                """.trim();
-
-        // Build WHERE clause for native SQL
-        String whereClause = buildNativeWhereClause(memberId, branchId, subAreaId, areaId, createdBy, memberQuery,
-                startDate,
-                endDate, branchIds, subAreaIds, areaIds);
-
-        String finalMemberSql = String.format(memberSql, whereClause);
-
-        Query memberQueryObj = entityManager.createNativeQuery(finalMemberSql);
-
-        // Set parameters for member query
-        setNativeQueryParameters(memberQueryObj, memberId, branchId, subAreaId, areaId, createdBy, memberQuery,
-                startDate,
-                endDate, branchIds, subAreaIds, areaIds);
-
-        memberQueryObj.setParameter("limit", pageSize);
-        memberQueryObj.setParameter("offset", offset);
 
         @SuppressWarnings("unchecked")
-        List<Object[]> memberResults = memberQueryObj.getResultList();
+        List<MarketingGoodsShipment> shipments = query.getResultList();
 
-        // Get member IDs for this page
-        List<Long> memberIdsForPage = memberResults.stream()
-                .map(row -> ((Number) row[0]).longValue())
-                .collect(Collectors.toList());
+        // Group shipments by member
+        Map<Long, GroupedGoodsShipmentResponse> groupedMap = new HashMap<>();
 
-        // If no members found, return empty result
-        if (memberIdsForPage.isEmpty()) {
-            return new PaginatedGroupedGoodsShipmentResponse(new ArrayList<>(), totalCount, currentPage, pageSize);
-        }
-
-        // Now get all shipments for these members
-        String shipmentSql = """
-                SELECT
-                    m.id as member_id,
-                    m.name as member_name,
-                    m.phone as member_phone,
-                    b.id as branch_id,
-                    b.name as branch_name,
-                    s.send_date as send_date,
-                    s.total_goods as total_goods
-                FROM marketing_goods_shipments s
-                LEFT JOIN marketing_vip_members m ON s.member_id = m.id
-                LEFT JOIN marketing_branches b ON m.branch_id = b.id
-                WHERE m.id IN :memberIds
-                AND (%s)
-                ORDER BY m.id, s.send_date DESC
-                """.trim();
-
-        String finalShipmentSql = String.format(shipmentSql, whereClause);
-
-        Query shipmentQueryObj = entityManager.createNativeQuery(finalShipmentSql);
-
-        // Set parameters for shipment query
-        setNativeQueryParameters(shipmentQueryObj, memberId, branchId, subAreaId, areaId, createdBy, memberQuery,
-                startDate,
-                endDate, branchIds, subAreaIds, areaIds);
-
-        shipmentQueryObj.setParameter("memberIds", memberIdsForPage);
-
-        @SuppressWarnings("unchecked")
-        List<Object[]> shipmentResults = shipmentQueryObj.getResultList();
-
-        // Group results by member
-        Map<Long, GroupedGoodsShipmentResponse> groupedMap = new LinkedHashMap<>(); // Preserve order
-
-        for (Object[] row : shipmentResults) {
-            Long memberIdKey = ((Number) row[0]).longValue();
-            String memberName = (String) row[1];
-            String memberPhone = (String) row[2];
-            Long branchIdKey = ((Number) row[3]).longValue();
-            String branchName = (String) row[4];
-            LocalDate sendDate = row[5] != null ? (LocalDate) row[5] : null;
-            Integer totalGoods = ((Number) row[6]).intValue();
+        for (MarketingGoodsShipment shipment : shipments) {
+            Long memberIdKey = shipment.getMember().getId();
 
             GroupedGoodsShipmentResponse grouped = groupedMap.computeIfAbsent(memberIdKey, id -> {
                 GroupedGoodsShipmentResponse response = new GroupedGoodsShipmentResponse();
-                response.setMemberId(memberIdKey);
-                response.setMemberName(memberName);
-                response.setMemberPhone(memberPhone);
-                response.setBranchId(branchIdKey);
-                response.setBranchName(branchName);
+                response.setMemberId(shipment.getMember().getId());
+                response.setMemberName(shipment.getMember().getName());
+                response.setMemberPhone(shipment.getMember().getPhone());
+                response.setBranchId(shipment.getMember().getBranch().getId());
+                response.setBranchName(shipment.getMember().getBranch().getName());
                 response.setRecords(new ArrayList<>());
+                response.setTotalGoods(0);
                 return response;
             });
 
-            // Add shipment record if we have date data
-            if (sendDate != null) {
-                GoodsShipmentRecord record = new GoodsShipmentRecord(
-                        sendDate,
-                        totalGoods);
-                grouped.getRecords().add(record);
-            }
+            // Add shipment record
+            GoodsShipmentRecord record = new GoodsShipmentRecord(
+                    shipment.getSendDate(),
+                    shipment.getTotalGoods());
+            grouped.getRecords().add(record);
+
+            // Update total goods
+            grouped.setTotalGoods(grouped.getTotalGoods() + shipment.getTotalGoods());
         }
 
-        // Convert to list maintaining order
-        List<GroupedGoodsShipmentResponse> pageData = memberIdsForPage.stream()
-                .map(id -> groupedMap.get(id))
-                .filter(java.util.Objects::nonNull)
-                .collect(Collectors.toList());
+        // Convert to list and apply global sorting
+        List<GroupedGoodsShipmentResponse> allData = new ArrayList<>(groupedMap.values());
+
+        // Apply sorting based on parameters
+        System.out.println("DEBUG PAGINATED: sortBy=" + sortBy + ", sortOrder=" + sortOrder);
+        boolean ascending = "asc".equalsIgnoreCase(sortOrder);
+        switch (sortBy.toLowerCase()) {
+            case "totalgoods":
+                allData.sort((a, b) -> {
+                    Integer aTotal = a.getTotalGoods() != null ? a.getTotalGoods() : 0;
+                    Integer bTotal = b.getTotalGoods() != null ? b.getTotalGoods() : 0;
+                    return ascending ? aTotal.compareTo(bTotal) : bTotal.compareTo(aTotal);
+                });
+                break;
+            case "membername":
+                allData.sort((a, b) -> {
+                    String aName = a.getMemberName() != null ? a.getMemberName() : "";
+                    String bName = b.getMemberName() != null ? b.getMemberName() : "";
+                    return ascending ? aName.compareToIgnoreCase(bName) : bName.compareToIgnoreCase(aName);
+                });
+                break;
+            case "branchname":
+                allData.sort((a, b) -> {
+                    String aBranch = a.getBranchName() != null ? a.getBranchName() : "";
+                    String bBranch = b.getBranchName() != null ? b.getBranchName() : "";
+                    return ascending ? aBranch.compareToIgnoreCase(bBranch) : bBranch.compareToIgnoreCase(aBranch);
+                });
+                break;
+            default:
+                // Sort by total goods descending for ranking
+                allData.sort((a, b) -> {
+                    Integer aTotal = a.getTotalGoods() != null ? a.getTotalGoods() : 0;
+                    Integer bTotal = b.getTotalGoods() != null ? b.getTotalGoods() : 0;
+                    return bTotal.compareTo(aTotal);
+                });
+                break;
+        }
+
+        // Calculate ranks (always based on total goods descending)
+        List<GroupedGoodsShipmentResponse> sortedForRanking = new ArrayList<>(allData);
+        sortedForRanking.sort((a, b) -> {
+            Integer aTotal = a.getTotalGoods() != null ? a.getTotalGoods() : 0;
+            Integer bTotal = b.getTotalGoods() != null ? b.getTotalGoods() : 0;
+            return bTotal.compareTo(aTotal);
+        });
+
+        // Handle ties: same total goods should get same rank
+        Map<Long, Integer> rankMap = new HashMap<>();
+        int currentRank = 1;
+        for (int i = 0; i < sortedForRanking.size(); i++) {
+            GroupedGoodsShipmentResponse currentItem = sortedForRanking.get(i);
+            Integer currentTotal = currentItem.getTotalGoods() != null ? currentItem.getTotalGoods() : 0;
+
+            // If this is the first item or has different total goods than previous, assign
+            // new rank
+            if (i == 0 || !currentTotal.equals(
+                    sortedForRanking.get(i - 1).getTotalGoods() != null ? sortedForRanking.get(i - 1).getTotalGoods()
+                            : 0)) {
+                currentRank = i + 1;
+            }
+            // If same total goods as previous, use same rank
+            rankMap.put(currentItem.getMemberId(), currentRank);
+        }
+        for (GroupedGoodsShipmentResponse item : allData) {
+            item.setRank(rankMap.get(item.getMemberId()));
+        }
+
+        // Apply pagination to the globally sorted data
+        int totalCount = allData.size();
+        int startIndex = (currentPage - 1) * pageSize;
+        int endIndex = Math.min(startIndex + pageSize, totalCount);
+
+        List<GroupedGoodsShipmentResponse> pageData = startIndex < totalCount ? allData.subList(startIndex, endIndex)
+                : new ArrayList<>();
 
         return new PaginatedGroupedGoodsShipmentResponse(pageData, totalCount, currentPage, pageSize);
     }

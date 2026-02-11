@@ -289,6 +289,10 @@ export default function GoodsDashboardPage() {
   const [isPaginating, setIsPaginating] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
+  // Sorting state
+  const [sortBy, setSortBy] = useState("totalgoods");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+
   const pageSizeOptions = [
     { value: 5, label: "5" },
     { value: 10, label: "10" },
@@ -430,31 +434,21 @@ export default function GoodsDashboardPage() {
         startDate?: string;
         endDate?: string;
         memberQuery?: string;
+        sortBy?: string;
+        sortOrder?: string;
       } = {
         myOnly: false,
         startDate,
         endDate,
         page: currentPage,
         size: pageSize,
+        sortBy,
+        sortOrder,
       };
 
-      if (selectedAreaId !== "all") {
-        params.areaId = selectedAreaId;
-      }
-      if (selectedSubAreaId !== "all") {
-        params.subAreaId = selectedSubAreaId;
-      }
-      if (selectedBranchId !== "all") {
-        params.branchId = selectedBranchId;
-      }
-      if (selectedMemberId !== "all") {
-        params.memberId = selectedMemberId;
-      }
-      if (searchQuery.trim()) {
-        params.memberQuery = searchQuery.trim();
-      }
-
       const paginatedResponse = await goodsShipmentService.listRecentGroupedPaginated(params);
+
+      console.log("API CALL - Params sent:", JSON.stringify(params, null, 2));
 
       // Use the grouped data directly from backend
       setGroupedShipments(paginatedResponse.data);
@@ -480,6 +474,8 @@ export default function GoodsDashboardPage() {
     currentPage,
     pageSize,
     searchQuery,
+    sortBy,
+    sortOrder,
   ]);
 
   useEffect(() => {
@@ -571,11 +567,11 @@ export default function GoodsDashboardPage() {
       const subArea = subAreaId ? subAreaMap.get(subAreaId) : undefined;
 
       // Calculate total goods and find last date
-      const totalGoods = groupedShipment.records.reduce((sum, record) => sum + record.totalGoods, 0);
+      const totalGoods = groupedShipment.records?.reduce((sum, record) => sum + record.totalGoods, 0);
       const lastDate = groupedShipment.records
-        .map((record) => record.sendDate)
-        .sort()
-        .pop() || "";
+        ?.map((record) => record.sendDate)
+        ?.sort()
+        ?.pop() || "";
 
       return {
         memberId: groupedShipment.memberId,
@@ -586,10 +582,7 @@ export default function GoodsDashboardPage() {
         areaId,
         areaName: area?.name ?? memberInfo?.areaName ?? "Unassigned area",
         subAreaId,
-        subAreaName:
-          subArea?.name ??
-          memberInfo?.subAreaName ??
-          (subAreaId ? "Unassigned sub-area" : null),
+        subAreaName: subArea?.name ?? (subAreaId ? "Unassigned sub-area" : null),
         totalGoods,
         lastDate,
         records: groupedShipment.records, // Keep the records for calendar view
@@ -938,7 +931,8 @@ export default function GoodsDashboardPage() {
         phone: groupedShipment.memberPhone,
         branchName: groupedShipment.branchName,
         dailyData,
-        totalGoods: groupedShipment.records?.reduce((sum, record) => sum + record.totalGoods, 0) || 0,
+        totalGoods: groupedShipment.totalGoods || 0, // Use totalGoods from backend
+        rank: groupedShipment.rank, // Add rank from backend
       };
     });
   }, [filteredCalendarData, startDate, endDate]);
@@ -1400,16 +1394,56 @@ export default function GoodsDashboardPage() {
                   className="w-full rounded-xl border border-white/10 bg-slate-900/60 px-3 py-2 text-sm text-white placeholder:text-slate-400 focus:border-amber-400/60 focus:outline-none"
                 />
               </div>
+
+              {/* Sorting Controls */}
+              <div className="flex gap-3">
+                <div>
+                  <label className="text-[0.6rem] uppercase tracking-[0.25em] text-slate-400 block mb-2">
+                    Sort By
+                  </label>
+                  <select
+                    value={sortBy}
+                    onChange={(e) => {
+                      setSortBy(e.target.value);
+                      setCurrentPage(1); // Reset to first page when sorting
+                    }}
+                    className="rounded-xl border border-white/10 bg-slate-900/60 px-3 py-2 text-sm text-white focus:border-amber-400/60 focus:outline-none"
+                  >
+                    <option value="totalgoods">Total Goods</option>
+                    <option value="membername">Member Name</option>
+                    <option value="branchname">Branch Name</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-[0.6rem] uppercase tracking-[0.25em] text-slate-400 block mb-2">
+                    Order
+                  </label>
+                  <select
+                    value={sortOrder}
+                    onChange={(e) => {
+                      setSortOrder(e.target.value as "asc" | "desc");
+                      setCurrentPage(1); // Reset to first page when sorting
+                    }}
+                    className="rounded-xl border border-white/10 bg-slate-900/60 px-3 py-2 text-sm text-white focus:border-amber-400/60 focus:outline-none"
+                  >
+                    <option value="asc">Ascending</option>
+                    <option value="desc">Descending</option>
+                  </select>
+                </div>
+              </div>
             </div>
           </div>
           <div className="mt-6 overflow-x-auto">
             {/* Calendar Header */}
             <div className="min-w-full text-left text-sm text-slate-200">
               <div className="flex gap-2 pb-3 border-b border-white/10 min-w-max">
+                <div className="text-xs uppercase tracking-[0.3em] text-slate-400 w-[80px] flex-shrink-0">Rank</div>
                 <div className="text-xs uppercase tracking-[0.3em] text-slate-400 w-[120px] flex-shrink-0">N0</div>
                 <div className="text-xs uppercase tracking-[0.3em] text-slate-400 w-[200px] flex-shrink-0">Member Name</div>
                 <div className="text-xs uppercase tracking-[0.3em] text-slate-400 w-[150px] flex-shrink-0">Phone</div>
                 <div className="text-xs uppercase tracking-[0.3em] text-slate-400 w-[120px] flex-shrink-0">Branch</div>
+                <div className="text-xs uppercase tracking-[0.3em] text-slate-400 w-[100px] flex-shrink-0 text-right">Total Goods</div>
                 {Array.from({ length: calendarDays }, (_, i) => {
                   const currentDate = new Date(startDate ? startDate : new Date(new Date().getFullYear(), new Date().getMonth(), 1));
                   currentDate.setDate(currentDate.getDate() + i);
@@ -1432,24 +1466,43 @@ export default function GoodsDashboardPage() {
                 ) : (
                   calendarDisplayData.map((member) => (
                     <div key={member.memberId} className="flex gap-2 py-3 border-b border-white/5 hover:bg-white/5 transition-colors min-w-max">
-                      {/* N0 (Member Number) - First Column */}
-                      <div className="flex items-center text-xs text-slate-300 w-[120px] flex-shrink-0">
+                      {/* Rank Column */}
+                      <div className="flex items-center text-xs text-slate-300 w-20 shrink-0">
+                        {member.rank ? (
+                          <span className={`inline-flex items-center justify-center w-8 h-8 rounded-full font-bold ${member.rank <= 3 ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' : 'bg-slate-700/30 text-slate-300'
+                            }`}>
+                            {member.rank}
+                          </span>
+                        ) : (
+                          <span className="text-slate-500">—</span>
+                        )}
+                      </div>
+
+                      {/* N0 (Member Number) */}
+                      <div className="flex items-center text-xs text-slate-300 w-[120px] shrink-0">
                         #{member.memberId}
                       </div>
 
                       {/* Member Name */}
-                      <div className="flex items-center w-[200px] flex-shrink-0">
+                      <div className="flex items-center w-[200px] shrink-0">
                         <div className="font-medium text-white">{member.memberName}</div>
                       </div>
 
                       {/* Phone Number */}
-                      <div className="flex items-center text-xs text-slate-300 w-[150px] flex-shrink-0">
+                      <div className="flex items-center text-xs text-slate-300 w-[150px] shrink-0">
                         {member.phone || '—'}
                       </div>
 
                       {/* Branch Name */}
-                      <div className="flex items-center text-xs text-slate-300 w-[120px] flex-shrink-0">
+                      <div className="flex items-center text-xs text-slate-300 w-[120px] shrink-0">
                         {member.branchName}
+                      </div>
+
+                      {/* Total Goods */}
+                      <div className="flex items-center justify-end text-xs text-slate-300 w-25 shrink-0">
+                        <span className="font-mono font-semibold text-white">
+                          {member.totalGoods?.toLocaleString() || '0'}
+                        </span>
                       </div>
 
                       {/* Daily Goods Columns */}

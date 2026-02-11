@@ -9,8 +9,11 @@ public class GroupedGoodsShipmentResponse {
     private Long branchId;
     private String branchName;
     private List<GoodsShipmentRecord> records;
+    private Integer totalGoods;
+    private Integer rank;
 
-    public GroupedGoodsShipmentResponse() {}
+    public GroupedGoodsShipmentResponse() {
+    }
 
     public Long getMemberId() {
         return memberId;
@@ -58,5 +61,21 @@ public class GroupedGoodsShipmentResponse {
 
     public void setRecords(List<GoodsShipmentRecord> records) {
         this.records = records;
+    }
+
+    public Integer getTotalGoods() {
+        return totalGoods;
+    }
+
+    public void setTotalGoods(Integer totalGoods) {
+        this.totalGoods = totalGoods;
+    }
+
+    public Integer getRank() {
+        return rank;
+    }
+
+    public void setRank(Integer rank) {
+        this.rank = rank;
     }
 }

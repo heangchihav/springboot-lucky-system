@@ -90,6 +90,8 @@ export type GroupedGoodsShipmentResponse = {
   branchId: number;
   branchName: string;
   records: GoodsShipmentRecord[];
+  totalGoods?: number;
+  rank?: number;
 };
 
 export type GoodsDashboardStatsResponse = {
@@ -309,6 +311,8 @@ export const goodsShipmentService = {
     if (params.memberQuery) searchParams.append('memberQuery', params.memberQuery);
     if (params.startDate) searchParams.append('startDate', params.startDate);
     if (params.endDate) searchParams.append('endDate', params.endDate);
+    if (params.sortBy) searchParams.append('sortBy', params.sortBy);
+    if (params.sortOrder) searchParams.append('sortOrder', params.sortOrder);
 
     const response = await request<PaginatedGroupedGoodsShipmentResponse>(`/goods-shipments/grouped?${searchParams.toString()}`);
     return response;
