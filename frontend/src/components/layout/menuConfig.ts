@@ -168,13 +168,20 @@ export const MENU_SECTIONS: MenuSection[] = [
         menuNumber: "8",
         requiredPermission: "menu.marketing.reports.view",
       },
+      {
+        id: "marketing-weekly-schedule",
+        label: "Weekly Schedule",
+        description: "Weekly planning and scheduling",
+        path: "/marketing-service/weekly-schedule",
+        menuNumber: "9",
+      },
 
       {
         id: "marketing-manage-users",
         label: "Manage Users",
         description: "Manage marketing service users",
         path: "/marketing-service/manage-users",
-        menuNumber: "9",
+        menuNumber: "10",
         requiredPermission: "menu.5.view",
       },
       {
@@ -182,7 +189,7 @@ export const MENU_SECTIONS: MenuSection[] = [
         label: "Setups",
         description: "Manage marketing operation setups",
         path: "/marketing-service/setups",
-        menuNumber: "10",
+        menuNumber: "11",
         requiredPermission: "problem.view",
       },
       {
@@ -190,7 +197,7 @@ export const MENU_SECTIONS: MenuSection[] = [
         label: "Permissions",
         description: "Manage marketing service permissions",
         path: "/marketing-service/permissions",
-        menuNumber: "11",
+        menuNumber: "12",
         requiredPermission: "menu.5.view",
       },
     ],

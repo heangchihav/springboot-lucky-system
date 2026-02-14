@@ -304,7 +304,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
         if (isAuth) {
           await refreshUser();
         } else {
-          setUser(null);
+          // Don't set user to null immediately on auth check failure
+          // This allows the app to continue with existing session/tokens
+          console.log("Initial auth check failed, continuing with existing session");
         }
       } catch (err: unknown) {
         console.error("Auth initialization failed:", err);
