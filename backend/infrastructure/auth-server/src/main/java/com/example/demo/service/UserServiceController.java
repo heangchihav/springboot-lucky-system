@@ -74,7 +74,7 @@ public class UserServiceController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
-    // ========== USER-SERVICE ASSIGNMENT ENDPOINTS ==========
+    // ========== AUTH-SERVER ASSIGNMENT ENDPOINTS ==========
 
     @PostMapping("/assign")
     public ResponseEntity<Void> assignUserToService(@RequestBody AssignUserRequest request) {

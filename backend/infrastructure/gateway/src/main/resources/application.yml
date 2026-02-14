@@ -28,7 +28,7 @@ spring:
               filters:
                 - PreserveHostHeader
               predicates:
-                - Path=/api/auth/**,/api/users/**,/api/services/**
+                - Path=/api/auth/**,/api/users/**,/api/rbac/**,/api/services/**
             - id: call-service
               uri: ${CALL_SERVICE_URL:http://demo-call-service:8082}
               filters:

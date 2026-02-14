@@ -10,8 +10,8 @@
 		<relativePath>../pom.xml</relativePath>
 	</parent>
 
-	<artifactId>user-service</artifactId>
-	<name>user-service</name>
+	<artifactId>auth-server</artifactId>
+	<name>auth-server</name>
 
 	<dependencies>
 		<dependency>

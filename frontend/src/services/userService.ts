@@ -88,7 +88,7 @@ class UserService {
 
   async getAllUsers(): Promise<User[]> {
     try {
-      // Use user-service endpoint to get all users
+      // Use auth-server endpoint to get all users
       const response = await apiFetch("/api/users", {
         method: "GET",
         headers: this.getAuthHeaders(),
@@ -111,7 +111,7 @@ class UserService {
 
   async getAllUsersFromUserService(): Promise<User[]> {
     try {
-      // Use user-service endpoint for managing all users across services
+      // Use auth-server endpoint for managing all users across services
       const response = await apiFetch("/api/users", {
         method: "GET",
         headers: this.getAuthHeaders(),
@@ -123,18 +123,18 @@ class UserService {
 
       const users = await this.parseJsonResponse<any[]>(
         response,
-        "Received unexpected response while fetching all users from user-service",
+        "Received unexpected response while fetching all users from auth-server",
       );
       return this.mapUsers(users);
     } catch (error) {
-      console.error("Error fetching all users from user-service:", error);
+      console.error("Error fetching all users from auth-server:", error);
       throw error;
     }
   }
 
   async getActiveUsers(): Promise<User[]> {
     try {
-      // Use user-service endpoint to get all active users
+      // Use auth-server endpoint to get all active users
       const response = await apiFetch("/api/users", {
         method: "GET",
         headers: this.getAuthHeaders(),
@@ -201,7 +201,7 @@ class UserService {
       const responseText = await response.text();
       const parsed = this.safeJsonParse(responseText);
       if (!parsed) {
-        throw new Error("Unexpected response format from user-service");
+        throw new Error("Unexpected response format from auth-server");
       }
       return parsed;
     } catch (error) {

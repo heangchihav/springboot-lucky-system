@@ -241,7 +241,7 @@ docker logs demo-postgres-backup
 
 ```bash
 # 1. Stop the application immediately
-docker compose stop user-service gateway call-service delivery-service marketing-service
+docker compose stop auth-server gateway call-service delivery-service marketing-service
 
 # 2. Find the latest backup before the incident
 ls -lt backups/

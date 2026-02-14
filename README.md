@@ -14,7 +14,7 @@ demo/
 ├── backend/                # Spring Boot microservices + Rust service
 │   ├── .env -> ../.env    # Symlink to root .env
 │   ├── gateway/
-│   ├── user-service/
+│   ├── auth-server/
 │   ├── call-service/
 │   ├── delivery-service/
 │   ├── marketing-service/

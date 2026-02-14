@@ -91,7 +91,7 @@ public class UserServiceManagementService {
         return userServiceRepository.findAll();
     }
 
-    // ========== USER-SERVICE ASSIGNMENT MANAGEMENT ==========
+    // ========== AUTH-SERVER ASSIGNMENT MANAGEMENT ==========
 
     public Optional<UserServiceEntity> getServiceById(Long serviceId) {
         return userServiceRepository.findById(serviceId);

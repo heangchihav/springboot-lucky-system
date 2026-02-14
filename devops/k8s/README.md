@@ -36,7 +36,7 @@ k8s/
 │
 ├── services/             # Application services
 │   ├── backend/
-│   │   ├── user-service.yaml
+│   │   ├── auth-server.yaml
 │   │   ├── call-service.yaml
 │   │   ├── delivery-service.yaml
 │   │   └── marketing-service.yaml
@@ -166,7 +166,7 @@ kubectl delete secret demo-secrets -n demo
 
 ```bash
 # Scale specific service
-kubectl scale deployment user-service -n demo --replicas=3
+kubectl scale deployment auth-server -n demo --replicas=3
 
 # Or edit the YAML file and redeploy
 ```
@@ -195,7 +195,7 @@ kubectl logs -n demo <pod-name>
 kubectl logs -n demo <pod-name> -f
 
 # All pods with label
-kubectl logs -n demo -l app=user-service --tail=50
+kubectl logs -n demo -l app=auth-server --tail=50
 ```
 
 ### Debug Pod Issues

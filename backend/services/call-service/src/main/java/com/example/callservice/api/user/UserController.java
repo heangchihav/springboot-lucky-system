@@ -42,15 +42,15 @@ public class UserController {
 
             logger.info("Fetching users for call service ID: {}", callServiceId);
 
-            // Get users assigned to call service from user-service
+            // Get users assigned to call service from auth-server
             String url = userServiceUrl + "/api/services/services/" + callServiceId + "/users";
-            logger.info("Calling user-service URL: {}", url);
+            logger.info("Calling auth-server URL: {}", url);
 
             @SuppressWarnings("unchecked")
             List<Map<String, Object>> callUsers = restTemplate.getForObject(url, List.class);
 
             if (callUsers == null) {
-                logger.warn("Received null response from user-service");
+                logger.warn("Received null response from auth-server");
                 return ResponseEntity.ok(new ArrayList<>());
             }
 
@@ -67,13 +67,13 @@ public class UserController {
         logger.info("PATCH /api/calls/users/{}/toggle-status - Toggling user status", userId);
         try {
             String url = userServiceUrl + "/api/users/" + userId + "/toggle-status";
-            logger.info("Calling user-service URL: {}", url);
+            logger.info("Calling auth-server URL: {}", url);
 
             @SuppressWarnings("unchecked")
             Map<String, Object> updatedUser = restTemplate.patchForObject(url, null, Map.class);
 
             if (updatedUser == null) {
-                logger.error("Received null response from user-service");
+                logger.error("Received null response from auth-server");
                 return ResponseEntity.internalServerError().build();
             }
 
@@ -91,7 +91,7 @@ public class UserController {
         logger.info("PUT /api/calls/users/{} - Updating user", userId);
         try {
             String url = userServiceUrl + "/api/users/" + userId;
-            logger.info("Calling user-service URL: {}", url);
+            logger.info("Calling auth-server URL: {}", url);
 
             restTemplate.put(url, userData);
 

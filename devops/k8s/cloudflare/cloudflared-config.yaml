@@ -7,6 +7,7 @@ data:
   config.yml: |
     tunnel: ${CLOUDFLARE_TUNNEL_NAME}
     credentials-file: /etc/cloudflared/credentials/${CLOUDFLARE_TUNNEL_NAME}.json
+    origincert: /etc/cloudflared/credentials/cert.pem
 
     ingress:
       - hostname: ${CLOUDFLARE_DOMAIN}

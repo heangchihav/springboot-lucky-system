@@ -48,7 +48,7 @@ public class UserService {
 
             logger.info("Fetching users for call service ID: {}", callServiceId);
 
-            // Get users assigned to call service from user-service
+            // Get users assigned to call service from auth-server
             String url = userServiceUrl + "/api/services/services/" + callServiceId + "/users";
             @SuppressWarnings("unchecked")
             List<Map<String, Object>> callUsers = restTemplate.getForObject(url, List.class);

@@ -51,7 +51,7 @@ docker compose ps
 docker compose logs -f
 
 # Specific service
-docker compose logs -f user-service
+docker compose logs -f auth-server
 docker compose logs -f gateway
 ```
 
@@ -96,8 +96,8 @@ cd backend
 ./mvnw clean package -DskipTests
 
 # Build and push individual service
-docker build -f backend/Dockerfile --build-arg MODULE=user-service -t heangchihav/user-service:latest .
-docker push heangchihav/user-service:latest
+docker build -f backend/Dockerfile --build-arg MODULE=auth-server -t heangchihav/auth-server:latest .
+docker push heangchihav/auth-server:latest
 
 # Repeat for other services: gateway, call-service, delivery-service, marketing-service
 ```
@@ -107,7 +107,7 @@ docker push heangchihav/user-service:latest
 The docker-compose.yml includes:
 
 ### Backend Services (from Docker Hub)
-- **user-service** - Port 8081 - User authentication and authorization
+- **auth-server** - Port 8081 - User authentication and authorization
 - **gateway** - Port 8080 - API Gateway with routing and CORS
 - **call-service** - Port 8082 - Call management service
 - **delivery-service** - Port 8083 - Delivery management service
@@ -140,7 +140,7 @@ The docker-compose.yml includes:
 All services include health checks:
 
 ```bash
-# Check user-service health
+# Check auth-server health
 curl http://localhost:8081/actuator/health
 
 # Check gateway health
@@ -155,10 +155,10 @@ curl https://vetapi.mooniris.com,https://dev.mooniris.com/actuator/health
 ### Service is unhealthy
 ```bash
 # Check logs
-docker logs demo-user-service --tail=100
+docker logs demo-auth-server --tail=100
 
 # Restart service
-docker compose restart user-service
+docker compose restart auth-server
 ```
 
 ### Pull latest images
@@ -195,16 +195,16 @@ To use local builds instead of Docker Hub images, modify docker-compose.yml:
 
 ```yaml
 # From (Docker Hub):
-user-service:
-  image: ${DOCKER_HUB_USERNAME}/user-service:${IMAGE_TAG}
+auth-server:
+  image: ${DOCKER_HUB_USERNAME}/auth-server:${IMAGE_TAG}
 
 # To (Local Build):
-user-service:
+auth-server:
   build:
     context: ../..
     dockerfile: backend/Dockerfile
     args:
-      MODULE: user-service
+      MODULE: auth-server
 ```
 
 ### Use Specific Image Tag

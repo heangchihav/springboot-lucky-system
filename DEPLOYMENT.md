@@ -111,7 +111,7 @@ cd backend
 
 # Build each service
 cd gateway && ./mvnw clean package -DskipTests && cd ..
-cd user-service && ./mvnw clean package -DskipTests && cd ..
+cd auth-server && ./mvnw clean package -DskipTests && cd ..
 cd call-service && ./mvnw clean package -DskipTests && cd ..
 cd delivery-service && ./mvnw clean package -DskipTests && cd ..
 cd marketing-service && ./mvnw clean package -DskipTests && cd ..
@@ -163,7 +163,7 @@ kubectl get pods -n demo
 # NAME                                READY   STATUS    RESTARTS   AGE
 # postgres-...                        1/1     Running   0          2m
 # redis-...                           1/1     Running   0          2m
-# user-service-...                    1/1     Running   0          1m
+# auth-server-...                    1/1     Running   0          1m
 # call-service-...                    1/1     Running   0          1m
 # delivery-service-...                1/1     Running   0          1m
 # marketing-service-...               1/1     Running   0          1m
@@ -182,7 +182,7 @@ kubectl logs -n demo -l app=cloudflared --tail=50
 kubectl logs -n demo -l app=gateway --tail=50
 
 # User Service
-kubectl logs -n demo -l app=user-service --tail=50
+kubectl logs -n demo -l app=auth-server --tail=50
 ```
 
 ### Test Access
@@ -206,7 +206,7 @@ demo/
 │
 ├── backend/                # Spring Boot microservices
 │   ├── gateway/
-│   ├── user-service/
+│   ├── auth-server/
 │   ├── call-service/
 │   ├── delivery-service/
 │   └── marketing-service/
@@ -424,13 +424,13 @@ kubectl rollout restart deployment/<service> -n demo
 
 ```bash
 # Scale up
-kubectl scale deployment user-service -n demo --replicas=3
+kubectl scale deployment auth-server -n demo --replicas=3
 
 # Scale down
-kubectl scale deployment user-service -n demo --replicas=1
+kubectl scale deployment auth-server -n demo --replicas=1
 
 # Auto-scale (HPA)
-kubectl autoscale deployment user-service -n demo --min=2 --max=10 --cpu-percent=80
+kubectl autoscale deployment auth-server -n demo --min=2 --max=10 --cpu-percent=80
 ```
 
 ### Backup Database

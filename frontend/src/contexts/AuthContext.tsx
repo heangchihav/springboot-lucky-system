@@ -186,7 +186,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       "call-service": "call-service",
       delivery: "delivery-service",
       "delivery-service": "delivery-service",
-      user: "user-service",
+      user: "auth-server",
       marketing: "marketing-service",
       "marketing-service": "marketing-service",
     };
@@ -205,7 +205,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       return [
         "call-service",
         "delivery-service",
-        "user-service",
+        "auth-server",
         "marketing-service",
         "branchreport-service",
       ];
@@ -219,7 +219,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       "call-service": "call-service",
       delivery: "delivery-service",
       "delivery-service": "delivery-service",
-      user: "user-service",
+      user: "auth-server",
       marketing: "marketing-service",
       "marketing-service": "marketing-service",
       branchreport: "branchreport-service",
@@ -252,7 +252,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       "call-service": "calls",
       "marketing-service": "marketing",
       "delivery-service": "deliveries",
-      "user-service": "users",
+      "auth-server": "users",
     };
 
     const serviceEndpoint = serviceMap[serviceContext || ""] || "calls";

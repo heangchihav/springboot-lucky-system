@@ -9,12 +9,12 @@ import org.springframework.stereotype.Component;
 @Component
 @Order(2) // Run after permissions
 public class UserDataInitializer implements CommandLineRunner {
-    
+
     private static final Logger logger = LoggerFactory.getLogger(UserDataInitializer.class);
-    
+
     @Override
     public void run(String... args) throws Exception {
-        logger.info("Call-service user data initialization disabled - using real users from user-service");
-        logger.info("Users are fetched dynamically from user-service via API calls");
+        logger.info("Call-service user data initialization disabled - using real users from auth-server");
+        logger.info("Users are fetched dynamically from auth-server via API calls");
     }
 }

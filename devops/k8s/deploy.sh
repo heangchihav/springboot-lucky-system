@@ -84,16 +84,17 @@ echo "→ Applying infrastructure (proxy & ingress)..."
 kubectl apply -f infrastructure/proxy/nginx-configmap.yaml
 kubectl apply -f "$TMP_DIR/infrastructure/proxy/nginx.yaml"
 
-# Services - Backend
-echo "→ Applying backend services..."
-kubectl apply -f "$TMP_DIR/services/backend/user-service.yaml"
+# Services - Backend - Infrastructure
+echo "→ Applying backend infrastructure services..."
+kubectl apply -f "$TMP_DIR/services/infrastructure/auth-server.yaml"
+kubectl apply -f "$TMP_DIR/services/infrastructure/gateway.yaml"
+
+# Services - Backend - Business Services
+echo "→ Applying backend business services..."
 kubectl apply -f "$TMP_DIR/services/backend/call-service.yaml"
 kubectl apply -f "$TMP_DIR/services/backend/delivery-service.yaml"
 kubectl apply -f "$TMP_DIR/services/backend/marketing-service.yaml"
-
-# Services - Gateway
-echo "→ Applying gateway..."
-kubectl apply -f "$TMP_DIR/services/gateway/gateway.yaml"
+kubectl apply -f "$TMP_DIR/services/backend/branchreport-service.yaml"
 
 # Infrastructure - Ingress
 kubectl apply -f "$TMP_DIR/infrastructure/proxy/ingress.yaml"
@@ -102,13 +103,19 @@ kubectl apply -f "$TMP_DIR/infrastructure/proxy/ingress.yaml"
 echo "→ Applying Cloudflare tunnel..."
 kubectl apply -f "$TMP_DIR/cloudflare/cloudflared-config.yaml"
 
-# Create secret from files (more secure than hardcoded YAML)
-if [ -f "cloudflare/create-secret.sh" ]; then
-    echo "  Creating cloudflared secret from files..."
-    bash cloudflare/create-secret.sh
+# Setup cloudflared secret and generate config from comma-separated domains
+if [ -f "cloudflare/cloudflare-setup.sh" ]; then
+    echo "  Setting up cloudflared with comma-separated domains..."
+    bash cloudflare/cloudflare-setup.sh all
 else
-    echo "  Using hardcoded secret (fallback)..."
-    kubectl apply -f cloudflare/cloudflared-secret.yaml
+    echo "  Warning: cloudflare-setup.sh not found, using fallback scripts..."
+    # Fallback to individual scripts if they exist
+    if [ -f "cloudflare/create-secret.sh" ]; then
+        bash cloudflare/create-secret.sh
+    fi
+    if [ -f "cloudflare/generate-config.sh" ]; then
+        bash cloudflare/generate-config.sh
+    fi
 fi
 
 kubectl apply -f "$TMP_DIR/cloudflare/cloudflared.yaml"

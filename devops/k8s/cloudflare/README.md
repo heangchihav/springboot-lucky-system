@@ -2,195 +2,168 @@
 
 ## Files
 
-- **`cloudflared-config.yaml`** - Tunnel configuration (uses env variables)
-- **`cloudflared.yaml`** - Deployment manifest
-- **`cloudflared-secret.yaml`** - Hardcoded secret (fallback)
-- **`create-secret.sh`** - Script to create secret from files (recommended)
+- **`cloudflared-config.yaml`** - Tunnel configuration with environment variables
+- **`cloudflared.yaml`** - Deployment manifest  
+- **`cloudflare-setup.sh`** - Unified setup script (secret + config generation)
 
-## Secret Management
+## Overview
 
-### Recommended Approach (From Files)
+This setup uses environment variables from `.env` file to dynamically configure cloudflared tunnel with comma-separated domains.
 
-The secret is created from actual credential files:
+## Environment Variables
 
 ```bash
-# Run manually
-./create-secret.sh
-
-# Or automatically via deploy.sh
-cd ..
-./deploy.sh
+# In ../.env
+CLOUDFLARE_TUNNEL_NAME=demo-tunnel
+CLOUDFLARE_DOMAIN=vetapi.mooniris.com,https://dev.mooniris.com
+CLOUDFLARE_SERVICE=http://nginx:80
 ```
-
-**Benefits:**
-- ✅ No hardcoded base64 in git
-- ✅ Easy to update (just replace files)
-- ✅ Works with different tunnels per environment
-- ✅ Standard Kubernetes practice
-
-### Fallback Approach (Hardcoded YAML)
-
-If `create-secret.sh` doesn't exist, the deployment falls back to `cloudflared-secret.yaml`.
 
 ## How It Works
 
-### 1. Credential Files Location
+### 1. Environment Variable Processing
+
+The `deploy.sh` script uses `envsubst` to process all YAML files, substituting environment variables:
+
+```bash
+# Processes comma-separated domains into individual ingress rules
+CLOUDFLARE_DOMAIN=vetapi.mooniris.com,https://dev.mooniris.com
+```
+
+Becomes:
+```yaml
+ingress:
+  - hostname: vetapi.mooniris.com
+    service: http://nginx:80
+  - hostname: dev.mooniris.com
+    service: http://nginx:80
+```
+
+### 2. Unified Setup Script
+
+The `cloudflare-setup.sh` script handles both:
+- **Secret creation** from credential files
+- **Config generation** from comma-separated domains
+
+Usage:
+```bash
+./cloudflare-setup.sh all     # Create both (default)
+./cloudflare-setup.sh secret  # Create only secret
+./cloudflare-setup.sh config  # Generate only config
+```
+
+### 3. Credential Files Location
 
 ```
-/infra/cloudflared/
+/devops/cloudflared/
 ├── demo-tunnel.json    # Tunnel credentials
 └── cert.pem           # Origin certificate
 ```
 
-### 2. Secret Creation
+## Deployment Process
 
-The `create-secret.sh` script:
-1. Reads files from `/infra/cloudflared/`
-2. Creates Kubernetes secret with base64 encoding
-3. Deletes old secret if exists
-4. Creates new secret in `demo` namespace
+1. **Base ConfigMap** is applied with environment variable placeholders
+2. **cloudflare-setup.sh** processes comma-separated domains and updates ConfigMap
+3. **Secret** is created from credential files
+4. **Deployment** is applied with the generated configuration
 
-### 3. Deployment Uses Secret
+## Multiple Domains
 
-```yaml
-volumeMounts:
-  - name: credentials
-    mountPath: /etc/cloudflared/credentials
-volumes:
-  - name: credentials
-    secret:
-      secretName: cloudflared-credentials
-```
-
-## Multiple Environments
-
-### Dev Environment
+Add domains to `.env` using comma-separated format:
 
 ```bash
-# Use dev tunnel credentials
-cp ~/.cloudflared/dev-tunnel.json ../../cloudflared/demo-tunnel.json
-./create-secret.sh
+# Single domain
+CLOUDFLARE_DOMAIN=vetapi.mooniris.com
+
+# Multiple domains
+CLOUDFLARE_DOMAIN=vetapi.mooniris.com,https://dev.mooniris.com,https://api.example.com
 ```
 
-### Staging Environment
-
-```bash
-# Use staging tunnel credentials
-cp ~/.cloudflared/staging-tunnel.json ../../cloudflared/demo-tunnel.json
-./create-secret.sh
-```
-
-### Production Environment
-
-```bash
-# Use prod tunnel credentials
-cp ~/.cloudflared/prod-tunnel.json ../../cloudflared/demo-tunnel.json
-./create-secret.sh
-```
+The setup script automatically:
+- Removes protocols (`https://`, `http://`)
+- Splits by comma
+- Creates individual ingress rules
+- Validates domain format
 
 ## Updating Credentials
 
-### When to Update
-
-- Rotating tunnel credentials
-- Changing tunnel
-- Moving to different Cloudflare account
-
-### How to Update
-
+### 1. Update Credential Files
 ```bash
-# 1. Get new credentials
-cloudflared tunnel create new-tunnel
+# Replace files in /devops/cloudflared/
+cp ~/.cloudflared/new-tunnel.json /devops/cloudflared/demo-tunnel.json
+cp ~/.cloudflared/cert.pem /devops/cloudflared/cert.pem
+```
 
-# 2. Copy to cloudflared directory
-cp ~/.cloudflared/<new-tunnel-id>.json ../../cloudflared/demo-tunnel.json
-
-# 3. Update .env with new tunnel name
-nano ../../../.env
+### 2. Update Environment
+```bash
+# Edit .env if changing tunnel name
+nano .env
 # Change: CLOUDFLARE_TUNNEL_NAME=new-tunnel
+```
 
-# 4. Recreate secret
-./create-secret.sh
-
-# 5. Restart cloudflared
-kubectl rollout restart deployment/cloudflared -n demo
+### 3. Redeploy
+```bash
+./deploy.sh
 ```
 
 ## Troubleshooting
 
-### Secret Not Found
+### Domain Issues
+```bash
+# Check generated config
+kubectl get configmap cloudflared-config -n demo -o yaml
 
+# Test domain processing
+./cloudflare-setup.sh config
+```
+
+### Secret Issues
 ```bash
 # Check if secret exists
 kubectl get secret cloudflared-credentials -n demo
 
 # Recreate secret
-./create-secret.sh
+./cloudflare-setup.sh secret
 ```
 
-### Wrong Credentials
-
+### Tunnel Not Connecting
 ```bash
-# Delete secret
-kubectl delete secret cloudflared-credentials -n demo
+# Check logs
+kubectl logs -n demo -l app=cloudflared --tail=50
 
-# Verify files are correct
-ls -la ../../cloudflared/
-
-# Recreate secret
-./create-secret.sh
-```
-
-### Permission Denied
-
-```bash
-# Make script executable
-chmod +x create-secret.sh
-
-# Run script
-./create-secret.sh
+# Restart deployment
+kubectl rollout restart deployment/cloudflared -n demo
 ```
 
 ## Best Practices
 
-1. ✅ **Use create-secret.sh** - Don't hardcode secrets in YAML
-2. ✅ **Keep files secure** - Don't commit credential files to git
-3. ✅ **Rotate regularly** - Update credentials periodically
-4. ✅ **Environment-specific** - Different tunnels per environment
-5. ❌ **Don't commit secrets** - Keep `cloudflared-secret.yaml` as fallback only
-6. ❌ **Don't share credentials** - Each environment has its own
-
-## CI/CD Integration
-
-### GitHub Actions Example
-
-```yaml
-- name: Create Cloudflared Secret
-  env:
-    TUNNEL_CREDENTIALS: ${{ secrets.CLOUDFLARE_TUNNEL_CREDENTIALS }}
-    TUNNEL_CERT: ${{ secrets.CLOUDFLARE_TUNNEL_CERT }}
-  run: |
-    echo "$TUNNEL_CREDENTIALS" | base64 -d > infra/cloudflared/demo-tunnel.json
-    echo "$TUNNEL_CERT" | base64 -d > infra/cloudflared/cert.pem
-    cd infra/k8s/cloudflare
-    ./create-secret.sh
-```
-
-### GitLab CI Example
-
-```yaml
-deploy:
-  script:
-    - echo "$TUNNEL_CREDENTIALS" | base64 -d > infra/cloudflared/demo-tunnel.json
-    - echo "$TUNNEL_CERT" | base64 -d > infra/cloudflared/cert.pem
-    - cd infra/k8s/cloudflare
-    - ./create-secret.sh
-```
+1. ✅ **Use comma-separated domains** in `.env` for easy management
+2. ✅ **Keep credential files secure** - don't commit to git
+3. ✅ **Use cloudflare-setup.sh** for unified setup
+4. ✅ **Environment variables** for dynamic configuration
+5. ❌ **Don't hardcode domains** in YAML files
+6. ❌ **Don't commit secrets** to version control
 
 ## Security Notes
 
 - Credential files contain sensitive data
 - Never commit to git (already in `.gitignore`)
-- Use secret management tools in production (Vault, AWS Secrets Manager)
+- Use different tunnels per environment
 - Rotate credentials regularly
 - Audit access to credential files
+
+## CI/CD Integration
+
+### GitHub Actions Example
+```yaml
+- name: Setup Cloudflare Tunnel
+  env:
+    CLOUDFLARE_TUNNEL_NAME: ${{ secrets.CLOUDFLARE_TUNNEL_NAME }}
+    CLOUDFLARE_DOMAIN: ${{ secrets.CLOUDFLARE_DOMAIN }}
+    CLOUDFLARE_SERVICE: http://nginx:80
+  run: |
+    echo "$TUNNEL_CREDENTIALS" > devops/cloudflared/demo-tunnel.json
+    echo "$TUNNEL_CERT" > devops/cloudflared/cert.pem
+    cd devops/k8s
+    ./deploy.sh
+```

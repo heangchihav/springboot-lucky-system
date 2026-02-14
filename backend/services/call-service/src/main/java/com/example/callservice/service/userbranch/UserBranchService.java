@@ -64,9 +64,9 @@ public class UserBranchService {
         }
 
         try {
-            // TODO: Implement proper user-service API call when user-service is available
+            // TODO: Implement proper auth-server API call when auth-server is available
             // For now, check if username is "root" - this is a temporary implementation
-            // In production, this should call user-service to verify root status
+            // In production, this should call auth-server to verify root status
             return userId.equals(1L); // Assuming root user has ID 1, adjust as needed
         } catch (Exception e) {
             System.err.println("Error checking root user for userId " + userId + ": " + e.getMessage());
@@ -76,14 +76,14 @@ public class UserBranchService {
     }
 
     private boolean isUserActive(Long userId) {
-        // TODO: Implement proper user-service API call when user-service is available
+        // TODO: Implement proper auth-server API call when auth-server is available
         // For now, assume user exists and is active to test branch assignment
         // functionality
         return true;
     }
 
     public UserBranch assignUserToBranch(Long userId, Long branchId) {
-        // Validate user exists and is active via user-service API
+        // Validate user exists and is active via auth-server API
         if (!isUserActive(userId)) {
             throw new IllegalArgumentException("User not found or inactive with id: " + userId);
         }
@@ -112,7 +112,7 @@ public class UserBranchService {
     }
 
     public List<UserBranch> assignUserToBranches(Long userId, List<Long> branchIds) {
-        // Validate user exists and is active via user-service API
+        // Validate user exists and is active via auth-server API
         if (!isUserActive(userId)) {
             throw new IllegalArgumentException("User not found or inactive with id: " + userId);
         }

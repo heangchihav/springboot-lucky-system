@@ -11,7 +11,7 @@ BACKEND_DIR="${PROJECT_ROOT}/backend"
 NAMESPACE="${NAMESPACE:-demo}"
 DOCKER_HUB_USERNAME="${DOCKER_HUB_USERNAME:-}"
 IMAGE_TAG="${IMAGE_TAG:-latest}"
-ALL_MODULES=("gateway" "user-service" "call-service" "delivery-service" "marketing-service")
+ALL_MODULES=("infrastructure/auth-server" "infrastructure/gateway" "services/call-service" "services/delivery-service" "services/marketing-service" "services/branchreport-service")
 
 # If arguments provided, use them as modules to update. Otherwise, update all.
 if [[ $# -gt 0 ]]; then
@@ -24,49 +24,81 @@ fi
 
 # Validate module names
 for module in "${MODULES[@]}"; do
-  if [[ ! " ${ALL_MODULES[*]} " =~ " ${module} " ]]; then
-    echo -e "${RED}Error: Invalid module '${module}'.${NC}"
-    echo -e "Valid modules: ${ALL_MODULES[*]}"
-    exit 1
-  fi
+    if [[ ! " ${ALL_MODULES[*]} " =~ " ${module} " ]]; then
+        echo -e "${RED}Error: Invalid module '${module}'.${NC}"
+        echo -e "Valid modules: ${ALL_MODULES[*]}"
+        exit 1
+    fi
 done
 
 if [[ -z "$DOCKER_HUB_USERNAME" ]]; then
-  echo -e "${RED}Error: DOCKER_HUB_USERNAME is not set.${NC}"
-  echo "Export it before running (e.g., export DOCKER_HUB_USERNAME=heangchihav)"
-  exit 1
+    echo -e "${RED}Error: DOCKER_HUB_USERNAME is not set.${NC}"
+    echo "Export it before running (e.g., export DOCKER_HUB_USERNAME=heangchihav)"
+    exit 1
 fi
 
 echo -e "${YELLOW}=== Building Spring Boot microservices (${MODULES[*]}) ===${NC}"
-cd "${BACKEND_DIR}"
-./mvnw -pl "$(IFS=,; echo "${MODULES[*]}")" -am clean package -DskipTests
-cd "${PROJECT_ROOT}"
 
 for module in "${MODULES[@]}"; do
-  MODULE_DIR="${BACKEND_DIR}/${module}"
-  DOCKERFILE="${MODULE_DIR}/Dockerfile"
-  IMAGE="${DOCKER_HUB_USERNAME}/${module}:${IMAGE_TAG}"
+    MODULE_DIR="${BACKEND_DIR}/${module}"
+    echo -e "\n${GREEN}Building ${module}...${NC}"
+    cd "${MODULE_DIR}"
+    
+    # Check if it's a Rust project (has Cargo.toml) or Java project (has pom.xml)
+    if [ -f "Cargo.toml" ]; then
+        # Rust project - use Cargo
+        echo "Detected Rust project, using Cargo..."
+        cargo build --release
+        
+        if [ $? -ne 0 ]; then
+            echo -e "${RED}Cargo build failed for ${module}${NC}"
+            exit 1
+        fi
+    elif [ -f "pom.xml" ]; then
+        # Java project - use Maven
+        echo "Detected Java project, using Maven..."
+        mvn clean package -DskipTests
+        
+        if [ $? -ne 0 ]; then
+            echo -e "${RED}Maven build failed for ${module}${NC}"
+            exit 1
+        fi
+    else
+        echo -e "${RED}Error: No build system detected for ${module} (neither Cargo.toml nor pom.xml found)${NC}"
+        exit 1
+    fi
+    
+    cd "${PROJECT_ROOT}"
+done
 
-  if [[ ! -f "${DOCKERFILE}" ]]; then
-    echo -e "${RED}Dockerfile not found for ${module} at ${DOCKERFILE}.${NC}"
-    exit 1
-  fi
+for module in "${MODULES[@]}"; do
+    MODULE_DIR="${BACKEND_DIR}/${module}"
+    DOCKERFILE="${MODULE_DIR}/Dockerfile"
+    
+    # Extract service name from module path (e.g., "infrastructure/auth-server" -> "auth-server")
+    SERVICE_NAME=$(basename "$module")
+    IMAGE="${DOCKER_HUB_USERNAME}/${SERVICE_NAME}:${IMAGE_TAG}"
 
-  echo -e "\n${GREEN}[1/3] Building ${module} image (${IMAGE})...${NC}"
-  docker build -t "${IMAGE}" -f "${DOCKERFILE}" "${MODULE_DIR}"
+    if [[ ! -f "${DOCKERFILE}" ]]; then
+        echo -e "${RED}Dockerfile not found for ${module} at ${DOCKERFILE}.${NC}"
+        exit 1
+    fi
 
-  echo -e "${GREEN}[2/3] Pushing ${IMAGE} to Docker Hub...${NC}"
-  docker push "${IMAGE}"
+    echo -e "\n${GREEN}[1/3] Building ${module} image (${IMAGE})...${NC}"
+    docker build -t "${IMAGE}" -f "${DOCKERFILE}" "${MODULE_DIR}"
 
-  echo -e "${GREEN}[3/3] Updating deployment/${module} in namespace ${NAMESPACE}...${NC}"
-  if kubectl get deployment "${module}" -n "${NAMESPACE}" >/dev/null 2>&1; then
-    kubectl set image "deployment/${module}" \
-      "${module}=${IMAGE}" \
-      -n "${NAMESPACE}"
-    kubectl rollout status "deployment/${module}" -n "${NAMESPACE}" --timeout=180s
-  else
-    echo -e "${YELLOW}Deployment ${module} not found in namespace ${NAMESPACE}. Apply manifests first.${NC}"
-  fi
+    echo -e "${GREEN}[2/3] Pushing ${IMAGE} to Docker Hub...${NC}"
+    docker push "${IMAGE}"
+
+    echo -e "${GREEN}[3/3] Updating deployment/${SERVICE_NAME} in namespace ${NAMESPACE}...${NC}"
+    if kubectl get deployment "${SERVICE_NAME}" -n "${NAMESPACE}" >/dev/null 2>&1; then
+        kubectl set image "deployment/${SERVICE_NAME}" \
+          "${SERVICE_NAME}=${IMAGE}" \
+          -n "${NAMESPACE}"
+        kubectl rollout status "deployment/${SERVICE_NAME}" -n "${NAMESPACE}" --timeout=180s
+    else
+        echo -e "${YELLOW}Deployment ${SERVICE_NAME} not found in namespace ${NAMESPACE}. Apply manifests first.${NC}"
+    fi
 done
 
 echo -e "\n${GREEN}=== All services built, pushed, and rolled out! ===${NC}"

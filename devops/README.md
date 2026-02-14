@@ -112,7 +112,7 @@ docker compose logs -f
 
    The script:
    - Runs `./mvnw` for all backend modules
-   - Builds each service with its own Dockerfile (e.g., `backend/user-service/Dockerfile`)
+   - Builds each service with its own Dockerfile (e.g., `backend/auth-server/Dockerfile`)
    - Pushes `heangchihav/<service>:${IMAGE_TAG}`
    - Calls `kubectl set image` for any existing deployments
 
@@ -136,7 +136,7 @@ docker compose logs -f
    ./deploy.sh
    ```
    This applies namespace, config/secrets, Postgres, Redis, all Spring Boot services
-   (gateway, user-service, call-service, delivery-service, demo-app), nginx, cloudflared, and ingress.
+   (gateway, auth-server, call-service, delivery-service, demo-app), nginx, cloudflared, and ingress.
 
    Or manually with kustomize:
    ```bash

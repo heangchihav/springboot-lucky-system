@@ -36,7 +36,7 @@ public class MarketingUserController {
 
             System.out.println("Fetching users for marketing service ID: " + marketingServiceId);
 
-            // Get users assigned to marketing service from user-service
+            // Get users assigned to marketing service from auth-server
             String url = userServiceUrl + "/api/services/services/" + marketingServiceId + "/users";
             @SuppressWarnings("unchecked")
             List<Map<String, Object>> marketingUsers = restTemplate.getForObject(url, List.class);
