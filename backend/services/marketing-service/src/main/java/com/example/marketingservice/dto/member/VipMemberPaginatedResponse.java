@@ -26,13 +26,27 @@ public class VipMemberPaginatedResponse {
     public VipMemberPaginatedResponse() {
     }
 
+    // Helper method to convert java.sql.Date to LocalDate if needed
+    private static LocalDate convertToLocalDate(Object date) {
+        if (date == null) {
+            return null;
+        }
+        if (date instanceof java.sql.Date) {
+            return ((java.sql.Date) date).toLocalDate();
+        }
+        return (LocalDate) date;
+    }
+
     public static VipMemberPaginatedResponse fromEntity(VipMember member) {
         VipMemberPaginatedResponse response = new VipMemberPaginatedResponse();
         response.setId(member.getId());
         response.setName(member.getName());
         response.setPhone(member.getPhone());
-        response.setMemberCreatedAt(member.getMemberCreatedAt());
-        response.setMemberDeletedAt(member.getMemberDeletedAt());
+
+        // Handle potential java.sql.Date to LocalDate conversion
+        response.setMemberCreatedAt(convertToLocalDate(member.getMemberCreatedAt()));
+        response.setMemberDeletedAt(convertToLocalDate(member.getMemberDeletedAt()));
+
         response.setCreateRemark(member.getCreateRemark());
         response.setDeleteRemark(member.getDeleteRemark());
         response.setCreatedAt(member.getCreatedAt());

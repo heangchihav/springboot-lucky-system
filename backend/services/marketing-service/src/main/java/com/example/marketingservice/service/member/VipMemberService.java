@@ -499,7 +499,7 @@ public class VipMemberService {
         Specification<VipMember> spec = Specification.where((root, query, cb) -> cb.conjunction());
 
         if (filteredBranchId != null) {
-            spec = spec.and((root, q, cb) -> cb.equal(root.get("branchId"), filteredBranchId));
+            spec = spec.and((root, q, cb) -> cb.equal(root.get("branch").get("id"), filteredBranchId));
         } else if (filteredSubAreaId != null) {
             spec = spec.and((root, q, cb) -> cb.equal(root.join("branch").get("subArea").get("id"), filteredSubAreaId));
         } else if (filteredAreaId != null) {
@@ -546,7 +546,7 @@ public class VipMemberService {
         Specification<VipMember> spec = Specification.where((root, query, cb) -> cb.conjunction());
 
         if (filteredBranchId != null) {
-            spec = spec.and((root, q, cb) -> cb.equal(root.get("branchId"), filteredBranchId));
+            spec = spec.and((root, q, cb) -> cb.equal(root.get("branch").get("id"), filteredBranchId));
         } else if (filteredSubAreaId != null) {
             spec = spec.and((root, q, cb) -> cb.equal(root.join("branch").get("subArea").get("id"), filteredSubAreaId));
         } else if (filteredAreaId != null) {
@@ -596,7 +596,7 @@ public class VipMemberService {
         Specification<VipMember> spec = Specification.where((root, query, cb) -> cb.conjunction());
 
         if (filteredBranchId != null) {
-            spec = spec.and((root, q, cb) -> cb.equal(root.get("branchId"), filteredBranchId));
+            spec = spec.and((root, q, cb) -> cb.equal(root.get("branch").get("id"), filteredBranchId));
         } else if (filteredSubAreaId != null) {
             spec = spec.and((root, q, cb) -> cb.equal(root.join("branch").get("subArea").get("id"), filteredSubAreaId));
         } else if (filteredAreaId != null) {

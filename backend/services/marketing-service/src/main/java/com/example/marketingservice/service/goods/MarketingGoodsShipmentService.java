@@ -847,7 +847,7 @@ public class MarketingGoodsShipmentService {
 
         return results.stream()
                 .map(row -> new GoodsDashboardStatsResponse.DailyTrend(
-                        (LocalDate) row[0],
+                        row[0] instanceof java.sql.Date ? ((java.sql.Date) row[0]).toLocalDate() : (LocalDate) row[0],
                         ((Number) row[1]).intValue()))
                 .collect(Collectors.toList());
     }
