@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { MarketingServiceGuard } from "@/components/marketing-service/MarketingServiceGuard";
 import { useToast } from "@/components/ui/Toast";
+import { weeklyScheduleService, WeeklyScheduleResponse, WeeklyScheduleRequest } from "@/app/services/marketing-service";
 
 /* ================= STYLES ================= */
 const scrollbarHideStyles = `
@@ -48,12 +49,15 @@ type UserInfo = {
 };
 
 type SubmittedSchedule = {
+  id?: number;
   userInfo: UserInfo;
   selectedWeek: number | null;
   currentWeekIndex: number | null;
   weekDetails: {
+    id?: number;
     weekNumber: number;
     days: Array<{
+      id?: number;
       dayNumber: number;
       dayName: string;
       date: string;
@@ -185,6 +189,7 @@ export default function MonthlySchedulePage() {
   const [selectedSubmittedSchedule, setSelectedSubmittedSchedule] = useState<SubmittedSchedule | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingSchedule, setEditingSchedule] = useState<SubmittedSchedule | null>(null);
+  const [loading, setLoading] = useState(false);
 
   const expandRow = (weekIndex: number, dayIndex: number) => {
     const uniqueKey = `${weekIndex}-${dayIndex}`;
@@ -214,12 +219,86 @@ export default function MonthlySchedulePage() {
   // Auto-generate schedule when year/month changes
   useEffect(() => {
     if (year && month) {
-      const weeks = generateBusinessMonth(year, month);
-      setSchedule({ year, month, weeks });
-      setCurrentWeekIndex(null);
-      setSelectedWeek(null);
+      loadScheduleFromBackend();
     }
   }, [year, month]);
+
+  const loadScheduleFromBackend = async () => {
+    try {
+      setLoading(true);
+      const backendWeeks = await weeklyScheduleService.generateMonth(year, month);
+
+      // Convert backend response to frontend format
+      const weeks: WeekSchedule[] = backendWeeks.map(week => ({
+        weekNumber: week.weekNumber,
+        days: week.days.map(day => ({
+          date: day.date,
+          dayName: day.dayName,
+          isDayOff: day.isDayOff,
+          remark: day.remark || '',
+          morning: day.morningSchedule || '',
+          afternoon: day.afternoonSchedule || '',
+          inMonth: day.inMonth
+        }))
+      }));
+
+      setSchedule({ year, month, weeks });
+
+      // Auto-select the first week for better UX
+      if (weeks.length > 0) {
+        setCurrentWeekIndex(0);
+        setSelectedWeek(weeks[0].weekNumber);
+        setUserInfo(prev => ({ ...prev, week: weeks[0].weekNumber }));
+      }
+
+      // Load existing schedules for this month
+      const existingSchedules = await weeklyScheduleService.getAllSchedules(year, month);
+      const submittedSchedulesData = existingSchedules.map(schedule => ({
+        id: schedule.id,
+        userInfo: {
+          fullName: schedule.fullName,
+          phoneNumber: schedule.phoneNumber,
+          subArea: schedule.subArea || '',
+          month: schedule.month,
+          week: schedule.weekNumber
+        },
+        selectedWeek: schedule.weekNumber,
+        currentWeekIndex: schedule.weekNumber - 1,
+        weekDetails: {
+          id: schedule.id,
+          weekNumber: schedule.weekNumber,
+          days: schedule.days.map(day => ({
+            id: day.id,
+            dayNumber: day.dayNumber,
+            dayName: day.dayName,
+            date: day.date,
+            isDayOff: day.isDayOff,
+            morningSchedule: day.morningSchedule || '',
+            afternoonSchedule: day.afternoonSchedule || '',
+            inMonth: day.inMonth
+          }))
+        },
+        timestamp: schedule.createdAt
+      }));
+      setSubmittedSchedules(submittedSchedulesData);
+
+      // Show submitted table if there are existing schedules
+      if (submittedSchedulesData.length > 0) {
+        setShowSubmittedTable(true);
+      }
+
+      setCurrentWeekIndex(null);
+      setSelectedWeek(null);
+    } catch (error) {
+      console.error('Error loading schedule:', error);
+      showToast('Failed to load schedule data', 'error');
+      // Fallback to local generation
+      const weeks = generateBusinessMonth(year, month);
+      setSchedule({ year, month, weeks });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Inject scrollbar hide styles
   useEffect(() => {
@@ -267,17 +346,63 @@ export default function MonthlySchedulePage() {
     setEditingSchedule(updatedSchedule);
   };
 
-  const saveEditedSchedule = () => {
-    if (!editingSchedule) return;
+  const saveEditedSchedule = async () => {
+    if (!editingSchedule || !editingSchedule.id) return;
 
-    setSubmittedSchedules(prev =>
-      prev.map(schedule =>
-        schedule.timestamp === editingSchedule.timestamp ? editingSchedule : schedule
-      )
-    );
-    setShowEditModal(false);
-    setEditingSchedule(null);
-    showToast('Schedule updated successfully!', 'success');
+    try {
+      setLoading(true);
+
+      // Prepare data for backend
+      const scheduleRequest: WeeklyScheduleRequest = {
+        userId: 1, // Hardcoded for now
+        fullName: editingSchedule.userInfo.fullName,
+        phoneNumber: editingSchedule.userInfo.phoneNumber,
+        subArea: editingSchedule.userInfo.subArea,
+        year: year,
+        month: month,
+        weekNumber: editingSchedule.selectedWeek!,
+        days: editingSchedule.weekDetails?.days.map(day => ({
+          dayNumber: day.dayNumber,
+          dayName: day.dayName,
+          date: day.date,
+          isDayOff: day.isDayOff,
+          remark: '',
+          morningSchedule: day.morningSchedule || '',
+          afternoonSchedule: day.afternoonSchedule || '',
+          inMonth: day.inMonth
+        })) || []
+      };
+
+      // Update on backend
+      const updatedSchedule = await weeklyScheduleService.updateSchedule(editingSchedule.id, scheduleRequest);
+
+      // Update local state
+      setSubmittedSchedules(prev =>
+        prev.map(schedule =>
+          schedule.id === editingSchedule.id ? {
+            ...editingSchedule,
+            weekDetails: {
+              ...editingSchedule.weekDetails!,
+              days: updatedSchedule.days.map((backendDay, index) => ({
+                ...editingSchedule.weekDetails!.days[index],
+                morningSchedule: backendDay.morningSchedule,
+                afternoonSchedule: backendDay.afternoonSchedule,
+                isDayOff: backendDay.isDayOff
+              }))
+            }
+          } : schedule
+        )
+      );
+
+      setShowEditModal(false);
+      setEditingSchedule(null);
+      showToast('Schedule updated successfully!', 'success');
+    } catch (error) {
+      console.error('Error updating schedule:', error);
+      showToast(error instanceof Error ? error.message : 'Failed to update schedule', 'error');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const openSubmittedScheduleModal = (schedule: SubmittedSchedule) => {
@@ -301,52 +426,90 @@ export default function MonthlySchedulePage() {
     }
   };
 
-  const handleSaveSchedule = () => {
+  const handleSaveSchedule = async () => {
     const currentWeek = getCurrentWeek();
-    const submissionData: SubmittedSchedule = {
-      userInfo: userInfo,
-      selectedWeek: selectedWeek,
-      currentWeekIndex: currentWeekIndex,
-      weekDetails: currentWeek ? {
-        weekNumber: currentWeek.weekNumber,
+    if (!currentWeek || !selectedWeek) {
+      showToast('Please select a week', 'error');
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      // Prepare data for backend
+      const scheduleRequest: WeeklyScheduleRequest = {
+        userId: 1, // Hardcoded for now - should come from auth context
+        fullName: userInfo.fullName,
+        phoneNumber: userInfo.phoneNumber,
+        subArea: userInfo.subArea,
+        year: year,
+        month: month,
+        weekNumber: selectedWeek,
         days: currentWeek.days.map((day, index) => ({
           dayNumber: index + 1,
           dayName: day.dayName,
           date: day.date,
           isDayOff: day.isDayOff,
-          morningSchedule: day.morning,
-          afternoonSchedule: day.afternoon,
+          remark: day.remark || '',
+          morningSchedule: day.morning || '',
+          afternoonSchedule: day.afternoon || '',
           inMonth: day.inMonth
         }))
-      } : null,
-      timestamp: new Date().toISOString()
-    };
+      };
 
-    console.log('=== SCHEDULE SUBMISSION ===');
-    console.log(JSON.stringify(submissionData, null, 2));
-    console.log('=== END SUBMISSION ===');
+      // Send to backend
+      const savedSchedule = await weeklyScheduleService.createSchedule(scheduleRequest);
 
-    // Add the submitted data to the array
-    setSubmittedSchedules(prev => [...prev, submissionData]);
-    setShowSubmittedTable(true);
-    showToast('Schedule saved successfully!', 'success');
+      // Convert to frontend format for local state
+      const submissionData: SubmittedSchedule = {
+        id: savedSchedule.id,
+        userInfo: userInfo,
+        selectedWeek: selectedWeek,
+        currentWeekIndex: currentWeekIndex,
+        weekDetails: {
+          id: savedSchedule.id,
+          weekNumber: currentWeek.weekNumber,
+          days: currentWeek.days.map((day, index) => ({
+            id: savedSchedule.days[index]?.id,
+            dayNumber: index + 1,
+            dayName: day.dayName,
+            date: day.date,
+            isDayOff: day.isDayOff,
+            morningSchedule: day.morning,
+            afternoonSchedule: day.afternoon,
+            inMonth: day.inMonth
+          }))
+        },
+        timestamp: savedSchedule.createdAt
+      };
 
-    // Clear form and reset for new input
-    setSelectedWeek(null);
-    setCurrentWeekIndex(null);
+      // Add the submitted data to the array
+      setSubmittedSchedules(prev => [...prev, submissionData]);
+      setShowSubmittedTable(true);
+      showToast('Schedule saved successfully!', 'success');
 
-    // Clear the current week data
-    if (schedule && currentWeekIndex !== null) {
-      const newSchedule = structuredClone(schedule);
-      // Reset all days in the current week
-      newSchedule.weeks[currentWeekIndex].days = newSchedule.weeks[currentWeekIndex].days.map(day => ({
-        ...day,
-        isDayOff: false,
-        morning: "",
-        afternoon: "",
-        remark: ""
-      }));
-      setSchedule(newSchedule);
+      // Clear form and reset for new input
+      setSelectedWeek(null);
+      setCurrentWeekIndex(null);
+
+      // Clear the current week data
+      if (schedule && currentWeekIndex !== null) {
+        const newSchedule = structuredClone(schedule);
+        // Reset all days in the current week
+        newSchedule.weeks[currentWeekIndex].days = newSchedule.weeks[currentWeekIndex].days.map(day => ({
+          ...day,
+          isDayOff: false,
+          morning: "",
+          afternoon: "",
+          remark: ""
+        }));
+        setSchedule(newSchedule);
+      }
+    } catch (error) {
+      console.error('Error saving schedule:', error);
+      showToast(error instanceof Error ? error.message : 'Failed to save schedule', 'error');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -514,9 +677,10 @@ export default function MonthlySchedulePage() {
               <div className="flex justify-end">
                 <button
                   onClick={handleSaveSchedule}
-                  className="rounded-2xl bg-gradient-to-r from-green-500/90 to-emerald-500/90 px-8 py-3 text-lg font-semibold text-white hover:from-green-400 hover:to-emerald-400 transition-colors"
+                  disabled={loading}
+                  className="rounded-2xl bg-gradient-to-r from-green-500/90 to-emerald-500/90 px-8 py-3 text-lg font-semibold text-white hover:from-green-400 hover:to-emerald-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Save Schedule
+                  {loading ? 'Saving...' : 'Save Schedule'}
                 </button>
               </div>
             )}
@@ -561,12 +725,27 @@ export default function MonthlySchedulePage() {
                         Edit
                       </button>
                       <button
-                        onClick={() => {
-                          // Delete functionality - remove from array
-                          setSubmittedSchedules(prev => prev.filter((_, index) => index !== scheduleIndex));
-                          showToast('Schedule deleted!', 'error');
+                        onClick={async () => {
+                          if (submittedSchedule.id) {
+                            try {
+                              setLoading(true);
+                              await weeklyScheduleService.deleteSchedule(submittedSchedule.id);
+                              setSubmittedSchedules(prev => prev.filter((_, index) => index !== scheduleIndex));
+                              showToast('Schedule deleted!', 'success');
+                            } catch (error) {
+                              console.error('Error deleting schedule:', error);
+                              showToast(error instanceof Error ? error.message : 'Failed to delete schedule', 'error');
+                            } finally {
+                              setLoading(false);
+                            }
+                          } else {
+                            // Fallback for local-only schedules
+                            setSubmittedSchedules(prev => prev.filter((_, index) => index !== scheduleIndex));
+                            showToast('Schedule deleted!', 'success');
+                          }
                         }}
                         className="px-3 py-2 bg-red-500 text-white rounded hover:bg-red-600 transition-colors text-sm"
+                        disabled={loading}
                       >
                         Delete
                       </button>
