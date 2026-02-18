@@ -5,6 +5,17 @@ import { createPortal } from "react-dom";
 import { MarketingServiceGuard } from "@/components/marketing-service/MarketingServiceGuard";
 import { useToast } from "@/components/ui/Toast";
 
+/* ================= STYLES ================= */
+const scrollbarHideStyles = `
+  .scrollbar-hide {
+    -ms-overflow-style: none;  /* Internet Explorer 10+ */
+    scrollbar-width: none;     /* Firefox */
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;             /* Safari and Chrome */
+  }
+`;
+
 /* ================= TYPES ================= */
 
 type DaySchedule = {
@@ -172,6 +183,8 @@ export default function MonthlySchedulePage() {
   const [showSubmittedTable, setShowSubmittedTable] = useState(false);
   const [showSubmittedDetailsModal, setShowSubmittedDetailsModal] = useState(false);
   const [selectedSubmittedSchedule, setSelectedSubmittedSchedule] = useState<SubmittedSchedule | null>(null);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingSchedule, setEditingSchedule] = useState<SubmittedSchedule | null>(null);
 
   const expandRow = (weekIndex: number, dayIndex: number) => {
     const uniqueKey = `${weekIndex}-${dayIndex}`;
@@ -208,6 +221,19 @@ export default function MonthlySchedulePage() {
     }
   }, [year, month]);
 
+  // Inject scrollbar hide styles
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const styleElement = document.createElement('style');
+      styleElement.textContent = scrollbarHideStyles;
+      document.head.appendChild(styleElement);
+
+      return () => {
+        document.head.removeChild(styleElement);
+      };
+    }
+  }, []);
+
   const updateDay = (
     wIndex: number,
     dIndex: number,
@@ -218,6 +244,40 @@ export default function MonthlySchedulePage() {
     const newSchedule = structuredClone(schedule);
     (newSchedule.weeks[wIndex].days[dIndex] as any)[field] = value;
     setSchedule(newSchedule);
+  };
+
+  const openEditModal = (schedule: SubmittedSchedule) => {
+    setEditingSchedule(schedule);
+    setShowEditModal(true);
+  };
+
+  const updateEditingSchedule = (dayIndex: number, field: 'morning' | 'afternoon' | 'isDayOff', value: string | boolean) => {
+    if (!editingSchedule || !editingSchedule.weekDetails) return;
+
+    const updatedSchedule = structuredClone(editingSchedule);
+    if (updatedSchedule.weekDetails) {
+      if (field === 'morning') {
+        updatedSchedule.weekDetails.days[dayIndex].morningSchedule = value as string;
+      } else if (field === 'afternoon') {
+        updatedSchedule.weekDetails.days[dayIndex].afternoonSchedule = value as string;
+      } else if (field === 'isDayOff') {
+        updatedSchedule.weekDetails.days[dayIndex].isDayOff = value as boolean;
+      }
+    }
+    setEditingSchedule(updatedSchedule);
+  };
+
+  const saveEditedSchedule = () => {
+    if (!editingSchedule) return;
+
+    setSubmittedSchedules(prev =>
+      prev.map(schedule =>
+        schedule.timestamp === editingSchedule.timestamp ? editingSchedule : schedule
+      )
+    );
+    setShowEditModal(false);
+    setEditingSchedule(null);
+    showToast('Schedule updated successfully!', 'success');
   };
 
   const openSubmittedScheduleModal = (schedule: SubmittedSchedule) => {
@@ -495,22 +555,7 @@ export default function MonthlySchedulePage() {
                     </div>
                     <div className="flex gap-2">
                       <button
-                        onClick={() => {
-                          // Edit functionality - load data back to form
-                          if (submittedSchedule.weekDetails && currentWeekIndex !== null && schedule) {
-                            const newSchedule = structuredClone(schedule);
-                            submittedSchedule.weekDetails.days.forEach((day: any, index: number) => {
-                              if (newSchedule.weeks[currentWeekIndex] && newSchedule.weeks[currentWeekIndex].days[index]) {
-                                newSchedule.weeks[currentWeekIndex].days[index].isDayOff = day.isDayOff;
-                                newSchedule.weeks[currentWeekIndex].days[index].morning = day.morningSchedule;
-                                newSchedule.weeks[currentWeekIndex].days[index].afternoon = day.afternoonSchedule;
-                              }
-                            });
-                            setSchedule(newSchedule);
-                            setShowSubmittedTable(false);
-                            showToast('Schedule loaded for editing!', 'info');
-                          }
-                        }}
+                        onClick={() => openEditModal(submittedSchedule)}
                         className="px-3 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors text-sm"
                       >
                         Edit
@@ -555,7 +600,7 @@ export default function MonthlySchedulePage() {
                               {day.isDayOff ? (
                                 <div className="text-center text-red-400 font-medium">OFF</div>
                               ) : (
-                                <div className="text-xs text-slate-300 whitespace-pre-wrap break-words">
+                                <div className="flex flex-wrap whitespace-pre-wrap break-all">
                                   {day.morningSchedule || '-'}
                                 </div>
                               )}
@@ -576,7 +621,7 @@ export default function MonthlySchedulePage() {
                               {day.isDayOff ? (
                                 <div className="text-center text-red-400 font-medium">OFF</div>
                               ) : (
-                                <div className="text-xs text-slate-300 whitespace-pre-wrap break-words">
+                                <div className="flex flex-wrap whitespace-pre-wrap break-all">
                                   {day.afternoonSchedule || '-'}
                                 </div>
                               )}
@@ -599,7 +644,7 @@ export default function MonthlySchedulePage() {
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
           onClick={() => setShowSubmittedDetailsModal(false)}
         >
-          <div className="bg-slate-900 rounded-2xl border border-slate-700 p-8 max-w-7xl w-full mx-4 max-h-[95vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-slate-900 rounded-2xl border border-slate-700 p-8 max-w-[80vw] w-full mx-4 max-h-[95vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="flex justify-between items-start mb-6">
               <h3 className="text-2xl font-semibold text-white">
                 Week {selectedSubmittedSchedule.weekDetails?.weekNumber} Schedule Details
@@ -630,7 +675,7 @@ export default function MonthlySchedulePage() {
                 <tbody>
                   {/* Morning Row */}
                   <tr className="bg-slate-800/30">
-                    <td className="border border-slate-600/50 p-4 font-medium text-white bg-slate-900/50 text-center">
+                    <td className="border border-slate-600/50 p-3 font-medium text-white bg-slate-900/50 text-center text-xs w-16">
                       Morning
                     </td>
                     {selectedSubmittedSchedule.weekDetails?.days.map((day: any, dIndex: number) => (
@@ -640,7 +685,7 @@ export default function MonthlySchedulePage() {
                         ) : (
                           <div className="text-sm text-slate-300 min-h-16">
                             {day.morningSchedule ? (
-                              <div className="whitespace-pre-wrap break-words">
+                              <div className="flex flex-wrap whitespace-pre-wrap break-all">
                                 {day.morningSchedule}
                               </div>
                             ) : (
@@ -654,7 +699,7 @@ export default function MonthlySchedulePage() {
 
                   {/* Afternoon Row */}
                   <tr className="bg-slate-800/30">
-                    <td className="border border-slate-600/50 p-4 font-medium text-white bg-slate-900/50 text-center">
+                    <td className="border border-slate-600/50 p-3 font-medium text-white bg-slate-900/50 text-center text-xs w-16">
                       Afternoon
                     </td>
                     {selectedSubmittedSchedule.weekDetails?.days.map((day: any, dIndex: number) => (
@@ -664,7 +709,7 @@ export default function MonthlySchedulePage() {
                         ) : (
                           <div className="text-sm text-slate-300 min-h-16">
                             {day.afternoonSchedule ? (
-                              <div className="whitespace-pre-wrap break-words">
+                              <div className="flex flex-wrap whitespace-pre-wrap break-all">
                                 {day.afternoonSchedule}
                               </div>
                             ) : (
@@ -685,6 +730,115 @@ export default function MonthlySchedulePage() {
                 className="px-6 py-3 border border-slate-600 text-slate-300 rounded-lg hover:bg-slate-700 transition-colors"
               >
                 Close
+              </button>
+            </div>
+          </div>
+        </div>,
+        portalRoot
+      )}
+
+      {/* EDIT SCHEDULE MODAL */}
+      {showEditModal && editingSchedule && portalRoot && createPortal(
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+          onClick={() => setShowEditModal(false)}
+        >
+          <div className="bg-slate-900 rounded-2xl border border-slate-700 p-8 max-w-[80vw] w-full mx-4 max-h-[95vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-start mb-6">
+              <h3 className="text-2xl font-semibold text-white">
+                Edit Week {editingSchedule.weekDetails?.weekNumber} Schedule
+              </h3>
+              <button
+                onClick={() => setShowEditModal(false)}
+                className="text-slate-400 hover:text-slate-300 transition-colors"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse">
+                <thead>
+                  <tr className="bg-slate-900/50 text-sm">
+                    <th className="border border-slate-600/50 p-3 text-center text-slate-300 bg-blue-900/30 w-16 text-xs">Time</th>
+                    {editingSchedule.weekDetails?.days.map((day: any, index: number) => (
+                      <th
+                        key={index}
+                        className="border border-slate-600/50 p-4 text-center text-slate-300 bg-blue-900/30 w-32 cursor-pointer hover:bg-blue-800/30 transition-colors"
+                        onClick={() => updateEditingSchedule(index, 'isDayOff', !day.isDayOff)}
+                      >
+                        <div className="text-xs">{day.dayName}</div>
+                        <div className="text-xs font-medium">{day.date}</div>
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {/* Morning Row */}
+                  <tr className="bg-slate-800/30">
+                    <td className="border border-slate-600/50 p-3 font-medium text-white bg-slate-900/50 text-center text-xs w-16">
+                      Morning
+                    </td>
+                    {editingSchedule.weekDetails?.days.map((day: any, dIndex: number) => (
+                      <td
+                        key={dIndex}
+                        className={`border border-slate-600/50 p-2 transition-colors ${day.isDayOff ? 'bg-red-500/20' : ''}`}
+                      >
+                        {day.isDayOff ? (
+                          <div className="text-center text-red-400 font-medium">OFF</div>
+                        ) : (
+                          <textarea
+                            className="w-full bg-transparent border-none text-white placeholder-slate-500 focus:outline-none resize-y min-h-40 text-xs scrollbar-hide"
+                            value={day.morningSchedule || ''}
+                            onChange={(e) => updateEditingSchedule(dIndex, 'morning', e.target.value)}
+                            placeholder="Morning schedule..."
+                          />
+                        )}
+                      </td>
+                    ))}
+                  </tr>
+
+                  {/* Afternoon Row */}
+                  <tr className="bg-slate-800/30">
+                    <td className="border border-slate-600/50 p-3 font-medium text-white bg-slate-900/50 text-center text-xs w-16">
+                      Afternoon
+                    </td>
+                    {editingSchedule.weekDetails?.days.map((day: any, dIndex: number) => (
+                      <td
+                        key={dIndex}
+                        className={`border border-slate-600/50 p-2 transition-colors ${day.isDayOff ? 'bg-red-500/20' : ''}`}
+                      >
+                        {day.isDayOff ? (
+                          <div className="text-center text-red-400 font-medium">OFF</div>
+                        ) : (
+                          <textarea
+                            className="w-full bg-transparent border-none text-white placeholder-slate-500 focus:outline-none resize-y min-h-40 text-xs scrollbar-hide"
+                            value={day.afternoonSchedule || ''}
+                            onChange={(e) => updateEditingSchedule(dIndex, 'afternoon', e.target.value)}
+                            placeholder="Afternoon schedule..."
+                          />
+                        )}
+                      </td>
+                    ))}
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div className="flex justify-end space-x-4 mt-8">
+              <button
+                onClick={() => setShowEditModal(false)}
+                className="px-6 py-3 border border-slate-600 text-slate-300 rounded-lg hover:bg-slate-700 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={saveEditedSchedule}
+                className="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+              >
+                Save Changes
               </button>
             </div>
           </div>
