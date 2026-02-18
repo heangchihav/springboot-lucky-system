@@ -120,7 +120,7 @@ export function AppShell({ children }: AppShellProps) {
     };
 
     runPermissionChecks();
-  }, [isAuthenticated, user, hasPermission]);
+  }, [isAuthenticated, user]);
 
   const resolvedItems = useMemo(
     () =>

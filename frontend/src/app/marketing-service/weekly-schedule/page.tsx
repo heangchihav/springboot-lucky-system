@@ -94,7 +94,6 @@ function generateBusinessMonth(year: number, month: number): WeekSchedule[] {
   while (current <= lastOfMonth || current.getDay() !== 1) {
     const days: DaySchedule[] = [];
 
-    const weekStart = new Date(current);
 
     for (let i = 0; i < 7; i++) {
       const d = new Date(current.getFullYear(), current.getMonth(), current.getDate(), 12);
@@ -157,9 +156,7 @@ export default function MonthlySchedulePage() {
   const [schedule, setSchedule] = useState<MonthlySchedule | null>(null);
   const [selectedWeek, setSelectedWeek] = useState<number | null>(null);
   const [currentWeekIndex, setCurrentWeekIndex] = useState<number | null>(null);
-  const [showSaveTable, setShowSaveTable] = useState(false);
-  const [showWeekModal, setShowWeekModal] = useState(false);
-  const [selectedWeekForView, setSelectedWeekForView] = useState<number | null>(null);
+
   const [userInfo, setUserInfo] = useState<UserInfo>({
     fullName: "John Doe",
     phoneNumber: "+855 123 4567",
@@ -171,8 +168,10 @@ export default function MonthlySchedulePage() {
   const portalRoot = usePortal();
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [focusedRow, setFocusedRow] = useState<string | null>(null);
-  const [submittedSchedule, setSubmittedSchedule] = useState<SubmittedSchedule | null>(null);
+  const [submittedSchedules, setSubmittedSchedules] = useState<SubmittedSchedule[]>([]);
   const [showSubmittedTable, setShowSubmittedTable] = useState(false);
+  const [showSubmittedDetailsModal, setShowSubmittedDetailsModal] = useState(false);
+  const [selectedSubmittedSchedule, setSelectedSubmittedSchedule] = useState<SubmittedSchedule | null>(null);
 
   const expandRow = (weekIndex: number, dayIndex: number) => {
     const uniqueKey = `${weekIndex}-${dayIndex}`;
@@ -220,22 +219,12 @@ export default function MonthlySchedulePage() {
     (newSchedule.weeks[wIndex].days[dIndex] as any)[field] = value;
     setSchedule(newSchedule);
   };
-  const openWeekViewModal = (weekNumber: number) => {
-    setSelectedWeekForView(weekNumber);
-    setShowWeekModal(true);
+
+  const openSubmittedScheduleModal = (schedule: SubmittedSchedule) => {
+    setSelectedSubmittedSchedule(schedule);
+    setShowSubmittedDetailsModal(true);
   };
 
-  const openWeekModal = (weekNumber: number) => {
-    setSelectedWeek(weekNumber);
-    setUserInfo(prev => ({ ...prev, week: weekNumber }));
-    setSelectedWeekForView(weekNumber);
-  };
-
-
-  const getWeekByNumber = (weekNumber: number) => {
-    if (!schedule) return null;
-    return schedule.weeks.find(w => w.weekNumber === weekNumber);
-  };
 
   const getCurrentWeek = () => {
     if (!schedule || currentWeekIndex === null || !schedule.weeks[currentWeekIndex]) return null;
@@ -249,7 +238,6 @@ export default function MonthlySchedulePage() {
       setCurrentWeekIndex(weekIndex);
       setSelectedWeek(weekNumber);
       setUserInfo(prev => ({ ...prev, week: weekNumber }));
-      setSelectedWeekForView(weekNumber);
     }
   };
 
@@ -278,10 +266,28 @@ export default function MonthlySchedulePage() {
     console.log(JSON.stringify(submissionData, null, 2));
     console.log('=== END SUBMISSION ===');
 
-    // Store the submitted data for display
-    setSubmittedSchedule(submissionData);
+    // Add the submitted data to the array
+    setSubmittedSchedules(prev => [...prev, submissionData]);
     setShowSubmittedTable(true);
     showToast('Schedule saved successfully!', 'success');
+
+    // Clear form and reset for new input
+    setSelectedWeek(null);
+    setCurrentWeekIndex(null);
+
+    // Clear the current week data
+    if (schedule && currentWeekIndex !== null) {
+      const newSchedule = structuredClone(schedule);
+      // Reset all days in the current week
+      newSchedule.weeks[currentWeekIndex].days = newSchedule.weeks[currentWeekIndex].days.map(day => ({
+        ...day,
+        isDayOff: false,
+        morning: "",
+        afternoon: "",
+        remark: ""
+      }));
+      setSchedule(newSchedule);
+    }
   };
 
   return (
@@ -353,17 +359,17 @@ export default function MonthlySchedulePage() {
           </div>
         </div>
 
-        {/* TABLE VIEW */}
+        {/* SUBMIT FORM */}
         {schedule && getCurrentWeek() && selectedWeek && (
           <div className="bg-slate-800/50 backdrop-blur-sm rounded-2xl border border-slate-700/50 p-6 shadow-xl">
             <h2 className="font-semibold text-xl text-white text-center mb-6">
               Week {getCurrentWeek()!.weekNumber} (Monday → Sunday)
             </h2>
 
-            {/* Clickable Table */}
+
             <div
               className="overflow-x-auto cursor-pointer hover:bg-slate-700/10 p-2 rounded-lg transition-colors"
-              onClick={() => openWeekModal(selectedWeek)}
+
             >
               <table className="w-full border-collapse">
                 <thead>
@@ -443,121 +449,163 @@ export default function MonthlySchedulePage() {
                 </tbody>
               </table>
             </div>
-
-            <div className="text-center mt-4 text-sm text-slate-400">
-              Click on table to view full week details
-            </div>
-          </div>
-        )}
-
-        {/* SAVE BUTTON SECTION */}
-        {schedule && (
-          <div className="flex justify-end">
-            <button
-              onClick={handleSaveSchedule}
-              className="rounded-2xl bg-gradient-to-r from-green-500/90 to-emerald-500/90 px-8 py-3 text-lg font-semibold text-white hover:from-green-400 hover:to-emerald-400 transition-colors"
-            >
-              Save Schedule
-            </button>
-          </div>
-        )}
-
-        {/* WEEK VIEW MODAL */}
-        {showWeekModal && selectedWeekForView && getWeekByNumber(selectedWeekForView) && portalRoot && createPortal(
-          <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
-            onClick={() => setShowWeekModal(false)}
-          >
-            <div className="bg-slate-900 rounded-2xl border border-slate-700 p-8 max-w-7xl w-full mx-4 max-h-[95vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-              <div className="flex justify-between items-start mb-6">
-                <h3 className="text-2xl font-semibold text-white">
-                  Week {selectedWeekForView} Schedule Details
-                </h3>
+            {/* SAVE BUTTON SECTION */}
+            {schedule && (
+              <div className="flex justify-end">
                 <button
-                  onClick={() => setShowWeekModal(false)}
-                  className="text-slate-400 hover:text-slate-300 transition-colors"
+                  onClick={handleSaveSchedule}
+                  className="rounded-2xl bg-gradient-to-r from-green-500/90 to-emerald-500/90 px-8 py-3 text-lg font-semibold text-white hover:from-green-400 hover:to-emerald-400 transition-colors"
                 >
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
+                  Save Schedule
                 </button>
               </div>
+            )}
 
-              <div className="overflow-x-auto">
-                <table className="w-full border-collapse">
-                  <thead>
-                    <tr className="bg-slate-900/50 text-sm">
-                      <th className="border border-slate-600/50 p-4 text-left text-slate-300 bg-blue-900/30">Time</th>
-                      <th className="border border-slate-600/50 p-4 text-center text-slate-300 bg-blue-900/30">Monday</th>
-                      <th className="border border-slate-600/50 p-4 text-center text-slate-300 bg-blue-900/30">Tuesday</th>
-                      <th className="border border-slate-600/50 p-4 text-center text-slate-300 bg-blue-900/30">Wednesday</th>
-                      <th className="border border-slate-600/50 p-4 text-center text-slate-300 bg-blue-900/30">Thursday</th>
-                      <th className="border border-slate-600/50 p-4 text-center text-slate-300 bg-blue-900/30">Friday</th>
-                      <th className="border border-slate-600/50 p-4 text-center text-slate-300 bg-blue-900/30">Saturday</th>
-                      <th className="border border-slate-600/50 p-4 text-center text-slate-300 bg-blue-900/30">Sunday</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {/* Morning Row */}
-                    <tr className="bg-slate-800/30">
-                      <td className="border border-slate-600/50 p-4 font-medium text-white bg-slate-900/50">
-                        Morning
-                      </td>
-                      {getWeekByNumber(selectedWeekForView)!.days.map((day: DaySchedule, dIndex: number) => (
-                        <td key={dIndex} className="border border-slate-600/50 p-3">
-                          {day.isDayOff ? (
-                            <div className="text-center text-red-400 font-medium">OFF</div>
-                          ) : (
-                            <div className="text-sm text-slate-300 min-h-16">
-                              {day.morning || <span className="text-slate-500 italic">No schedule</span>}
-                            </div>
-                          )}
-                        </td>
-                      ))}
-                    </tr>
-
-                    {/* Afternoon Row */}
-                    <tr className="bg-slate-800/30">
-                      <td className="border border-slate-600/50 p-4 font-medium text-white bg-slate-900/50">
-                        Afternoon
-                      </td>
-                      {getWeekByNumber(selectedWeekForView)!.days.map((day: DaySchedule, dIndex: number) => (
-                        <td key={dIndex} className="border border-slate-600/50 p-3">
-                          {day.isDayOff ? (
-                            <div className="text-center text-red-400 font-medium">OFF</div>
-                          ) : (
-                            <div className="text-sm text-slate-300 min-h-16">
-                              {day.afternoon || <span className="text-slate-500 italic">No schedule</span>}
-                            </div>
-                          )}
-                        </td>
-                      ))}
-                    </tr>
-
-                  </tbody>
-                </table>
-              </div>
-
-              <div className="flex justify-end space-x-4 mt-8">
-                <button
-                  onClick={() => setShowWeekModal(false)}
-                  className="px-6 py-3 border border-slate-600 text-slate-300 rounded-lg hover:bg-slate-700 transition-colors"
-                >
-                  Close
-                </button>
-              </div>
-            </div>
-          </div>,
-          portalRoot
+          </div>
         )}
-
-        {/* SAVE TABLE */}
-        {showSaveTable && schedule && (
+        {/* SUBMITTED SCHEDULE TABLE */}
+        {showSubmittedTable && submittedSchedules.length > 0 && (
           <div className="mt-8 bg-slate-800/50 backdrop-blur-sm rounded-2xl border border-slate-700/50 p-6 shadow-xl">
             <div className="flex justify-between items-center mb-6">
-              <h3 className="text-xl font-semibold text-white">Schedule Summary - {year}/{month}</h3>
+              <div>
+                <h3 className="text-xl font-semibold text-white">Submitted Schedules</h3>
+                <p className="text-sm text-slate-400 mt-1">
+                  Total: {submittedSchedules.length} schedule{submittedSchedules.length !== 1 ? 's' : ''}
+                </p>
+              </div>
               <button
-                onClick={() => setShowSaveTable(false)}
+                onClick={() => setShowSubmittedTable(false)}
+                className="text-slate-400 hover:text-slate-300 transition-colors"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {submittedSchedules.map((submittedSchedule, scheduleIndex) => (
+                <div key={scheduleIndex} className="border border-slate-600/30 rounded-lg p-4">
+                  <div className="flex justify-between items-center mb-4">
+                    <div>
+                      <h4 className="text-lg font-semibold text-white">Week {submittedSchedule.weekDetails?.weekNumber}</h4>
+                      <p className="text-sm text-slate-400">
+                        {submittedSchedule.userInfo.fullName} • {submittedSchedule.userInfo.subArea} • {new Date(submittedSchedule.timestamp).toLocaleString()}
+                      </p>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => {
+                          // Edit functionality - load data back to form
+                          if (submittedSchedule.weekDetails && currentWeekIndex !== null && schedule) {
+                            const newSchedule = structuredClone(schedule);
+                            submittedSchedule.weekDetails.days.forEach((day: any, index: number) => {
+                              if (newSchedule.weeks[currentWeekIndex] && newSchedule.weeks[currentWeekIndex].days[index]) {
+                                newSchedule.weeks[currentWeekIndex].days[index].isDayOff = day.isDayOff;
+                                newSchedule.weeks[currentWeekIndex].days[index].morning = day.morningSchedule;
+                                newSchedule.weeks[currentWeekIndex].days[index].afternoon = day.afternoonSchedule;
+                              }
+                            });
+                            setSchedule(newSchedule);
+                            setShowSubmittedTable(false);
+                            showToast('Schedule loaded for editing!', 'info');
+                          }
+                        }}
+                        className="px-3 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors text-sm"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => {
+                          // Delete functionality - remove from array
+                          setSubmittedSchedules(prev => prev.filter((_, index) => index !== scheduleIndex));
+                          showToast('Schedule deleted!', 'error');
+                        }}
+                        className="px-3 py-2 bg-red-500 text-white rounded hover:bg-red-600 transition-colors text-sm"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full border-collapse">
+                      <thead>
+                        <tr className="bg-slate-900/50 text-sm">
+                          <th className="border border-slate-600/50 p-3 text-center text-slate-300">Time</th>
+                          {submittedSchedule.weekDetails?.days.map((day: any, index: number) => (
+                            <th key={index} className="border border-slate-600/50 p-3 text-center text-slate-300">
+                              <div className="text-xs">{day.dayName}</div>
+                              <div className="text-xs font-medium">{day.date}</div>
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {/* Morning Row */}
+                        <tr
+                          className="bg-slate-800/30 hover:bg-slate-700/30 transition-colors cursor-pointer"
+                          onClick={() => openSubmittedScheduleModal(submittedSchedule)}
+                        >
+                          <td className="border border-slate-600/50 p-3 font-medium text-white text-center">
+                            Morning
+                          </td>
+                          {submittedSchedule.weekDetails?.days.map((day: any, index: number) => (
+                            <td key={index} className={`border border-slate-600/50 p-2 text-sm ${day.isDayOff ? 'bg-red-500/20' : ''}`}>
+                              {day.isDayOff ? (
+                                <div className="text-center text-red-400 font-medium">OFF</div>
+                              ) : (
+                                <div className="text-xs text-slate-300 whitespace-pre-wrap break-words">
+                                  {day.morningSchedule || '-'}
+                                </div>
+                              )}
+                            </td>
+                          ))}
+                        </tr>
+
+                        {/* Afternoon Row */}
+                        <tr
+                          className="bg-slate-800/30 hover:bg-slate-700/30 transition-colors cursor-pointer"
+                          onClick={() => openSubmittedScheduleModal(submittedSchedule)}
+                        >
+                          <td className="border border-slate-600/50 p-3 font-medium text-white text-center">
+                            Afternoon
+                          </td>
+                          {submittedSchedule.weekDetails?.days.map((day: any, index: number) => (
+                            <td key={index} className={`border border-slate-600/50 p-2 text-sm ${day.isDayOff ? 'bg-red-500/20' : ''}`}>
+                              {day.isDayOff ? (
+                                <div className="text-center text-red-400 font-medium">OFF</div>
+                              ) : (
+                                <div className="text-xs text-slate-300 whitespace-pre-wrap break-words">
+                                  {day.afternoonSchedule || '-'}
+                                </div>
+                              )}
+                            </td>
+                          ))}
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* SUBMITTED SCHEDULE DETAILS MODAL */}
+      {showSubmittedDetailsModal && selectedSubmittedSchedule && portalRoot && createPortal(
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+          onClick={() => setShowSubmittedDetailsModal(false)}
+        >
+          <div className="bg-slate-900 rounded-2xl border border-slate-700 p-8 max-w-7xl w-full mx-4 max-h-[95vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-start mb-6">
+              <h3 className="text-2xl font-semibold text-white">
+                Week {selectedSubmittedSchedule.weekDetails?.weekNumber} Schedule Details
+              </h3>
+              <button
+                onClick={() => setShowSubmittedDetailsModal(false)}
                 className="text-slate-400 hover:text-slate-300 transition-colors"
               >
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -570,170 +618,79 @@ export default function MonthlySchedulePage() {
               <table className="w-full border-collapse">
                 <thead>
                   <tr className="bg-slate-900/50 text-sm">
-                    <th className="border border-slate-600/50 p-3 text-left text-slate-300">Week</th>
-                    <th className="border border-slate-600/50 p-3 text-left text-slate-300">Monday</th>
-                    <th className="border border-slate-600/50 p-3 text-left text-slate-300">Tuesday</th>
-                    <th className="border border-slate-600/50 p-3 text-left text-slate-300">Wednesday</th>
-                    <th className="border border-slate-600/50 p-3 text-left text-slate-300">Thursday</th>
-                    <th className="border border-slate-600/50 p-3 text-left text-slate-300">Friday</th>
-                    <th className="border border-slate-600/50 p-3 text-left text-slate-300">Saturday</th>
-                    <th className="border border-slate-600/50 p-3 text-left text-slate-300">Sunday</th>
+                    <th className="border border-slate-600/50 p-4 text-center text-slate-300 bg-blue-900/30">Time</th>
+                    {selectedSubmittedSchedule.weekDetails?.days.map((day: any, index: number) => (
+                      <th key={index} className="border border-slate-600/50 p-4 text-center text-slate-300 bg-blue-900/30">
+                        <div className="text-xs">{day.dayName}</div>
+                        <div className="text-xs font-medium">{day.date}</div>
+                      </th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {selectedWeek && getCurrentWeek() && (
-                    <tr
-                      key={selectedWeek}
-                      className="bg-slate-800/30 hover:bg-slate-700/30 transition-colors cursor-pointer"
-                      onClick={() => openWeekViewModal(selectedWeek)}
-                    >
-                      <td className="border border-slate-600/50 p-3 font-medium text-white">
-                        Week {selectedWeek}
-                      </td>
-                      {getCurrentWeek()!.days.map((day) => (
-                        <td key={day.date} className="border border-slate-600/50 p-2 text-sm">
-                          <div className="text-slate-300">{day.date}</div>
-                          {day.isDayOff ? (
-                            <div className="text-red-400 text-xs font-medium">OFF</div>
-                          ) : (
-                            <div className="text-xs text-slate-400">
-                              {day.morning && <div>• {day.morning.substring(0, 20)}...</div>}
-                              {day.afternoon && <div>• {day.afternoon.substring(0, 20)}...</div>}
-                            </div>
-                          )}
-                          {day.remark && (
-                            <div className="text-xs text-amber-400 mt-1">
-                              Note: {day.remark.substring(0, 15)}...
-                            </div>
-                          )}
-                        </td>
-                      ))}
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-
-            <div className="flex justify-end mt-6">
-              <button
-                onClick={() => setShowSaveTable(false)}
-                className="px-6 py-2 border border-slate-600 text-slate-300 rounded-lg hover:bg-slate-700 transition-colors"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* SUBMITTED SCHEDULE TABLE */}
-        {showSubmittedTable && submittedSchedule && (
-          <div className="mt-8 bg-slate-800/50 backdrop-blur-sm rounded-2xl border border-slate-700/50 p-6 shadow-xl">
-            <div className="flex justify-between items-center mb-6">
-              <div>
-                <h3 className="text-xl font-semibold text-white">Submitted Schedule - Week {submittedSchedule.weekDetails?.weekNumber}</h3>
-                <p className="text-sm text-slate-400 mt-1">
-                  {submittedSchedule.userInfo.fullName} • {submittedSchedule.userInfo.subArea} • {new Date(submittedSchedule.timestamp).toLocaleString()}
-                </p>
-              </div>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => {
-                    // Edit functionality - load data back to form
-                    if (submittedSchedule.weekDetails && currentWeekIndex !== null && schedule) {
-                      const newSchedule = structuredClone(schedule);
-                      submittedSchedule.weekDetails.days.forEach((day, index) => {
-                        if (newSchedule.weeks[currentWeekIndex] && newSchedule.weeks[currentWeekIndex].days[index]) {
-                          newSchedule.weeks[currentWeekIndex].days[index].isDayOff = day.isDayOff;
-                          newSchedule.weeks[currentWeekIndex].days[index].morning = day.morningSchedule;
-                          newSchedule.weeks[currentWeekIndex].days[index].afternoon = day.afternoonSchedule;
-                        }
-                      });
-                      setSchedule(newSchedule);
-                      setShowSubmittedTable(false);
-                      showToast('Schedule loaded for editing!', 'info');
-                    }
-                  }}
-                  className="px-4 py-2 bg-blue-500/90 text-white rounded-lg hover:bg-blue-400/90 transition-colors flex items-center gap-2"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                  </svg>
-                  Edit
-                </button>
-                <button
-                  onClick={() => {
-                    setSubmittedSchedule(null);
-                    setShowSubmittedTable(false);
-                    showToast('Schedule deleted!', 'error');
-                  }}
-                  className="px-4 py-2 bg-red-500/90 text-white rounded-lg hover:bg-red-400/90 transition-colors flex items-center gap-2"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                  </svg>
-                  Delete
-                </button>
-                <button
-                  onClick={() => setShowSubmittedTable(false)}
-                  className="px-4 py-2 border border-slate-600 text-slate-300 rounded-lg hover:bg-slate-700 transition-colors"
-                >
-                  Close
-                </button>
-              </div>
-            </div>
-
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse">
-                <thead>
-                  <tr className="bg-slate-900/50 text-sm">
-                    <th className="border border-slate-600/50 p-3 text-left text-slate-300">Week</th>
-                    <th className="border border-slate-600/50 p-3 text-center text-slate-300">Monday</th>
-                    <th className="border border-slate-600/50 p-3 text-center text-slate-300">Tuesday</th>
-                    <th className="border border-slate-600/50 p-3 text-center text-slate-300">Wednesday</th>
-                    <th className="border border-slate-600/50 p-3 text-center text-slate-300">Thursday</th>
-                    <th className="border border-slate-600/50 p-3 text-center text-slate-300">Friday</th>
-                    <th className="border border-slate-600/50 p-3 text-center text-slate-300">Saturday</th>
-                    <th className="border border-slate-600/50 p-3 text-center text-slate-300">Sunday</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr className="bg-slate-800/30 hover:bg-slate-700/30 transition-colors">
-                    <td className="border border-slate-600/50 p-3 font-medium text-white">
-                      Week {submittedSchedule.weekDetails?.weekNumber}
+                  {/* Morning Row */}
+                  <tr className="bg-slate-800/30">
+                    <td className="border border-slate-600/50 p-4 font-medium text-white bg-slate-900/50 text-center">
+                      Morning
                     </td>
-                    {submittedSchedule.weekDetails?.days.map((day, index) => (
-                      <td key={index} className="border border-slate-600/50 p-2 text-sm">
-                        <div className="text-slate-300 font-medium mb-1">{day.date}</div>
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-1">
-                            <input
-                              type="checkbox"
-                              checked={day.isDayOff}
-                              disabled
-                              className="w-3 h-3 rounded border-slate-600 bg-slate-900 text-amber-500 disabled:opacity-50"
-                            />
-                            <span className="text-xs text-slate-400">Off</span>
+                    {selectedSubmittedSchedule.weekDetails?.days.map((day: any, dIndex: number) => (
+                      <td key={dIndex} className="border border-slate-600/50 p-4">
+                        {day.isDayOff ? (
+                          <div className="text-center text-red-400 font-medium">OFF</div>
+                        ) : (
+                          <div className="text-sm text-slate-300 min-h-16">
+                            {day.morningSchedule ? (
+                              <div className="whitespace-pre-wrap break-words">
+                                {day.morningSchedule}
+                              </div>
+                            ) : (
+                              <span className="text-slate-500 italic">No schedule</span>
+                            )}
                           </div>
-                          {!day.isDayOff && (
-                            <>
-                              <div className="text-xs text-slate-300">
-                                <span className="font-medium">M:</span> {day.morningSchedule || '-'}
+                        )}
+                      </td>
+                    ))}
+                  </tr>
+
+                  {/* Afternoon Row */}
+                  <tr className="bg-slate-800/30">
+                    <td className="border border-slate-600/50 p-4 font-medium text-white bg-slate-900/50 text-center">
+                      Afternoon
+                    </td>
+                    {selectedSubmittedSchedule.weekDetails?.days.map((day: any, dIndex: number) => (
+                      <td key={dIndex} className="border border-slate-600/50 p-4">
+                        {day.isDayOff ? (
+                          <div className="text-center text-red-400 font-medium">OFF</div>
+                        ) : (
+                          <div className="text-sm text-slate-300 min-h-16">
+                            {day.afternoonSchedule ? (
+                              <div className="whitespace-pre-wrap break-words">
+                                {day.afternoonSchedule}
                               </div>
-                              <div className="text-xs text-slate-300">
-                                <span className="font-medium">A:</span> {day.afternoonSchedule || '-'}
-                              </div>
-                            </>
-                          )}
-                        </div>
+                            ) : (
+                              <span className="text-slate-500 italic">No schedule</span>
+                            )}
+                          </div>
+                        )}
                       </td>
                     ))}
                   </tr>
                 </tbody>
               </table>
             </div>
+
+            <div className="flex justify-end space-x-4 mt-8">
+              <button
+                onClick={() => setShowSubmittedDetailsModal(false)}
+                className="px-6 py-3 border border-slate-600 text-slate-300 rounded-lg hover:bg-slate-700 transition-colors"
+              >
+                Close
+              </button>
+            </div>
           </div>
-        )}
-      </div>
+        </div>,
+        portalRoot
+      )}
     </MarketingServiceGuard>
   );
 }
