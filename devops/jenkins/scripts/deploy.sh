@@ -40,7 +40,7 @@ deploy_docker_compose() {
     
     # Start services
     echo "📦 Starting Jenkins services..."
-    docker-compose up -d
+    docker compose up -d
     
     # Wait for Jenkins to be ready
     echo "⏳ Waiting for Jenkins to be ready..."

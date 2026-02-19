@@ -9,7 +9,7 @@ services:
       - "8090:8080"
       - "50000:50000"
     environment:
-      - JENKINS_OPTS=--httpPort=8080 --httpHost=0.0.0.0
+      - JENKINS_OPTS=--httpPort=8080
       - JAVA_OPTS=-Djenkins.install.runSetupWizard=false
       - DOCKER_HOST=tcp://docker:2376
       - DOCKER_CERT_PATH=/certs/client

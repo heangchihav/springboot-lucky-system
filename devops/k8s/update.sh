@@ -115,7 +115,7 @@ if [[ "\${JENKINS_DEPLOYMENT:-}" == "true" ]]; then
     for module in "\${MODULES[@]}"; do
         MODULE_DIR="\${BACKEND_DIR}/\${module}"
         DOCKERFILE="\${MODULE_DIR}/Dockerfile"
-        SERVICE_NAME=\$(basename "\$module")
+        SERVICE_NAME=$(basename "$module")
         IMAGE="\${DOCKER_HUB_USERNAME}/\${SERVICE_NAME}:\${IMAGE_TAG}"
         
         echo -e "\n\${GREEN}[1/1] Deploying \${module} (\${IMAGE})...\${NC}"
