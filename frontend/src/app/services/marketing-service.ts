@@ -13,9 +13,6 @@ export interface WeeklyScheduleDayRequest {
 
 export interface WeeklyScheduleRequest {
   userId: number;
-  fullName: string;
-  phoneNumber: string;
-  subArea: string;
   year: number;
   month: number;
   weekNumber: number;
@@ -43,9 +40,9 @@ export interface BranchInfo {
 export interface WeeklyScheduleResponse {
   id: number;
   userId: number;
-  fullName: string;
-  phoneNumber: string;
-  subArea: string;
+  createdBy: string;
+  createdByFullName: string;
+  createdByPhone: string;
   year: number;
   month: number;
   weekNumber: number;
@@ -53,7 +50,7 @@ export interface WeeklyScheduleResponse {
   branch?: BranchInfo;
   createdAt: string;
   updatedAt: string;
-  createdBy: number;
+  createdByUserId: number;
 }
 
 export const weeklyScheduleService = {

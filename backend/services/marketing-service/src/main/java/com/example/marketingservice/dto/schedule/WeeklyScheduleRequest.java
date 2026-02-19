@@ -1,8 +1,6 @@
 package com.example.marketingservice.dto.schedule;
 
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Size;
 
 import java.util.List;
 
@@ -10,17 +8,6 @@ public class WeeklyScheduleRequest {
 
     @NotNull
     private Long userId;
-
-    @NotBlank
-    @Size(max = 120)
-    private String fullName;
-
-    @NotBlank
-    @Size(max = 40)
-    private String phoneNumber;
-
-    @Size(max = 100)
-    private String subArea;
 
     @NotNull
     private Integer year;
@@ -41,30 +28,6 @@ public class WeeklyScheduleRequest {
 
     public void setUserId(Long userId) {
         this.userId = userId;
-    }
-
-    public String getFullName() {
-        return fullName;
-    }
-
-    public void setFullName(String fullName) {
-        this.fullName = fullName;
-    }
-
-    public String getPhoneNumber() {
-        return phoneNumber;
-    }
-
-    public void setPhoneNumber(String phoneNumber) {
-        this.phoneNumber = phoneNumber;
-    }
-
-    public String getSubArea() {
-        return subArea;
-    }
-
-    public void setSubArea(String subArea) {
-        this.subArea = subArea;
     }
 
     public Integer getYear() {

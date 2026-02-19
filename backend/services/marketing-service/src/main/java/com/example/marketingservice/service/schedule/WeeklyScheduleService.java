@@ -10,12 +10,15 @@ import com.example.marketingservice.exception.ScheduleAlreadyExistsException;
 import com.example.marketingservice.repository.schedule.WeeklyScheduleDayRepository;
 import com.example.marketingservice.repository.schedule.WeeklyScheduleRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.client.RestTemplate;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -27,6 +30,15 @@ public class WeeklyScheduleService {
 
     @Autowired
     private WeeklyScheduleDayRepository weeklyScheduleDayRepository;
+
+    @Autowired
+    private RestTemplate restTemplate;
+
+    @Value("${user.service.url:http://gateway:8080}")
+    private String userServiceUrl;
+
+    private Map<String, String> userFullNameCache = new java.util.concurrent.ConcurrentHashMap<>();
+    private Map<String, String> userPhoneCache = new java.util.concurrent.ConcurrentHashMap<>();
 
     public List<WeeklyScheduleResponse> generateBusinessMonth(Integer year, Integer month) {
         List<WeeklyScheduleResponse> weeks = new ArrayList<>();
@@ -96,9 +108,6 @@ public class WeeklyScheduleService {
 
         WeeklySchedule schedule = new WeeklySchedule();
         schedule.setUserId(request.getUserId());
-        schedule.setFullName(request.getFullName());
-        schedule.setPhoneNumber(request.getPhoneNumber());
-        schedule.setSubArea(request.getSubArea());
         schedule.setYear(request.getYear());
         schedule.setMonth(request.getMonth());
         schedule.setWeekNumber(request.getWeekNumber());
@@ -129,10 +138,6 @@ public class WeeklyScheduleService {
     public WeeklyScheduleResponse updateSchedule(Long id, WeeklyScheduleRequest request) {
         WeeklySchedule schedule = weeklyScheduleRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Schedule not found"));
-
-        schedule.setFullName(request.getFullName());
-        schedule.setPhoneNumber(request.getPhoneNumber());
-        schedule.setSubArea(request.getSubArea());
 
         // Update branch if provided
         if (request.getBranchId() != null) {
@@ -200,15 +205,33 @@ public class WeeklyScheduleService {
         WeeklyScheduleResponse response = new WeeklyScheduleResponse();
         response.setId(schedule.getId());
         response.setUserId(schedule.getUserId());
-        response.setFullName(schedule.getFullName());
-        response.setPhoneNumber(schedule.getPhoneNumber());
-        response.setSubArea(schedule.getSubArea());
+        response.setCreatedBy(schedule.getCreatedBy() != null ? schedule.getCreatedBy().toString() : null);
         response.setYear(schedule.getYear());
         response.setMonth(schedule.getMonth());
         response.setWeekNumber(schedule.getWeekNumber());
         response.setCreatedAt(schedule.getCreatedAt());
         response.setUpdatedAt(schedule.getUpdatedAt());
-        response.setCreatedBy(schedule.getCreatedBy());
+
+        // Fetch user full name and phone number
+        String createdByFullName = null;
+        String createdByPhone = null;
+        Long createdByUserId = schedule.getCreatedBy();
+
+        if (createdByUserId != null) {
+            try {
+                String username = getUsernameById(createdByUserId);
+                if (username != null) {
+                    createdByFullName = getUserFullName(username);
+                    createdByPhone = getUserPhone(username);
+                }
+            } catch (Exception e) {
+                System.err.println("Error fetching user info for userId " + createdByUserId + ": " + e.getMessage());
+            }
+        }
+
+        response.setCreatedByFullName(createdByFullName);
+        response.setCreatedByPhone(createdByPhone);
+        response.setCreatedByUserId(createdByUserId);
 
         // Convert branch
         if (schedule.getBranch() != null) {
@@ -253,5 +276,68 @@ public class WeeklyScheduleService {
         day.setAfternoonSchedule(request.getAfternoonSchedule());
         day.setInMonth(request.getInMonth());
         return day;
+    }
+
+    private String getUsernameById(Long userId) {
+        if (userId == null)
+            return null;
+
+        try {
+            String url = userServiceUrl + "/api/users/" + userId + "/username";
+            return restTemplate.getForObject(url, String.class);
+        } catch (Exception e) {
+            System.err.println("Error fetching username for userId " + userId + ": " + e.getMessage());
+            return null;
+        }
+    }
+
+    private String getUserFullName(String username) {
+        if (username == null)
+            return null;
+
+        // Check cache first
+        return userFullNameCache.computeIfAbsent(username, user -> {
+            try {
+                String url = userServiceUrl + "/api/users/username/" + user + "/fullname";
+                @SuppressWarnings("unchecked")
+                Map<String, Object> response = restTemplate.getForObject(url, Map.class);
+                if (response != null && response.containsKey("fullName")) {
+                    // Also cache the phone number if available
+                    if (response.containsKey("phone")) {
+                        userPhoneCache.put(user, (String) response.get("phone"));
+                    }
+                    return (String) response.get("fullName");
+                }
+            } catch (Exception e) {
+                // Log error but don't fail the report generation
+                System.err.println("Error fetching user full name for " + user + ": " + e.getMessage());
+            }
+            return username; // Fallback to username if full name not found
+        });
+    }
+
+    private String getUserPhone(String username) {
+        if (username == null)
+            return null;
+
+        // Check cache first
+        return userPhoneCache.computeIfAbsent(username, user -> {
+            try {
+                String url = userServiceUrl + "/api/users/username/" + user + "/fullname";
+                @SuppressWarnings("unchecked")
+                Map<String, Object> response = restTemplate.getForObject(url, Map.class);
+                if (response != null && response.containsKey("phone")) {
+                    // Also cache the full name if available
+                    if (response.containsKey("fullName")) {
+                        userFullNameCache.put(user, (String) response.get("fullName"));
+                    }
+                    return (String) response.get("phone");
+                }
+            } catch (Exception e) {
+                // Log error but don't fail the report generation
+                System.err.println("Error fetching user phone for " + user + ": " + e.getMessage());
+            }
+            return null; // Return null if phone not found
+        });
     }
 }

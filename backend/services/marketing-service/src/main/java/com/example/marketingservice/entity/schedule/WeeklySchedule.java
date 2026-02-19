@@ -2,9 +2,7 @@ package com.example.marketingservice.entity.schedule;
 
 import com.example.marketingservice.entity.branch.MarketingBranch;
 import jakarta.persistence.*;
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Size;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -27,20 +25,6 @@ public class WeeklySchedule {
     @NotNull
     @Column(name = "user_id", nullable = false)
     private Long userId;
-
-    @NotBlank
-    @Size(max = 120)
-    @Column(name = "full_name", nullable = false, length = 120)
-    private String fullName;
-
-    @NotBlank
-    @Size(max = 40)
-    @Column(name = "phone_number", nullable = false, length = 40)
-    private String phoneNumber;
-
-    @Size(max = 100)
-    @Column(name = "sub_area", length = 100)
-    private String subArea;
 
     @NotNull
     @Column(name = "year", nullable = false)
@@ -75,19 +59,11 @@ public class WeeklySchedule {
         LocalDateTime now = LocalDateTime.now();
         this.createdAt = now;
         this.updatedAt = now;
-        // Normalize phone number by removing spaces
-        if (this.phoneNumber != null) {
-            this.phoneNumber = this.phoneNumber.replaceAll("\\s", "");
-        }
     }
 
     @PreUpdate
     protected void onUpdate() {
         this.updatedAt = LocalDateTime.now();
-        // Normalize phone number by removing spaces
-        if (this.phoneNumber != null) {
-            this.phoneNumber = this.phoneNumber.replaceAll("\\s", "");
-        }
     }
 
     public Long getId() {
@@ -104,30 +80,6 @@ public class WeeklySchedule {
 
     public void setUserId(Long userId) {
         this.userId = userId;
-    }
-
-    public String getFullName() {
-        return fullName;
-    }
-
-    public void setFullName(String fullName) {
-        this.fullName = fullName;
-    }
-
-    public String getPhoneNumber() {
-        return phoneNumber;
-    }
-
-    public void setPhoneNumber(String phoneNumber) {
-        this.phoneNumber = phoneNumber;
-    }
-
-    public String getSubArea() {
-        return subArea;
-    }
-
-    public void setSubArea(String subArea) {
-        this.subArea = subArea;
     }
 
     public Integer getYear() {

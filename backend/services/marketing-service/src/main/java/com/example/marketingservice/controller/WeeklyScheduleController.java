@@ -1,8 +1,10 @@
 package com.example.marketingservice.controller;
 
+import com.example.marketingservice.api.base.BaseController;
 import com.example.marketingservice.dto.schedule.WeeklyScheduleRequest;
 import com.example.marketingservice.dto.schedule.WeeklyScheduleResponse;
 import com.example.marketingservice.service.schedule.WeeklyScheduleService;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -11,7 +13,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/marketing/weekly-schedules")
-public class WeeklyScheduleController {
+public class WeeklyScheduleController extends BaseController {
 
     @Autowired
     private WeeklyScheduleService weeklyScheduleService;
@@ -25,10 +27,13 @@ public class WeeklyScheduleController {
     }
 
     @PostMapping
-    public ResponseEntity<WeeklyScheduleResponse> createSchedule(@RequestBody WeeklyScheduleRequest request) {
-        // For now, use a hardcoded user ID - this should be replaced with proper
-        // authentication
-        Long currentUserId = 1L;
+    public ResponseEntity<WeeklyScheduleResponse> createSchedule(
+            @RequestBody WeeklyScheduleRequest request,
+            HttpServletRequest httpRequest) {
+        Long currentUserId = getCurrentUserId(httpRequest);
+        if (currentUserId == null) {
+            return ResponseEntity.status(401).build();
+        }
 
         WeeklyScheduleResponse response = weeklyScheduleService.createSchedule(request, currentUserId);
         return ResponseEntity.ok(response);

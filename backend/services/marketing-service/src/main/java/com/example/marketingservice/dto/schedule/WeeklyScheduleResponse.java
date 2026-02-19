@@ -7,9 +7,9 @@ public class WeeklyScheduleResponse {
 
     private Long id;
     private Long userId;
-    private String fullName;
-    private String phoneNumber;
-    private String subArea;
+    private String createdBy;
+    private String createdByFullName;
+    private String createdByPhone;
     private Integer year;
     private Integer month;
     private Integer weekNumber;
@@ -17,7 +17,7 @@ public class WeeklyScheduleResponse {
     private BranchInfo branch;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
-    private Long createdBy;
+    private Long createdByUserId;
 
     public static class BranchInfo {
         private Long id;
@@ -56,28 +56,36 @@ public class WeeklyScheduleResponse {
         this.userId = userId;
     }
 
-    public String getFullName() {
-        return fullName;
+    public String getCreatedBy() {
+        return createdBy;
     }
 
-    public void setFullName(String fullName) {
-        this.fullName = fullName;
+    public void setCreatedBy(String createdBy) {
+        this.createdBy = createdBy;
     }
 
-    public String getPhoneNumber() {
-        return phoneNumber;
+    public String getCreatedByFullName() {
+        return createdByFullName;
     }
 
-    public void setPhoneNumber(String phoneNumber) {
-        this.phoneNumber = phoneNumber;
+    public void setCreatedByFullName(String createdByFullName) {
+        this.createdByFullName = createdByFullName;
     }
 
-    public String getSubArea() {
-        return subArea;
+    public String getCreatedByPhone() {
+        return createdByPhone;
     }
 
-    public void setSubArea(String subArea) {
-        this.subArea = subArea;
+    public void setCreatedByPhone(String createdByPhone) {
+        this.createdByPhone = createdByPhone;
+    }
+
+    public Long getCreatedByUserId() {
+        return createdByUserId;
+    }
+
+    public void setCreatedByUserId(Long createdByUserId) {
+        this.createdByUserId = createdByUserId;
     }
 
     public Integer getYear() {
@@ -134,13 +142,5 @@ public class WeeklyScheduleResponse {
 
     public void setUpdatedAt(LocalDateTime updatedAt) {
         this.updatedAt = updatedAt;
-    }
-
-    public Long getCreatedBy() {
-        return createdBy;
-    }
-
-    public void setCreatedBy(Long createdBy) {
-        this.createdBy = createdBy;
     }
 }

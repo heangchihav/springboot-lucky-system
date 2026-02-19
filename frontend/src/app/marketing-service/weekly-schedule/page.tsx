@@ -5,6 +5,8 @@ import { createPortal } from "react-dom";
 import { MarketingServiceGuard } from "@/components/marketing-service/MarketingServiceGuard";
 import { useToast } from "@/components/ui/Toast";
 import { weeklyScheduleService, WeeklyScheduleResponse, WeeklyScheduleRequest } from "@/app/services/marketing-service";
+import SubAreaCell from "@/components/marketing-service/weekly-schedule/SubAreaCell";
+import UserInfoCell from "@/components/marketing-service/weekly-schedule/UserInfoCell";
 
 /* ================= STYLES ================= */
 const scrollbarHideStyles = `
@@ -41,9 +43,6 @@ type MonthlySchedule = {
 };
 
 type UserInfo = {
-  fullName: string;
-  phoneNumber: string;
-  subArea: string;
   month: number;
   week: number;
 };
@@ -51,6 +50,9 @@ type UserInfo = {
 type SubmittedSchedule = {
   id?: number;
   userInfo: UserInfo;
+  createdBy: string;
+  createdByFullName?: string;
+  createdByPhone?: string;
   selectedWeek: number | null;
   currentWeekIndex: number | null;
   weekDetails: {
@@ -173,9 +175,6 @@ export default function MonthlySchedulePage() {
   const [currentWeekIndex, setCurrentWeekIndex] = useState<number | null>(null);
 
   const [userInfo, setUserInfo] = useState<UserInfo>({
-    fullName: "John Doe",
-    phoneNumber: "+855 123 4567",
-    subArea: "Phnom Penh",
     month: month,
     week: 1
   });
@@ -256,12 +255,12 @@ export default function MonthlySchedulePage() {
       const submittedSchedulesData = existingSchedules.map(schedule => ({
         id: schedule.id,
         userInfo: {
-          fullName: schedule.fullName,
-          phoneNumber: schedule.phoneNumber,
-          subArea: schedule.subArea || '',
           month: schedule.month,
           week: schedule.weekNumber
         },
+        createdBy: schedule.createdBy,
+        createdByFullName: schedule.createdByFullName,
+        createdByPhone: schedule.createdByPhone,
         selectedWeek: schedule.weekNumber,
         currentWeekIndex: schedule.weekNumber - 1,
         weekDetails: {
@@ -355,9 +354,6 @@ export default function MonthlySchedulePage() {
       // Prepare data for backend
       const scheduleRequest: WeeklyScheduleRequest = {
         userId: 1, // Hardcoded for now
-        fullName: editingSchedule.userInfo.fullName,
-        phoneNumber: editingSchedule.userInfo.phoneNumber,
-        subArea: editingSchedule.userInfo.subArea,
         year: year,
         month: month,
         weekNumber: editingSchedule.selectedWeek!,
@@ -381,6 +377,8 @@ export default function MonthlySchedulePage() {
         prev.map(schedule =>
           schedule.id === editingSchedule.id ? {
             ...editingSchedule,
+            createdByFullName: updatedSchedule.createdByFullName,
+            createdByPhone: updatedSchedule.createdByPhone,
             weekDetails: {
               ...editingSchedule.weekDetails!,
               days: updatedSchedule.days.map((backendDay, index) => ({
@@ -439,9 +437,6 @@ export default function MonthlySchedulePage() {
       // Prepare data for backend
       const scheduleRequest: WeeklyScheduleRequest = {
         userId: 1, // Hardcoded for now - should come from auth context
-        fullName: userInfo.fullName,
-        phoneNumber: userInfo.phoneNumber,
-        subArea: userInfo.subArea,
         year: year,
         month: month,
         weekNumber: selectedWeek,
@@ -464,6 +459,9 @@ export default function MonthlySchedulePage() {
       const submissionData: SubmittedSchedule = {
         id: savedSchedule.id,
         userInfo: userInfo,
+        createdBy: savedSchedule.createdBy,
+        createdByFullName: savedSchedule.createdByFullName,
+        createdByPhone: savedSchedule.createdByPhone,
         selectedWeek: selectedWeek,
         currentWeekIndex: currentWeekIndex,
         weekDetails: {
@@ -714,8 +712,11 @@ export default function MonthlySchedulePage() {
                     <div>
                       <h4 className="text-lg font-semibold text-white">Week {submittedSchedule.weekDetails?.weekNumber}</h4>
                       <p className="text-sm text-slate-400">
-                        {submittedSchedule.userInfo.fullName} • {submittedSchedule.userInfo.subArea} • {new Date(submittedSchedule.timestamp).toLocaleString()}
+                        <UserInfoCell userId={submittedSchedule.createdBy} /> • {new Date(submittedSchedule.timestamp).toLocaleString()}
                       </p>
+                      <div className="mt-2">
+                        <SubAreaCell createdBy={submittedSchedule.createdBy} />
+                      </div>
                     </div>
                     <div className="flex gap-2">
                       <button
