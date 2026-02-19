@@ -7,6 +7,7 @@ import { useToast } from "@/components/ui/Toast";
 import { weeklyScheduleService, WeeklyScheduleResponse, WeeklyScheduleRequest } from "@/app/services/marketing-service";
 import { apiFetch } from "@/services/httpClient";
 import { useAuth } from "@/contexts/AuthContext";
+import { marketingUserAssignmentService, MarketingUserAssignment } from "@/services/marketingUserAssignmentService";
 import SubAreaCell from "@/components/marketing-service/weekly-schedule/SubAreaCell";
 import UserInfoCell from "@/components/marketing-service/weekly-schedule/UserInfoCell";
 
@@ -193,7 +194,12 @@ export default function MonthlySchedulePage() {
   const [editingSchedule, setEditingSchedule] = useState<SubmittedSchedule | null>(null);
   const [loading, setLoading] = useState(false);
   const [selectedUserFilter, setSelectedUserFilter] = useState<string>('all');
+  const [selectedSubAreaFilter, setSelectedSubAreaFilter] = useState<string>('all');
+  const [selectedYearFilter, setSelectedYearFilter] = useState<number>(new Date().getFullYear());
+  const [selectedMonthFilter, setSelectedMonthFilter] = useState<number>(new Date().getMonth() + 1);
+  const [selectedWeekFilter, setSelectedWeekFilter] = useState<string>('all');
   const [userCache, setUserCache] = useState<Map<string, { fullName: string; phone: string }>>(new Map());
+  const [userAssignmentCache, setUserAssignmentCache] = useState<Map<string, MarketingUserAssignment[]>>(new Map());
 
   // Fetch user info for all unique users
   useEffect(() => {
@@ -260,6 +266,63 @@ export default function MonthlySchedulePage() {
       fetchUserInfos();
     }
   }, [submittedSchedules]);
+
+  // Fetch user assignments for subarea filtering
+  useEffect(() => {
+    const fetchUserAssignments = async () => {
+      const uniqueUserIds = [...new Set(submittedSchedules.map(s => s.createdBy).filter(Boolean))];
+
+      for (const userId of uniqueUserIds) {
+        if (!userAssignmentCache.has(userId)) {
+          try {
+            let actualUserId: number;
+
+            if (/^\d+$/.test(userId)) {
+              actualUserId = parseInt(userId, 10);
+            } else {
+              const userIdResponse = await apiFetch(`/api/users/username/${userId}/id`, {
+                method: "GET",
+              });
+
+              if (userIdResponse.ok) {
+                actualUserId = await userIdResponse.json();
+              } else {
+                continue;
+              }
+            }
+
+            if (actualUserId) {
+              const assignments = await marketingUserAssignmentService.getUserAssignments(actualUserId);
+              setUserAssignmentCache(prev => new Map(prev.set(userId, assignments)));
+            }
+          } catch (error) {
+            console.error('Failed to fetch user assignments:', error);
+          }
+        }
+      }
+    };
+
+    if (submittedSchedules.length > 0) {
+      fetchUserAssignments();
+    }
+  }, [submittedSchedules]);
+
+  // Get unique subareas from submitted schedules
+  const getUniqueSubAreas = () => {
+    const subAreas = new Set<string>();
+
+    submittedSchedules.forEach(schedule => {
+      const assignments = userAssignmentCache.get(schedule.createdBy);
+      if (assignments) {
+        const userSubAreas = assignments
+          .filter(assignment => assignment.active && assignment.subAreaName)
+          .map(assignment => assignment.subAreaName!);
+        userSubAreas.forEach(subArea => subAreas.add(subArea));
+      }
+    });
+
+    return Array.from(subAreas).sort();
+  };
 
   const expandRow = (weekIndex: number, dayIndex: number) => {
     const uniqueKey = `${weekIndex}-${dayIndex}`;
@@ -517,40 +580,66 @@ export default function MonthlySchedulePage() {
     }); // Sort alphabetically by full name
   };
 
-  // Filter submitted schedules based on selected user
+  // Filter submitted schedules based on all filters
   const getFilteredSchedules = () => {
     console.log('Filter debug:', {
       selectedUserFilter,
-      selectedUserFilterType: typeof selectedUserFilter,
-      submittedSchedules: submittedSchedules.map(s => ({
-        id: s.id,
-        createdBy: s.createdBy,
-        createdByType: typeof s.createdBy,
-        createdByFullName: s.createdByFullName
-      }))
+      selectedSubAreaFilter,
+      selectedYearFilter,
+      selectedMonthFilter,
+      selectedWeekFilter,
+      totalSchedules: submittedSchedules.length
     });
 
-    if (selectedUserFilter === 'all') {
-      console.log('Returning all schedules:', submittedSchedules.length);
-      return submittedSchedules;
-    }
+    return submittedSchedules.filter(schedule => {
+      // User filter
+      if (selectedUserFilter !== 'all') {
+        const scheduleUserId = String(schedule.createdBy);
+        const filterUserId = String(selectedUserFilter);
+        if (scheduleUserId !== filterUserId) {
+          return false;
+        }
+      }
 
-    // Convert both to strings for comparison to handle type mismatches
-    const selectedUserId = String(selectedUserFilter);
-    const filtered = submittedSchedules.filter(schedule => {
-      const scheduleUserId = String(schedule.createdBy);
-      const matches = scheduleUserId === selectedUserId;
-      console.log('Comparing:', {
-        scheduleUserId,
-        selectedUserId,
-        matches,
-        scheduleId: schedule.id
-      });
-      return matches;
+      // SubArea filter (using user assignment cache)
+      if (selectedSubAreaFilter !== 'all') {
+        const assignments = userAssignmentCache.get(schedule.createdBy);
+        if (!assignments) {
+          return false;
+        }
+
+        const userSubAreas = assignments
+          .filter(assignment => assignment.active && assignment.subAreaName)
+          .map(assignment => assignment.subAreaName!);
+
+        if (!userSubAreas.includes(selectedSubAreaFilter)) {
+          return false;
+        }
+      }
+
+      // Year filter
+      if (selectedYearFilter) {
+        const scheduleDate = new Date(schedule.timestamp);
+        if (scheduleDate.getFullYear() !== selectedYearFilter) {
+          return false;
+        }
+      }
+
+      // Month filter
+      if (selectedMonthFilter) {
+        const scheduleDate = new Date(schedule.timestamp);
+        if (scheduleDate.getMonth() + 1 !== selectedMonthFilter) {
+          return false;
+        }
+      }
+
+      // Week filter
+      if (selectedWeekFilter !== 'all' && schedule.selectedWeek !== parseInt(selectedWeekFilter)) {
+        return false;
+      }
+
+      return true;
     });
-
-    console.log('Filtered result:', filtered.length, 'schedules');
-    return filtered;
   };
 
   const selectWeek = (weekNumber: number) => {
@@ -844,7 +933,7 @@ export default function MonthlySchedulePage() {
                 <h3 className="text-xl font-semibold text-white">Submitted Schedules</h3>
                 <p className="text-sm text-slate-400 mt-1">
                   Total: {getFilteredSchedules().length} schedule{getFilteredSchedules().length !== 1 ? 's' : ''}
-                  {selectedUserFilter !== 'all' && ` (filtered by user)`}
+                  {(selectedUserFilter !== 'all' || selectedSubAreaFilter !== 'all' || selectedYearFilter !== new Date().getFullYear() || selectedMonthFilter !== new Date().getMonth() + 1 || selectedWeekFilter !== 'all') && ` (filtered)`}
                 </p>
               </div>
               <button
@@ -857,21 +946,90 @@ export default function MonthlySchedulePage() {
               </button>
             </div>
 
-            {/* User Filter Dropdown */}
-            <div className="mb-6">
-              <label className="block text-sm font-medium text-slate-300 mb-2">Filter by User</label>
-              <select
-                value={selectedUserFilter}
-                onChange={(e) => setSelectedUserFilter(e.target.value)}
-                className="bg-slate-900/50 border border-slate-600/50 rounded-lg px-3 py-2 w-64 text-white focus:border-amber-500/50 focus:outline-none focus:ring-2 focus:ring-amber-500/20"
-              >
-                <option value="all" className="bg-slate-900">All Users</option>
-                {getUniqueUsers().map((user) => (
-                  <option key={user.userId} value={user.userId} className="bg-slate-900">
-                    {user.fullName}
-                  </option>
-                ))}
-              </select>
+            {/* Filters */}
+            <div className="flex flex-wrap gap-3 mb-4">
+              {/* User Filter Dropdown */}
+              <div className="flex-1 min-w-0">
+                <label className="block text-xs font-medium text-slate-300 mb-1">User</label>
+                <select
+                  value={selectedUserFilter}
+                  onChange={(e) => setSelectedUserFilter(e.target.value)}
+                  className="bg-slate-900/50 border border-slate-600/50 rounded-lg px-2 py-1.5 w-full text-sm text-white focus:border-amber-500/50 focus:outline-none focus:ring-1 focus:ring-amber-500/20"
+                >
+                  <option value="all" className="bg-slate-900">All Users</option>
+                  {getUniqueUsers().map((user) => (
+                    <option key={user.userId} value={user.userId} className="bg-slate-900">
+                      {user.fullName}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* SubArea Filter Dropdown */}
+              <div className="flex-1 min-w-0">
+                <label className="block text-xs font-medium text-slate-300 mb-1">SubArea</label>
+                <select
+                  value={selectedSubAreaFilter}
+                  onChange={(e) => setSelectedSubAreaFilter(e.target.value)}
+                  className="bg-slate-900/50 border border-slate-600/50 rounded-lg px-2 py-1.5 w-full text-sm text-white focus:border-amber-500/50 focus:outline-none focus:ring-1 focus:ring-amber-500/20"
+                >
+                  <option value="all" className="bg-slate-900">All SubAreas</option>
+                  {getUniqueSubAreas().map((subArea) => (
+                    <option key={subArea} value={subArea} className="bg-slate-900">
+                      {subArea}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Year Filter Dropdown */}
+              <div className="flex-1 min-w-0">
+                <label className="block text-xs font-medium text-slate-300 mb-1">Year</label>
+                <select
+                  value={selectedYearFilter}
+                  onChange={(e) => setSelectedYearFilter(parseInt(e.target.value))}
+                  className="bg-slate-900/50 border border-slate-600/50 rounded-lg px-2 py-1.5 w-full text-sm text-white focus:border-amber-500/50 focus:outline-none focus:ring-1 focus:ring-amber-500/20"
+                >
+                  {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i).map((year) => (
+                    <option key={year} value={year} className="bg-slate-900">
+                      {year}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Month Filter Dropdown */}
+              <div className="flex-1 min-w-0">
+                <label className="block text-xs font-medium text-slate-300 mb-1">Month</label>
+                <select
+                  value={selectedMonthFilter}
+                  onChange={(e) => setSelectedMonthFilter(parseInt(e.target.value))}
+                  className="bg-slate-900/50 border border-slate-600/50 rounded-lg px-2 py-1.5 w-full text-sm text-white focus:border-amber-500/50 focus:outline-none focus:ring-1 focus:ring-amber-500/20"
+                >
+                  {Array.from({ length: 12 }).map((_, i) => (
+                    <option key={i} value={i + 1} className="bg-slate-900">
+                      {new Date(0, i).toLocaleString("default", { month: "short" })}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Week Filter Dropdown */}
+              <div className="flex-1 min-w-0">
+                <label className="block text-xs font-medium text-slate-300 mb-1">Week</label>
+                <select
+                  value={selectedWeekFilter}
+                  onChange={(e) => setSelectedWeekFilter(e.target.value)}
+                  className="bg-slate-900/50 border border-slate-600/50 rounded-lg px-2 py-1.5 w-full text-sm text-white focus:border-amber-500/50 focus:outline-none focus:ring-1 focus:ring-amber-500/20"
+                >
+                  <option value="all" className="bg-slate-900">All Weeks</option>
+                  {Array.from({ length: 5 }, (_, i) => i + 1).map((week) => (
+                    <option key={week} value={week} className="bg-slate-900">
+                      Week {week}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
 
             <div className="space-y-4">
