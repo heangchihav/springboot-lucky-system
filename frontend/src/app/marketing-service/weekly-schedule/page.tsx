@@ -5,6 +5,8 @@ import { createPortal } from "react-dom";
 import { MarketingServiceGuard } from "@/components/marketing-service/MarketingServiceGuard";
 import { useToast } from "@/components/ui/Toast";
 import { weeklyScheduleService, WeeklyScheduleResponse, WeeklyScheduleRequest } from "@/app/services/marketing-service";
+import { apiFetch } from "@/services/httpClient";
+import { useAuth } from "@/contexts/AuthContext";
 import SubAreaCell from "@/components/marketing-service/weekly-schedule/SubAreaCell";
 import UserInfoCell from "@/components/marketing-service/weekly-schedule/UserInfoCell";
 
@@ -167,6 +169,7 @@ const usePortal = () => {
 /* ================= PAGE ================= */
 
 export default function MonthlySchedulePage() {
+  const { user } = useAuth();
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
@@ -189,6 +192,74 @@ export default function MonthlySchedulePage() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingSchedule, setEditingSchedule] = useState<SubmittedSchedule | null>(null);
   const [loading, setLoading] = useState(false);
+  const [selectedUserFilter, setSelectedUserFilter] = useState<string>('all');
+  const [userCache, setUserCache] = useState<Map<string, { fullName: string; phone: string }>>(new Map());
+
+  // Fetch user info for all unique users
+  useEffect(() => {
+    const fetchUserInfos = async () => {
+      const uniqueUserIds = [...new Set(submittedSchedules.map(s => s.createdBy).filter(Boolean))];
+
+      for (const userId of uniqueUserIds) {
+        if (!userCache.has(userId)) {
+          try {
+            let fullName: string;
+            let phone: string;
+
+            if (/^\d+$/.test(userId)) {
+              // If it's a user ID, get username first, then get user info
+              const usernameResponse = await apiFetch(`/api/users/${userId}/username`, {
+                method: "GET",
+              });
+
+              if (usernameResponse.ok) {
+                const username = await usernameResponse.text();
+                // Now get full name and phone using username
+                const userInfoResponse = await apiFetch(`/api/users/username/${username}/fullname`, {
+                  method: "GET",
+                });
+
+                if (userInfoResponse.ok) {
+                  const userData = await userInfoResponse.json();
+                  fullName = userData.fullName;
+                  phone = userData.phone;
+                } else {
+                  fullName = userId;
+                  phone = 'N/A';
+                }
+              } else {
+                fullName = userId;
+                phone = 'N/A';
+              }
+            } else {
+              // If it's a username, get user info directly
+              const userInfoResponse = await apiFetch(`/api/users/username/${userId}/fullname`, {
+                method: "GET",
+              });
+
+              if (userInfoResponse.ok) {
+                const userData = await userInfoResponse.json();
+                fullName = userData.fullName;
+                phone = userData.phone;
+              } else {
+                fullName = userId;
+                phone = 'N/A';
+              }
+            }
+
+            setUserCache(prev => new Map(prev.set(userId, { fullName, phone })));
+          } catch (error) {
+            console.error('Failed to fetch user info:', error);
+            setUserCache(prev => new Map(prev.set(userId, { fullName: userId, phone: 'N/A' })));
+          }
+        }
+      }
+    };
+
+    if (submittedSchedules.length > 0) {
+      fetchUserInfos();
+    }
+  }, [submittedSchedules]);
 
   const expandRow = (weekIndex: number, dayIndex: number) => {
     const uniqueKey = `${weekIndex}-${dayIndex}`;
@@ -397,7 +468,15 @@ export default function MonthlySchedulePage() {
       showToast('Schedule updated successfully!', 'success');
     } catch (error) {
       console.error('Error updating schedule:', error);
-      showToast(error instanceof Error ? error.message : 'Failed to update schedule', 'error');
+
+      // Check for duplicate constraint violation
+      const errorMessage = error instanceof Error ? error.message : 'Failed to update schedule';
+      if (errorMessage.includes('duplicate key value violates unique constraint') ||
+        errorMessage.includes('uk_user_year_month_week')) {
+        showToast('A schedule for this user, week, and month already exists. Please choose a different week.', 'error');
+      } else {
+        showToast(errorMessage, 'error');
+      }
     } finally {
       setLoading(false);
     }
@@ -412,6 +491,66 @@ export default function MonthlySchedulePage() {
   const getCurrentWeek = () => {
     if (!schedule || currentWeekIndex === null || !schedule.weeks[currentWeekIndex]) return null;
     return schedule.weeks[currentWeekIndex];
+  };
+
+  // Get unique users from submitted schedules for filter dropdown
+  const getUniqueUsers = () => {
+    const userMap = new Map<string, string>();
+    submittedSchedules.forEach(schedule => {
+      if (schedule.createdBy && !userMap.has(schedule.createdBy)) {
+        // Use cached user info if available, otherwise use createdByFullName or fallback to ID
+        const cachedUser = userCache.get(schedule.createdBy);
+        const displayName = cachedUser?.fullName || schedule.createdByFullName || schedule.createdBy || 'Unknown User';
+        userMap.set(schedule.createdBy, displayName);
+      }
+    });
+
+    console.log('Unique users from schedules:', Array.from(userMap.entries()));
+
+    return Array.from(userMap.entries()).map(([userId, fullName]) => ({
+      userId,
+      fullName: fullName || 'Unknown User'
+    })).sort((a, b) => {
+      const nameA = String(a.fullName || '').trim();
+      const nameB = String(b.fullName || '').trim();
+      return nameA.localeCompare(nameB);
+    }); // Sort alphabetically by full name
+  };
+
+  // Filter submitted schedules based on selected user
+  const getFilteredSchedules = () => {
+    console.log('Filter debug:', {
+      selectedUserFilter,
+      selectedUserFilterType: typeof selectedUserFilter,
+      submittedSchedules: submittedSchedules.map(s => ({
+        id: s.id,
+        createdBy: s.createdBy,
+        createdByType: typeof s.createdBy,
+        createdByFullName: s.createdByFullName
+      }))
+    });
+
+    if (selectedUserFilter === 'all') {
+      console.log('Returning all schedules:', submittedSchedules.length);
+      return submittedSchedules;
+    }
+
+    // Convert both to strings for comparison to handle type mismatches
+    const selectedUserId = String(selectedUserFilter);
+    const filtered = submittedSchedules.filter(schedule => {
+      const scheduleUserId = String(schedule.createdBy);
+      const matches = scheduleUserId === selectedUserId;
+      console.log('Comparing:', {
+        scheduleUserId,
+        selectedUserId,
+        matches,
+        scheduleId: schedule.id
+      });
+      return matches;
+    });
+
+    console.log('Filtered result:', filtered.length, 'schedules');
+    return filtered;
   };
 
   const selectWeek = (weekNumber: number) => {
@@ -435,8 +574,12 @@ export default function MonthlySchedulePage() {
       setLoading(true);
 
       // Prepare data for backend
+      const currentUserId = user?.id;
+      console.log('Current user from auth context:', user);
+      console.log('Current user ID:', currentUserId);
+
       const scheduleRequest: WeeklyScheduleRequest = {
-        userId: 1, // Hardcoded for now - should come from auth context
+        userId: currentUserId || 1, // Use actual user ID from auth context, fallback to 1
         year: year,
         month: month,
         weekNumber: selectedWeek,
@@ -505,7 +648,15 @@ export default function MonthlySchedulePage() {
       }
     } catch (error) {
       console.error('Error saving schedule:', error);
-      showToast(error instanceof Error ? error.message : 'Failed to save schedule', 'error');
+
+      // Check for duplicate constraint violation
+      const errorMessage = error instanceof Error ? error.message : 'Failed to save schedule';
+      if (errorMessage.includes('duplicate key value violates unique constraint') ||
+        errorMessage.includes('uk_user_year_month_week')) {
+        showToast('A schedule for this user, week, and month already exists. Please choose a different week.', 'error');
+      } else {
+        showToast(errorMessage, 'error');
+      }
     } finally {
       setLoading(false);
     }
@@ -692,7 +843,8 @@ export default function MonthlySchedulePage() {
               <div>
                 <h3 className="text-xl font-semibold text-white">Submitted Schedules</h3>
                 <p className="text-sm text-slate-400 mt-1">
-                  Total: {submittedSchedules.length} schedule{submittedSchedules.length !== 1 ? 's' : ''}
+                  Total: {getFilteredSchedules().length} schedule{getFilteredSchedules().length !== 1 ? 's' : ''}
+                  {selectedUserFilter !== 'all' && ` (filtered by user)`}
                 </p>
               </div>
               <button
@@ -705,8 +857,25 @@ export default function MonthlySchedulePage() {
               </button>
             </div>
 
+            {/* User Filter Dropdown */}
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-slate-300 mb-2">Filter by User</label>
+              <select
+                value={selectedUserFilter}
+                onChange={(e) => setSelectedUserFilter(e.target.value)}
+                className="bg-slate-900/50 border border-slate-600/50 rounded-lg px-3 py-2 w-64 text-white focus:border-amber-500/50 focus:outline-none focus:ring-2 focus:ring-amber-500/20"
+              >
+                <option value="all" className="bg-slate-900">All Users</option>
+                {getUniqueUsers().map((user) => (
+                  <option key={user.userId} value={user.userId} className="bg-slate-900">
+                    {user.fullName}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             <div className="space-y-4">
-              {submittedSchedules.map((submittedSchedule, scheduleIndex) => (
+              {getFilteredSchedules().map((submittedSchedule, scheduleIndex) => (
                 <div key={scheduleIndex} className="border border-slate-600/30 rounded-lg p-4">
                   <div className="flex justify-between items-center mb-4">
                     <div>

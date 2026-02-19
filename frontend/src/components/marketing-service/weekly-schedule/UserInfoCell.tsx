@@ -20,14 +20,14 @@ const UserInfoCell = ({ userId }: UserInfoCellProps) => {
           const usernameResponse = await apiFetch(`/api/users/${userId}/username`, {
             method: "GET",
           });
-          
+
           if (usernameResponse.ok) {
             const username = await usernameResponse.text();
             // Now get full name and phone using username
             const userInfoResponse = await apiFetch(`/api/users/username/${username}/fullname`, {
               method: "GET",
             });
-            
+
             if (userInfoResponse.ok) {
               const userData = await userInfoResponse.json();
               fullName = userData.fullName;
@@ -45,7 +45,7 @@ const UserInfoCell = ({ userId }: UserInfoCellProps) => {
           const userInfoResponse = await apiFetch(`/api/users/username/${userId}/fullname`, {
             method: "GET",
           });
-          
+
           if (userInfoResponse.ok) {
             const userData = await userInfoResponse.json();
             fullName = userData.fullName;

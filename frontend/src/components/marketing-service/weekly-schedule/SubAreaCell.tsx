@@ -60,40 +60,40 @@ const SubAreaCell = ({ createdBy }: SubAreaCellProps) => {
 
   if (loading) {
     return (
-      <div className="text-sm text-slate-500 animate-pulse">
+      <span className="text-sm text-slate-500 animate-pulse">
         Loading...
-      </div>
+      </span>
     );
   }
 
   const subAreas = getUserSubAreas();
   if (subAreas.length === 0) {
     return (
-      <div className="text-sm text-slate-400">
+      <span className="text-sm text-slate-400">
         No sub-areas
-      </div>
+      </span>
     );
   }
 
   if (subAreas.length === 1) {
     return (
-      <div className="text-sm text-slate-300">
+      <span className="text-sm text-slate-300">
         {subAreas[0]}
-      </div>
+      </span>
     );
   }
 
   return (
-    <div className="text-sm text-slate-300">
-      <div className="font-medium text-slate-200">Sub-areas:</div>
-      <div className="mt-1 space-y-1">
+    <span className="text-sm text-slate-300">
+      <span className="font-medium text-slate-200">Sub-areas:</span>
+      <span className="ml-1">
         {subAreas.map((subArea, index) => (
-          <div key={index} className="bg-slate-700/50 rounded px-2 py-1 text-xs">
+          <span key={index} className="inline-block bg-slate-700/50 rounded px-2 py-1 text-xs mr-1 mb-1">
             {subArea}
-          </div>
+          </span>
         ))}
-      </div>
-    </div>
+      </span>
+    </span>
   );
 };
 
