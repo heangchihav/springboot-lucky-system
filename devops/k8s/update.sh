@@ -103,3 +103,34 @@ done
 
 echo -e "\n${GREEN}=== All services built, pushed, and rolled out! ===${NC}"
 kubectl get deployments -n "${NAMESPACE}"
+
+# ============================================================================
+# Jenkins Integration - Avoid Duplication
+# ============================================================================
+# Check if called from Jenkins to avoid build/push duplication
+if [[ "\${JENKINS_DEPLOYMENT:-}" == "true" ]]; then
+    echo -e "\${YELLOW}Jenkins deployment detected - skipping build/push, only deploying...\${NC}"
+    
+    # Skip build and push sections, only do deployment
+    for module in "\${MODULES[@]}"; do
+        MODULE_DIR="\${BACKEND_DIR}/\${module}"
+        DOCKERFILE="\${MODULE_DIR}/Dockerfile"
+        SERVICE_NAME=\$(basename "\$module")
+        IMAGE="\${DOCKER_HUB_USERNAME}/\${SERVICE_NAME}:\${IMAGE_TAG}"
+        
+        echo -e "\n\${GREEN}[1/1] Deploying \${module} (\${IMAGE})...\${NC}"
+        
+        if kubectl get deployment "\${SERVICE_NAME}" -n "\${NAMESPACE}" >/dev/null 2>&1; then
+            kubectl set image "deployment/\${SERVICE_NAME}" \
+                  "\${SERVICE_NAME}=\${IMAGE}" \
+                  -n "\${NAMESPACE}"
+            kubectl rollout status "deployment/\${SERVICE_NAME}" -n "\${NAMESPACE}" --timeout=180s
+        else
+            echo -e "\${YELLOW}Deployment \${SERVICE_NAME} not found in namespace \${NAMESPACE}. Apply manifests first.\${NC}"
+        fi
+    done
+    
+    echo -e "\n\${GREEN}=== Jenkins deployment completed! ===\${NC}"
+    kubectl get deployments -n "\${NAMESPACE}"
+    exit 0
+fi
