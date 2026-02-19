@@ -307,6 +307,20 @@ export default function MonthlySchedulePage() {
     }
   }, [submittedSchedules]);
 
+  // Check if current user can edit/delete a schedule
+  const canEditSchedule = (schedule: SubmittedSchedule) => {
+    // Root user can edit all schedules
+    if (user?.username === "root") {
+      return true;
+    }
+
+    // User can only edit their own schedules
+    const currentUserId = user?.id?.toString();
+    const scheduleUserId = schedule.createdBy?.toString();
+
+    return currentUserId === scheduleUserId;
+  };
+
   // Get unique subareas from submitted schedules
   const getUniqueSubAreas = () => {
     const subAreas = new Set<string>();
@@ -1046,37 +1060,41 @@ export default function MonthlySchedulePage() {
                       </div>
                     </div>
                     <div className="flex gap-2">
-                      <button
-                        onClick={() => openEditModal(submittedSchedule)}
-                        className="px-3 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors text-sm"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={async () => {
-                          if (submittedSchedule.id) {
-                            try {
-                              setLoading(true);
-                              await weeklyScheduleService.deleteSchedule(submittedSchedule.id);
-                              setSubmittedSchedules(prev => prev.filter((_, index) => index !== scheduleIndex));
-                              showToast('Schedule deleted!', 'success');
-                            } catch (error) {
-                              console.error('Error deleting schedule:', error);
-                              showToast(error instanceof Error ? error.message : 'Failed to delete schedule', 'error');
-                            } finally {
-                              setLoading(false);
-                            }
-                          } else {
-                            // Fallback for local-only schedules
-                            setSubmittedSchedules(prev => prev.filter((_, index) => index !== scheduleIndex));
-                            showToast('Schedule deleted!', 'success');
-                          }
-                        }}
-                        className="px-3 py-2 bg-red-500 text-white rounded hover:bg-red-600 transition-colors text-sm"
-                        disabled={loading}
-                      >
-                        Delete
-                      </button>
+                      {canEditSchedule(submittedSchedule) && (
+                        <>
+                          <button
+                            onClick={() => openEditModal(submittedSchedule)}
+                            className="px-3 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors text-sm"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={async () => {
+                              if (submittedSchedule.id) {
+                                try {
+                                  setLoading(true);
+                                  await weeklyScheduleService.deleteSchedule(submittedSchedule.id);
+                                  setSubmittedSchedules(prev => prev.filter((_, index) => index !== scheduleIndex));
+                                  showToast('Schedule deleted!', 'success');
+                                } catch (error) {
+                                  console.error('Error deleting schedule:', error);
+                                  showToast(error instanceof Error ? error.message : 'Failed to delete schedule', 'error');
+                                } finally {
+                                  setLoading(false);
+                                }
+                              } else {
+                                // Fallback for local-only schedules
+                                setSubmittedSchedules(prev => prev.filter((_, index) => index !== scheduleIndex));
+                                showToast('Schedule deleted!', 'success');
+                              }
+                            }}
+                            className="px-3 py-2 bg-red-500 text-white rounded hover:bg-red-600 transition-colors text-sm"
+                            disabled={loading}
+                          >
+                            Delete
+                          </button>
+                        </>
+                      )}
                     </div>
                   </div>
 
