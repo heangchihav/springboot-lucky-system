@@ -1,15 +1,18 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { MarketingServiceGuard } from "@/components/marketing-service/MarketingServiceGuard";
 import { useToast } from "@/components/ui/Toast";
 import { weeklyScheduleService, WeeklyScheduleResponse, WeeklyScheduleRequest } from "@/app/services/marketing-service";
 import { apiFetch } from "@/services/httpClient";
+import { apiService } from "@/services/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { marketingUserAssignmentService, MarketingUserAssignment } from "@/services/marketingUserAssignmentService";
+import { marketingUserProfileService, type MarketingUserProfile } from "@/services/marketing-service/marketingUserProfileService";
 import SubAreaCell from "@/components/marketing-service/weekly-schedule/SubAreaCell";
 import UserInfoCell from "@/components/marketing-service/weekly-schedule/UserInfoCell";
+import { useCopyScheduleImage } from "@/hooks/marketing-service/WeeklySchedule/useCopyScheduleImage";
 
 /* ================= STYLES ================= */
 const scrollbarHideStyles = `
@@ -19,6 +22,193 @@ const scrollbarHideStyles = `
   }
   .scrollbar-hide::-webkit-scrollbar {
     display: none;             /* Safari and Chrome */
+  }
+`;
+
+const printStyles = `
+  @media print {
+    @page {
+      size: A3 landscape;
+      margin: 0;
+      orientation: landscape;
+    }
+    
+    body {
+      margin: 0;
+      padding: 0;
+      background: white !important;
+      zoom: 1 !important;
+      transform: scale(1) !important;
+      transform-origin: top left !important;
+    }
+    
+    /* Hide everything except the modal */
+    body > *:not(.fixed.inset-0) {
+      display: none !important;
+    }
+    
+    /* Show only the modal and its content */
+    .fixed.inset-0 {
+      position: static !important;
+      background: white !important;
+      overflow: visible !important;
+      width: 100% !important;
+      height: auto !important;
+      display: block !important;
+    }
+    
+    .fixed.inset-0 > * {
+      display: none !important;
+    }
+    
+    .fixed.inset-0 > div {
+      display: block !important;
+      position: static !important;
+      background: white !important;
+      width: 100% !important;
+      height: auto !important;
+      overflow: visible !important;
+    }
+    
+    .fixed.inset-0 > div > * {
+      display: none !important;
+    }
+    
+    .fixed.inset-0 > div > div {
+      display: block !important;
+      position: static !important;
+      width: 100% !important;
+      height: auto !important;
+      overflow: visible !important;
+    }
+    
+    .fixed.inset-0 > div > div > * {
+      display: none !important;
+    }
+    
+    .fixed.inset-0 > div > div > div {
+      display: block !important;
+      position: static !important;
+      width: 100% !important;
+      height: auto !important;
+      overflow: visible !important;
+    }
+    
+    /* Show the schedule content */
+    .fixed.inset-0 [ref="scheduleContentRef"],
+    .fixed.inset-0 .w-full[ref="scheduleContentRef"] {
+      display: block !important;
+      position: static !important;
+      width: 100% !important;
+      height: auto !important;
+      overflow: visible !important;
+    }
+    
+    /* Show footer text section */
+    .fixed.inset-0 .flex.justify-evenly.items-center.mt-6.text-sm.text-gray-600.font-khmer-os-muol {
+      display: flex !important;
+      position: static !important;
+      width: 100% !important;
+      height: auto !important;
+      overflow: visible !important;
+      justify-content: space-evenly !important;
+      align-items: center !important;
+      margin-top: 1.5rem !important;
+    }
+    
+    .fixed.inset-0 .flex.justify-evenly.items-center.mt-6.text-sm.text-gray-600.font-khmer-os-muol > div {
+      display: block !important;
+      color: black !important;
+    }
+    
+    .flex-1 {
+      flex: none !important;
+      height: auto !important;
+      overflow: visible !important;
+      width: 100% !important;
+      min-width: 100% !important;
+      display: block !important;
+    }
+    
+    .overflow-auto, .overflow-scroll {
+      overflow: visible !important;
+      height: auto !important;
+      max-height: none !important;
+      width: 100% !important;
+    }
+    
+    .h-full, .min-h-screen {
+      height: auto !important;
+      min-height: auto !important;
+      width: 100% !important;
+    }
+    
+    .max-h-screen {
+      max-height: none !important;
+      width: 100% !important;
+    }
+    
+    .p-6 {
+      padding: 24px !important;
+    }
+    
+    .bg-slate-900, .bg-slate-800, .bg-gray-900 {
+      background: white !important;
+      color: black !important;
+    }
+    
+    .text-white {
+      color: black !important;
+    }
+    
+    .border-gray-700, .border-slate-600 {
+      border-color: #ccc !important;
+    }
+    
+    button {
+      display: none !important;
+    }
+    
+    .shadow-xl, .shadow-lg {
+      box-shadow: none !important;
+    }
+    
+    * {
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+      zoom: 1 !important;
+    }
+    
+    table {
+      page-break-inside: avoid;
+      width: 100% !important;
+      table-layout: auto !important;
+      min-width: 100% !important;
+      max-width: 100% !important;
+    }
+    
+    tr {
+      page-break-inside: avoid;
+      width: 100% !important;
+    }
+    
+    td, th {
+      page-break-inside: avoid;
+      white-space: nowrap !important;
+      overflow: visible !important;
+      width: auto !important;
+      min-width: fit-content !important;
+    }
+    
+    .min-w-max {
+      min-width: 100% !important;
+      max-width: 100% !important;
+    }
+    
+    .w-full {
+      width: 100% !important;
+      min-width: 100% !important;
+    }
   }
 `;
 
@@ -56,6 +246,7 @@ type SubmittedSchedule = {
   createdBy: string;
   createdByFullName?: string;
   createdByPhone?: string;
+  userProfile?: MarketingUserProfile | null;
   selectedWeek: number | null;
   currentWeekIndex: number | null;
   weekDetails: {
@@ -77,7 +268,36 @@ type SubmittedSchedule = {
 
 /* ================= UTILS ================= */
 
-const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const dayNames = ["ថ្ងៃអាទិត្យ", "ថ្ងៃចន្ទ", "ថ្ងៃអង្គារ", "ថ្ងៃពុធ", "ថ្ងៃព្រហស្បតិ៍", "ថ្ងៃសុក្រ", "ថ្ងៃសៅរ៍"];
+
+const khmerMonthNames = [
+  "មករា", "កុម្ភៈ", "មីនា", "មេសា", "ឧសភា", "មិថុនា",
+  "កក្កដា", "សីហា", "កញ្ញា", "តុលា", "វិច្ឆិកា", "ធ្នូ"
+];
+
+function getKhmerMonthName(month: number): string {
+  return khmerMonthNames[month - 1] || "កុម្ភៈ";
+}
+
+function translateDayToKhmer(dayName: string): string {
+  const dayTranslations: { [key: string]: string } = {
+    "Sunday": "ថ្ងៃអាទិត្យ",
+    "Monday": "ថ្ងៃចន្ទ",
+    "Tuesday": "ថ្ងៃអង្គារ",
+    "Wednesday": "ថ្ងៃពុធ",
+    "Thursday": "ថ្ងៃព្រហស្បតិ៍",
+    "Friday": "ថ្ងៃសុក្រ",
+    "Saturday": "ថ្ងៃសៅរ៍",
+    "SUNDAY": "ថ្ងៃអាទិត្យ",
+    "MONDAY": "ថ្ងៃចន្ទ",
+    "TUESDAY": "ថ្ងៃអង្គារ",
+    "WEDNESDAY": "ថ្ងៃពុធ",
+    "THURSDAY": "ថ្ងៃព្រហស្បតិ៍",
+    "FRIDAY": "ថ្ងៃសុក្រ",
+    "SATURDAY": "ថ្ងៃសៅរ៍"
+  };
+  return dayTranslations[dayName] || dayName;
+}
 
 function formatLocalDate(d: Date) {
   const y = d.getFullYear();
@@ -135,7 +355,7 @@ function generateBusinessMonth(year: number, month: number): WeekSchedule[] {
 
     // detect first Monday inside month
     if (!startedMonth) {
-      const mondayInMonth = days.find(d => d.dayName === "Monday" && d.inMonth);
+      const mondayInMonth = days.find(d => d.dayName === "ថ្ងៃចន្ទ" && d.inMonth);
       if (mondayInMonth) {
         startedMonth = true;
         weekNumber = 1;
@@ -200,6 +420,9 @@ export default function MonthlySchedulePage() {
   const [selectedWeekFilter, setSelectedWeekFilter] = useState<string>('all');
   const [userCache, setUserCache] = useState<Map<string, { fullName: string; phone: string }>>(new Map());
   const [userAssignmentCache, setUserAssignmentCache] = useState<Map<string, MarketingUserAssignment[]>>(new Map());
+  const [marketingProfile, setMarketingProfile] = useState<MarketingUserProfile | null>(null);
+  const scheduleContentRef = useRef<HTMLDivElement>(null);
+  const { copyingImage, copyScheduleAsImage } = useCopyScheduleImage(scheduleContentRef, selectedSubmittedSchedule);
 
   // Fetch user info for all unique users
   useEffect(() => {
@@ -447,11 +670,11 @@ export default function MonthlySchedulePage() {
     }
   };
 
-  // Inject scrollbar hide styles
+  // Inject scrollbar hide styles and print styles
   useEffect(() => {
     if (typeof window !== "undefined") {
       const styleElement = document.createElement('style');
-      styleElement.textContent = scrollbarHideStyles;
+      styleElement.textContent = scrollbarHideStyles + printStyles;
       document.head.appendChild(styleElement);
 
       return () => {
@@ -559,11 +782,69 @@ export default function MonthlySchedulePage() {
     }
   };
 
-  const openSubmittedScheduleModal = (schedule: SubmittedSchedule) => {
-    setSelectedSubmittedSchedule(schedule);
+  const openSubmittedScheduleModal = async (schedule: SubmittedSchedule) => {
+    // Create a copy of the schedule to avoid mutation
+    const scheduleCopy = { ...schedule };
+    setSelectedSubmittedSchedule(scheduleCopy);
     setShowSubmittedDetailsModal(true);
-  };
 
+    // Fetch profile for this specific schedule if not already loaded
+    if (!scheduleCopy.userProfile) {
+      try {
+        // Check if createdBy is a username or ID
+        const isNumeric = /^\d+$/.test(scheduleCopy.createdBy);
+        console.log("Is createdBy numeric?", isNumeric);
+
+        let userId;
+        if (isNumeric) {
+          // If it's numeric, treat it as a user ID directly
+          userId = scheduleCopy.createdBy;
+          console.log("Using createdBy as user ID:", userId);
+        } else {
+          // If it's a username, look up the user ID
+          const userIdResponse = await apiFetch(`/api/users/by-username/${scheduleCopy.createdBy}`);
+          console.log("User ID response status:", userIdResponse.status);
+          if (userIdResponse.ok) {
+            const { id: retrievedUserId } = await userIdResponse.json();
+            userId = retrievedUserId;
+            console.log("User ID retrieved:", userId);
+          } else {
+            console.log("Failed to get user ID, status:", userIdResponse.status);
+            const updatedSchedule = { ...scheduleCopy, userProfile: null };
+            setSelectedSubmittedSchedule(updatedSchedule);
+            return;
+          }
+        }
+
+        if (userId) {
+          try {
+            const profile = await marketingUserProfileService.getUserProfile(userId);
+            console.log("Marketing profile retrieved:", profile);
+            const updatedSchedule = { ...scheduleCopy, userProfile: profile };
+            setSelectedSubmittedSchedule(updatedSchedule);
+
+            // Also update the schedule in the main array
+            setSubmittedSchedules(prev =>
+              prev.map(s => s.id === schedule.id ? updatedSchedule : s)
+            );
+          } catch (profileError) {
+            console.log("No marketing profile found for user:", scheduleCopy.createdBy, profileError);
+            const updatedSchedule = { ...scheduleCopy, userProfile: null };
+            setSelectedSubmittedSchedule(updatedSchedule);
+
+            // Also update the schedule in the main array
+            setSubmittedSchedules(prev =>
+              prev.map(s => s.id === schedule.id ? updatedSchedule : s)
+            );
+          }
+        }
+      } catch (error) {
+        console.error("Failed to fetch user profile:", error);
+        const updatedSchedule = { ...scheduleCopy, userProfile: null };
+        setSelectedSubmittedSchedule(updatedSchedule);
+      }
+    }
+  };
 
   const getCurrentWeek = () => {
     if (!schedule || currentWeekIndex === null || !schedule.weeks[currentWeekIndex]) return null;
@@ -838,7 +1119,7 @@ export default function MonthlySchedulePage() {
         {schedule && getCurrentWeek() && selectedWeek && (
           <div className="bg-slate-800/50 backdrop-blur-sm rounded-2xl border border-slate-700/50 p-6 shadow-xl">
             <h2 className="font-semibold text-xl text-white text-center mb-6">
-              Week {getCurrentWeek()!.weekNumber} (Monday → Sunday)
+              Week {getCurrentWeek()!.weekNumber} (ថ្ងៃចន្ទ → ថ្ងៃអាទិត្យ)
             </h2>
 
 
@@ -862,7 +1143,7 @@ export default function MonthlySchedulePage() {
                       key={dIndex}
                       className="bg-slate-800/30 hover:bg-slate-700/30 transition-colors"
                     >
-                      <td className="border border-slate-600/50 p-3 font-medium text-white">{day.dayName}</td>
+                      <td className="border border-slate-600/50 p-3 font-medium text-white font-khmer-os-muol">{translateDayToKhmer(day.dayName)}</td>
                       <td className="border border-slate-600/50 p-3 text-sm text-slate-300">{day.date}</td>
                       <td className="border border-slate-600/50 p-3 text-center">
                         <input
@@ -1105,7 +1386,7 @@ export default function MonthlySchedulePage() {
                           <th className="border border-slate-600/50 p-3 text-center text-slate-300">Time</th>
                           {submittedSchedule.weekDetails?.days.map((day: any, index: number) => (
                             <th key={index} className="border border-slate-600/50 p-3 text-center text-slate-300">
-                              <div className="text-xs">{day.dayName}</div>
+                              <div className="text-xs font-khmer-os-muol">{translateDayToKhmer(day.dayName)}</div>
                               <div className="text-xs font-medium">{day.date}</div>
                             </th>
                           ))}
@@ -1166,210 +1447,334 @@ export default function MonthlySchedulePage() {
       {/* SUBMITTED SCHEDULE DETAILS MODAL */}
       {showSubmittedDetailsModal && selectedSubmittedSchedule && portalRoot && createPortal(
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+          className="fixed inset-0 z-50 bg-white flex flex-col"
           onClick={() => setShowSubmittedDetailsModal(false)}
         >
-          <div className="bg-slate-900 rounded-2xl border border-slate-700 p-8 max-w-[80vw] w-full mx-4 max-h-[95vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            <div className="flex justify-between items-start mb-6">
-              <h3 className="text-2xl font-semibold text-white">
-                Week {selectedSubmittedSchedule.weekDetails?.weekNumber} Schedule Details
-              </h3>
-              <button
-                onClick={() => setShowSubmittedDetailsModal(false)}
-                className="text-slate-400 hover:text-slate-300 transition-colors"
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
+          {/* Action Buttons - Top Right */}
+          <div className="fixed top-4 right-4 z-10 flex gap-2">
+            {/* Print Button */}
+            <button
+              onClick={() => window.print()}
+              className="p-2 bg-white rounded-full shadow-lg border border-gray-200 hover:bg-gray-50 transition-colors"
+              title="Print"
+            >
+              <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+              </svg>
+            </button>
 
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse">
-                <thead>
-                  <tr className="bg-slate-900/50 text-sm">
-                    <th className="border border-slate-600/50 p-4 text-center text-slate-300 bg-blue-900/30">Time</th>
-                    {selectedSubmittedSchedule.weekDetails?.days.map((day: any, index: number) => (
-                      <th key={index} className="border border-slate-600/50 p-4 text-center text-slate-300 bg-blue-900/30">
-                        <div className="text-xs">{day.dayName}</div>
-                        <div className="text-xs font-medium">{day.date}</div>
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {/* Morning Row */}
-                  <tr className="bg-slate-800/30">
-                    <td className="border border-slate-600/50 p-3 font-medium text-white bg-slate-900/50 text-center text-xs w-16">
-                      Morning
-                    </td>
-                    {selectedSubmittedSchedule.weekDetails?.days.map((day: any, dIndex: number) => (
-                      <td key={dIndex} className="border border-slate-600/50 p-4">
-                        {day.isDayOff ? (
-                          <div className="text-center text-red-400 font-medium">OFF</div>
-                        ) : (
-                          <div className="text-sm text-slate-300 min-h-16">
-                            {day.morningSchedule ? (
-                              <div className="flex flex-wrap whitespace-pre-wrap break-all">
-                                {day.morningSchedule}
-                              </div>
+            {/* Screenshot Button */}
+            <button
+              onClick={copyScheduleAsImage}
+              disabled={copyingImage}
+              className="px-6 py-3 bg-white rounded-full shadow-lg border border-gray-200 hover:bg-gray-50 transition-colors disabled:opacity-50 flex items-center gap-2 text-sm font-medium text-gray-700"
+              title="Copy Screenshot to Clipboard"
+              style={{ minWidth: '140px', whiteSpace: 'nowrap' }}
+            >
+              {copyingImage ? (
+                <>
+                  <svg className="w-4 h-4 text-gray-400 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  <span className="text-gray-500">Copying...</span>
+                </>
+              ) : (
+                <>
+                  <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  <span>Screenshot</span>
+                </>
+              )}
+            </button>
+
+            {/* Close Button */}
+            <button
+              onClick={() => setShowSubmittedDetailsModal(false)}
+              className="p-2 bg-white rounded-full shadow-lg border border-gray-200 hover:bg-gray-50 transition-colors"
+            >
+              <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+
+          {/* Full Screen Content - No Scroll */}
+          <div className="flex-1 flex flex-col p-6" onClick={(e) => e.stopPropagation()}>
+            {/* Header with Logo - Top Left */}
+
+            {/* Table Container - Centered */}
+            <div className="flex-1 flex items-center justify-center">
+              <div className="w-full" ref={scheduleContentRef}>
+                {/* Title Section - Above Table */}
+                <div className="text-center mb-6">
+                  <div className="flex items-center justify-center mb-10">
+                    {/* Logo from public folder */}
+                    <img
+                      src="/Logo.png"
+                      alt="Logo"
+                      className="w-16 h-16 mr-4"
+                    />
+                    <div className="text-left">
+                      <h1 className="text-2xl font-bold text-gray-800 font-khmer-os-muol">
+                        ផែនការ ទីផ្សារ
+                      </h1>
+                      <h2 className="text-black">
+                        សម្រាប់ខែ {selectedSubmittedSchedule.userInfo ? getKhmerMonthName(selectedSubmittedSchedule.userInfo.month) : 'កុម្ភៈ'} សប្តាហ៍ទី {selectedSubmittedSchedule.weekDetails?.weekNumber || '០២'}
+                      </h2>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Additional Info Text */}
+                <div className="mb-4 text-gray-600">
+                  <div className="text-sm font-khmer-os-muol">
+                    • នាយកដ្ឋានទីផ្សារ
+                  </div>
+                  <div className="text-sm font-khmer-os-muol">
+                    • ផែនការ មន្រ្តីទីផ្សារ ({(() => {
+                      const assignments = userAssignmentCache.get(selectedSubmittedSchedule.createdBy);
+                      if (assignments && assignments.length > 0) {
+                        const activeAssignment = assignments.find(a => a.active);
+                        if (activeAssignment) {
+                          const parts = [];
+                          if (activeAssignment.areaName) parts.push(activeAssignment.areaName);
+                          if (activeAssignment.subAreaName) parts.push(activeAssignment.subAreaName);
+                          return parts.length > 0 ? parts.join(' ') : '';
+                        }
+                      }
+                      return '';
+                    })()})
+                  </div>
+                </div>
+
+
+                <div className="overflow-x-auto">
+                  <table className="w-full border-collapse">
+                    <thead>
+                      <tr className="bg-gray-50 text-sm">
+                        <th className="border border-gray-200 p-4 text-center text-gray-700 bg-blue-50 min-w-30 font-khmer-os-muol">ពេលវេលា</th>
+                        {selectedSubmittedSchedule.weekDetails?.days.map((day: any, index: number) => (
+                          <th key={index} className="border border-gray-200 p-4 text-center text-gray-700 bg-blue-50 min-w-50">
+                            <div className="text-sm font-medium font-khmer-os-muol">{translateDayToKhmer(day.dayName)}</div>
+                            <div className="text-sm">{day.date}</div>
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {/* Morning Row */}
+                      <tr className="bg-gray-50">
+                        <td className="text-sm border border-gray-200 p-4 font-bold text-gray-900 bg-blue-50 text-center min-w-30 font-khmer-os-muol">
+                          ព្រឹក
+                        </td>
+                        {selectedSubmittedSchedule.weekDetails?.days.map((day: any, dIndex: number) => (
+                          <td key={dIndex} className="border border-gray-200 p-4 min-h-25 align-top">
+                            {day.isDayOff ? (
+                              <div className="text-center text-red-600 font-bold text-lg py-4">Day off</div>
                             ) : (
-                              <span className="text-slate-500 italic">No schedule</span>
-                            )}
-                          </div>
-                        )}
-                      </td>
-                    ))}
-                  </tr>
-
-                  {/* Afternoon Row */}
-                  <tr className="bg-slate-800/30">
-                    <td className="border border-slate-600/50 p-3 font-medium text-white bg-slate-900/50 text-center text-xs w-16">
-                      Afternoon
-                    </td>
-                    {selectedSubmittedSchedule.weekDetails?.days.map((day: any, dIndex: number) => (
-                      <td key={dIndex} className="border border-slate-600/50 p-4">
-                        {day.isDayOff ? (
-                          <div className="text-center text-red-400 font-medium">OFF</div>
-                        ) : (
-                          <div className="text-sm text-slate-300 min-h-16">
-                            {day.afternoonSchedule ? (
-                              <div className="flex flex-wrap whitespace-pre-wrap break-all">
-                                {day.afternoonSchedule}
+                              <div className="text-sm text-gray-700 min-h-20 whitespace-pre-wrap wrap-break-word">
+                                {day.afternoonSchedule ? (
+                                  <div className="">
+                                    {day.afternoonSchedule}
+                                  </div>
+                                ) : (
+                                  <span className="text-gray-500 italic ">មិនមានទិន្នន័យ</span>
+                                )}
                               </div>
-                            ) : (
-                              <span className="text-slate-500 italic">No schedule</span>
                             )}
-                          </div>
-                        )}
-                      </td>
-                    ))}
-                  </tr>
-                </tbody>
-              </table>
+                          </td>
+                        ))}
+                      </tr>
+
+                      {/* Afternoon Row */}
+                      <tr className="bg-gray-50">
+                        <td className="border text-sm border-gray-200 p-4 font-bold text-gray-900 bg-blue-50 text-center min-w-30 font-khmer-os-muol">
+                          ល្ងាច
+                        </td>
+                        {selectedSubmittedSchedule.weekDetails?.days.map((day: any, dIndex: number) => (
+                          <td key={dIndex} className="border border-gray-200 p-4 min-h-25 align-top">
+                            {day.isDayOff ? (
+                              <div className="text-center text-red-600 font-bold text-lg py-4">Day off</div>
+                            ) : (
+                              <div className="text-sm text-gray-700 min-h-20 whitespace-pre-wrap wrap-break-word">
+                                {day.afternoonSchedule ? (
+                                  <div className="">
+                                    {day.afternoonSchedule}
+                                  </div>
+                                ) : (
+                                  <span className="text-gray-500 italic ">មិនមានទិន្នន័យ</span>
+                                )}
+                              </div>
+                            )}
+                          </td>
+                        ))}
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Footer Text Section */}
+                <div className="">
+
+                  <div className="flex justify-evenly items-center mt-8 text-sm text-gray-600 font-khmer-os-muol leading-relaxed pb-4">
+                    <div>
+                      <div className="text-center">ឯកភាព (ប្រធានប្រតិបត្តិ)</div>
+                      <div className="text-center h-32"></div>
+                    </div>
+
+                    <div>
+                      <div className="text-center">ត្រួតពិនិត្យដោយ (ប្រធានទីផ្សារ)</div>
+                      <div className="text-center h-36"></div>
+                    </div>
+
+
+                    <div className="text-center">
+                      <div className="text-center">របាយការណ៍ដោយ(មន្រ្តីទីផ្សារ)</div>
+
+                      {selectedSubmittedSchedule?.userProfile?.userSignature ? (
+                        <div className="flex justify-center mb-2">
+                          <img
+                            src={selectedSubmittedSchedule.userProfile.userSignature}
+                            alt="User Signature"
+                            className="h-20 w-auto object-contain"
+                          />
+                        </div>
+                      ) : (
+                        <div className="h-20 flex items-center justify-center text-gray-400 text-xs">
+                          {selectedSubmittedSchedule?.userProfile ? 'No signature in profile' : 'Profile not accessible'}
+                        </div>
+                      )}
+                      <div className="border-t border-gray-300 pt-2 flex justify-center max-w-20 mx-auto">
+
+                      </div>
+                      <p className="text-sm text-center font-semibold text-black font-khmer-os-muol">
+                        {selectedSubmittedSchedule?.createdByFullName || selectedSubmittedSchedule?.createdBy || 'Unknown User'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
 
-            <div className="flex justify-end space-x-4 mt-8">
-              <button
-                onClick={() => setShowSubmittedDetailsModal(false)}
-                className="px-6 py-3 border border-slate-600 text-slate-300 rounded-lg hover:bg-slate-700 transition-colors"
-              >
-                Close
-              </button>
-            </div>
+
           </div>
         </div>,
         portalRoot
-      )}
+      )
+      }
 
       {/* EDIT SCHEDULE MODAL */}
-      {showEditModal && editingSchedule && portalRoot && createPortal(
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
-          onClick={() => setShowEditModal(false)}
-        >
-          <div className="bg-slate-900 rounded-2xl border border-slate-700 p-8 max-w-[80vw] w-full mx-4 max-h-[95vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            <div className="flex justify-between items-start mb-6">
-              <h3 className="text-2xl font-semibold text-white">
-                Edit Week {editingSchedule.weekDetails?.weekNumber} Schedule
-              </h3>
-              <button
-                onClick={() => setShowEditModal(false)}
-                className="text-slate-400 hover:text-slate-300 transition-colors"
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
+      {
+        showEditModal && editingSchedule && portalRoot && createPortal(
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+            onClick={() => setShowEditModal(false)}
+          >
+            <div className="bg-slate-900 rounded-2xl border border-slate-700 p-8 max-w-[80vw] w-full mx-4 max-h-[95vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+              <div className="flex justify-between items-start mb-6">
+                <h3 className="text-2xl font-semibold text-white">
+                  Edit Week {editingSchedule.weekDetails?.weekNumber} Schedule
+                </h3>
+                <button
+                  onClick={() => setShowEditModal(false)}
+                  className="text-slate-400 hover:text-slate-300 transition-colors"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse">
-                <thead>
-                  <tr className="bg-slate-900/50 text-sm">
-                    <th className="border border-slate-600/50 p-3 text-center text-slate-300 bg-blue-900/30 w-16 text-xs">Time</th>
-                    {editingSchedule.weekDetails?.days.map((day: any, index: number) => (
-                      <th
-                        key={index}
-                        className="border border-slate-600/50 p-4 text-center text-slate-300 bg-blue-900/30 w-32 cursor-pointer hover:bg-blue-800/30 transition-colors"
-                        onClick={() => updateEditingSchedule(index, 'isDayOff', !day.isDayOff)}
-                      >
-                        <div className="text-xs">{day.dayName}</div>
-                        <div className="text-xs font-medium">{day.date}</div>
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {/* Morning Row */}
-                  <tr className="bg-slate-800/30">
-                    <td className="border border-slate-600/50 p-3 font-medium text-white bg-slate-900/50 text-center text-xs w-16">
-                      Morning
-                    </td>
-                    {editingSchedule.weekDetails?.days.map((day: any, dIndex: number) => (
-                      <td
-                        key={dIndex}
-                        className={`border border-slate-600/50 p-2 transition-colors ${day.isDayOff ? 'bg-red-500/20' : ''}`}
-                      >
-                        {day.isDayOff ? (
-                          <div className="text-center text-red-400 font-medium">OFF</div>
-                        ) : (
-                          <textarea
-                            className="w-full bg-transparent border-none text-white placeholder-slate-500 focus:outline-none resize-y min-h-40 text-xs scrollbar-hide"
-                            value={day.morningSchedule || ''}
-                            onChange={(e) => updateEditingSchedule(dIndex, 'morning', e.target.value)}
-                            placeholder="Morning schedule..."
-                          />
-                        )}
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse">
+                  <thead>
+                    <tr className="bg-slate-900/50 text-sm">
+                      <th className="border border-slate-600/50 p-3 text-center text-slate-300 bg-blue-900/30 w-16 text-xs">Time</th>
+                      {editingSchedule.weekDetails?.days.map((day: any, index: number) => (
+                        <th
+                          key={index}
+                          className="border border-slate-600/50 p-4 text-center text-slate-300 bg-blue-900/30 w-32 cursor-pointer hover:bg-blue-800/30 transition-colors"
+                          onClick={() => updateEditingSchedule(index, 'isDayOff', !day.isDayOff)}
+                        >
+                          <div className="text-xs font-khmer-os-muol">{translateDayToKhmer(day.dayName)}</div>
+                          <div className="text-xs font-medium">{day.date}</div>
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {/* Morning Row */}
+                    <tr className="bg-slate-800/30">
+                      <td className="border border-slate-600/50 p-3 font-medium text-white bg-slate-900/50 text-center text-xs w-16">
+                        Morning
                       </td>
-                    ))}
-                  </tr>
+                      {editingSchedule.weekDetails?.days.map((day: any, dIndex: number) => (
+                        <td
+                          key={dIndex}
+                          className={`border border-slate-600/50 p-2 transition-colors ${day.isDayOff ? 'bg-red-500/20' : ''}`}
+                        >
+                          {day.isDayOff ? (
+                            <div className="text-center text-red-400 font-medium">OFF</div>
+                          ) : (
+                            <textarea
+                              className="w-full bg-transparent border-none text-white placeholder-slate-500 focus:outline-none resize-y min-h-40 text-xs scrollbar-hide"
+                              value={day.morningSchedule || ''}
+                              onChange={(e) => updateEditingSchedule(dIndex, 'morning', e.target.value)}
+                              placeholder="Morning schedule..."
+                            />
+                          )}
+                        </td>
+                      ))}
+                    </tr>
 
-                  {/* Afternoon Row */}
-                  <tr className="bg-slate-800/30">
-                    <td className="border border-slate-600/50 p-3 font-medium text-white bg-slate-900/50 text-center text-xs w-16">
-                      Afternoon
-                    </td>
-                    {editingSchedule.weekDetails?.days.map((day: any, dIndex: number) => (
-                      <td
-                        key={dIndex}
-                        className={`border border-slate-600/50 p-2 transition-colors ${day.isDayOff ? 'bg-red-500/20' : ''}`}
-                      >
-                        {day.isDayOff ? (
-                          <div className="text-center text-red-400 font-medium">OFF</div>
-                        ) : (
-                          <textarea
-                            className="w-full bg-transparent border-none text-white placeholder-slate-500 focus:outline-none resize-y min-h-40 text-xs scrollbar-hide"
-                            value={day.afternoonSchedule || ''}
-                            onChange={(e) => updateEditingSchedule(dIndex, 'afternoon', e.target.value)}
-                            placeholder="Afternoon schedule..."
-                          />
-                        )}
+                    {/* Afternoon Row */}
+                    <tr className="bg-slate-800/30">
+                      <td className="border border-slate-600/50 p-3 font-medium text-white bg-slate-900/50 text-center text-xs w-16">
+                        Afternoon
                       </td>
-                    ))}
-                  </tr>
-                </tbody>
-              </table>
-            </div>
+                      {editingSchedule.weekDetails?.days.map((day: any, dIndex: number) => (
+                        <td
+                          key={dIndex}
+                          className={`border border-slate-600/50 p-2 transition-colors ${day.isDayOff ? 'bg-red-500/20' : ''}`}
+                        >
+                          {day.isDayOff ? (
+                            <div className="text-center text-red-400 font-medium">OFF</div>
+                          ) : (
+                            <textarea
+                              className="w-full bg-transparent border-none text-white placeholder-slate-500 focus:outline-none resize-y min-h-40 text-xs scrollbar-hide"
+                              value={day.afternoonSchedule || ''}
+                              onChange={(e) => updateEditingSchedule(dIndex, 'afternoon', e.target.value)}
+                              placeholder="Afternoon schedule..."
+                            />
+                          )}
+                        </td>
+                      ))}
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
 
-            <div className="flex justify-end space-x-4 mt-8">
-              <button
-                onClick={() => setShowEditModal(false)}
-                className="px-6 py-3 border border-slate-600 text-slate-300 rounded-lg hover:bg-slate-700 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={saveEditedSchedule}
-                className="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
-              >
-                Save Changes
-              </button>
+              <div className="flex justify-end space-x-4 mt-8">
+                <button
+                  onClick={() => setShowEditModal(false)}
+                  className="px-6 py-3 border border-slate-600 text-slate-300 rounded-lg hover:bg-slate-700 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={saveEditedSchedule}
+                  className="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+                >
+                  Save Changes
+                </button>
+              </div>
             </div>
-          </div>
-        </div>,
-        portalRoot
-      )}
-    </MarketingServiceGuard>
+          </div>,
+          portalRoot
+        )
+      }
+    </MarketingServiceGuard >
   );
 }
