@@ -94,6 +94,10 @@ restore_database() {
                 TABLES=$(docker exec "${CONTAINER_NAME}" psql -U "${POSTGRES_USER}" -t -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public';" "${db_name}" | tr -d ' ')
                 echo -e "${GREEN}✓ Delivery service tables restored: ${TABLES} tables${NC}"
                 ;;
+            "region_service_db")
+                TABLES=$(docker exec "${CONTAINER_NAME}" psql -U "${POSTGRES_USER}" -t -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public';" "${db_name}" | tr -d ' ')
+                echo -e "${GREEN}✓ Region service tables restored: ${TABLES} tables${NC}"
+                ;;
         esac
         return 0
     else
@@ -115,7 +119,7 @@ if [[ "${BACKUP_FILE}" == *"all_databases_data"* ]]; then
     
     # Drop existing databases first to ensure clean restore
     echo -e "${YELLOW}Dropping existing databases...${NC}"
-    for db in user_service_db marketing_service_db call_service_db delivery_service_db; do
+    for db in user_service_db marketing_service_db call_service_db delivery_service_db region_service_db; do
         echo -e "${YELLOW}  - Terminating connections to ${db}...${NC}"
         docker exec "${CONTAINER_NAME}" psql -U "${POSTGRES_USER}" postgres -c "
             SELECT pg_terminate_backend(pid) 
@@ -166,6 +170,14 @@ if [[ "${BACKUP_FILE}" == *"all_databases_data"* ]]; then
             echo -e "${GREEN}✓ Delivery Service: ${DELIVERY_TABLES} tables restored${NC}"
         else
             echo -e "${YELLOW}⚠ Delivery Service: No tables found${NC}"
+        fi
+        
+        # Check region service
+        if docker exec "${CONTAINER_NAME}" psql -U "${POSTGRES_USER}" -t -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public';" region_service_db >/dev/null 2>&1; then
+            REGION_TABLES=$(docker exec "${CONTAINER_NAME}" psql -U "${POSTGRES_USER}" -t -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public';" region_service_db | tr -d ' ')
+            echo -e "${GREEN}✓ Region Service: ${REGION_TABLES} tables restored${NC}"
+        else
+            echo -e "${YELLOW}⚠ Region Service: No tables found${NC}"
         fi
         
     else

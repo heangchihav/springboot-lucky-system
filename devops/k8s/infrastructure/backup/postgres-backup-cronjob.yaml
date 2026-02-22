@@ -18,6 +18,7 @@ data:
         "call_service_db"
         "delivery_service_db"
         "marketing_service_db"
+        "region_service_db"
     )
     
     echo "[${TIMESTAMP}] Starting automated data backup..."

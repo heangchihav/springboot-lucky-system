@@ -37,7 +37,9 @@ services:
       - app-network
 
   auth-server:
-    image: ${DOCKER_HUB_USERNAME}/auth-server:${IMAGE_TAG}
+    build:
+      context: ../../backend/infrastructure/auth-server
+      dockerfile: Dockerfile
     container_name: demo-auth-server
     restart: unless-stopped
     ports:
@@ -69,7 +71,9 @@ services:
       start_period: 30s
 
   call-service:
-    image: ${DOCKER_HUB_USERNAME}/call-service:${IMAGE_TAG}
+    build:
+      context: ../../backend/services/call-service
+      dockerfile: Dockerfile
     container_name: demo-call-service
     restart: unless-stopped
     ports:
@@ -96,7 +100,9 @@ services:
         condition: service_started
 
   marketing-service:
-    image: ${DOCKER_HUB_USERNAME}/marketing-service:${IMAGE_TAG}
+    build:
+      context: ../../backend/services/marketing-service
+      dockerfile: Dockerfile
     container_name: demo-marketing-service
     restart: unless-stopped
     ports:
@@ -110,7 +116,7 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: 6379
       SPRING_CACHE_TYPE: redis
-      AUTH_SERVER_URL: http://gateway:8080
+      USER_SERVICE_URL: http://gateway:8080
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
     networks:
       - app-network
@@ -123,7 +129,9 @@ services:
         condition: service_started
 
   branchreport-service:
-    image: ${DOCKER_HUB_USERNAME}/branchreport-service:${IMAGE_TAG}
+    build:
+      context: ../../backend/services/branchreport-service
+      dockerfile: Dockerfile
     container_name: demo-branchreport-service
     restart: unless-stopped
     ports:
@@ -133,12 +141,41 @@ services:
     environment:
       DATABASE_URL: ${BRANCHREPORT_DATABASE_URL:-postgres://postgres:postgres@db:5432/branchreport_service_db}
       PORT: 8085
+    networks:
+      - app-network
     depends_on:
       db:
         condition: service_healthy
+    healthcheck:
+      test: [ "CMD-SHELL", "curl -f http://localhost:8085/api/branchreport/health || exit 1" ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  region-service:
+    build:
+      context: ../../backend/services/platform/region-service
+      dockerfile: Dockerfile
+    container_name: demo-region-service
+    restart: unless-stopped
+    ports:
+      - "8086:8086"
+    env_file:
+      - ./.env
+    environment:
+      DATABASE_URL: ${REGION_DATABASE_URL:-postgres://postgres:postgres@db:5432/region_service_db}
+      PORT: 8086
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - app-network
 
   delivery-service:
-    image: ${DOCKER_HUB_USERNAME}/delivery-service:${IMAGE_TAG}
+    build:
+      context: ../../backend/services/delivery-service
+      dockerfile: Dockerfile
     container_name: demo-delivery-service
     restart: unless-stopped
     ports:
@@ -159,15 +196,20 @@ services:
         condition: service_healthy
 
   gateway:
-    image: ${DOCKER_HUB_USERNAME}/gateway:${IMAGE_TAG}
+    build:
+      context: ../../backend/infrastructure/gateway
+      dockerfile: Dockerfile
     container_name: demo-gateway
     restart: unless-stopped
     env_file:
       - ./.env
     environment:
       BRANCHREPORT_SERVICE_URL: http://branchreport-service:8085
+      REGION_SERVICE_URL: http://region-service:8086
     ports:
       - "8080:8080"
+    networks:
+      - app-network
     depends_on:
       auth-server:
         condition: service_healthy
@@ -190,6 +232,8 @@ services:
       - ../nginx/nginx.conf:/etc/nginx/nginx.conf:ro
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    networks:
+      - app-network
     depends_on:
       gateway:
         condition: service_healthy
@@ -202,11 +246,11 @@ services:
 
   cloudflared:
     image: cloudflare/cloudflared:latest
-    container_name: demo-cloudflared
+    container_name: demo-cloudflared-dev
     restart: always
     volumes:
       - ../cloudflared:/etc/cloudflared
-    command: [ "tunnel", "run", "demo-tunnel" ]
+    command: [ "tunnel", "--config", "/etc/cloudflared/config.dev.yml", "run", "demo-tunnel" ]
     depends_on:
       nginx:
         condition: service_healthy
@@ -241,38 +285,55 @@ services:
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
     depends_on:
       - prometheus
-
   kafka:
     image: apache/kafka:latest
-    hostname: hn_kafka
-    container_name: demo-kafka
+    hostname: hn_kafka # hostname of Kafka broker
+    container_name: kafka
     ports:
-      - "9092:9092"
-      - "9093:9093"
+      - 9092:9092 # Kafka port as broker for client connections (producer and consumer)
+      - 9093:9093 # Kafka port as metadata controller for inter-broker communications
     environment:
-      KAFKA_KRAFT_MODE: true
-      KAFKA_NODE_ID: 1
+      KAFKA_KRAFT_MODE: true # Optional for new version of Kafka
+      KAFKA_NODE_ID: 1 # unique ID for the broker
       KAFKA_PROCESS_ROLES: controller,broker
-      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@hn_kafka:9093
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@hn_kafka:9093 # 1 is KAFKA_NODE_ID
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT, PLAINTEXT_HOST:PLAINTEXT, CONTROLLER:PLAINTEXT
-      KAFKA_LISTENERS: PLAINTEXT://hn_kafka:29092, PLAINTEXT_HOST://0.0.0.0:9092, CONTROLLER://:9093
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://hn_kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENERS: PLAINTEXT://hn_kafka:29092, PLAINTEXT_HOST://0.0.0.0:9092, CONTROLLER://:9093 # addresses that Kafka broker will use to accept incoming Client conn.  //0.0.0.0:9092 , //:9093 means all network interfaces
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://hn_kafka:29092,PLAINTEXT_HOST://localhost:9092 # addresses that Kafka broker tells clients when connecting (external clients is Spring Boot app)
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
       KAFKA_INTER_BROKER_LISTENER_NAMES: PLAINTEXT
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
-      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
-      KAFKA_DEFAULT_REPLICATION_FACTOR: 1
-      KAFKA_MIN_INSYNC_REPLICAS: 1
-      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1 # Offset topic replication factor. For development, use 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1 # Transaction state log replication factor
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1 # Transaction state log minimum ISR
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0 # No delay for consumer rebalancing
+      CLUSTER_ID: fQEKGPQsQtSJMUICvEYA9g # Generate a unique ID for Kafka Cluster (see note below)
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+    volumes:
+      - kafka_data:/var/lib/kafka/data
     networks:
       - app-network
     healthcheck:
-      test: [ "CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092" ]
+      test: [ "CMD", "kafka-topics", "--bootstrap-server", "localhost:9092", "--list" ]
       interval: 30s
       timeout: 10s
       retries: 5
       start_period: 60s
+
+  kafka_ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: kafka_ui
+    ports:
+      - "8087:8080"
+    networks:
+      - app-network
+    environment:
+      KAFKA_CLUSTERS_0_NAME: my_local_cluster # Kafka UI will create this Kafka cluster name
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092 # Kafka and Kafka UI are in same docker network, so use hostname kafka:29092
+      KAFKA_CLUSTERS_0_KAFKACONNECT_ENABLED: true
+      DYNAMIC_CONFIG_ENABLED: true
+    depends_on:
+      kafka:
+        condition: service_started
 
   postgres-backup:
     image: postgres:16
@@ -306,6 +367,7 @@ volumes:
   redis-data:
   prometheus-data:
   grafana-data:
+  kafka_data:
 
 
 networks:

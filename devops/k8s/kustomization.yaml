@@ -34,6 +34,7 @@ resources:
   - services/backend/delivery-service.yaml
   - services/backend/marketing-service.yaml
   - services/backend/branchreport-service.yaml
+  - services/backend/region-service.yml
   
   # Services - Infrastructure
   - services/infrastructure/auth-server.yaml
