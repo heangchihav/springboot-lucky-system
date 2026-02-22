@@ -1575,9 +1575,9 @@ export default function MonthlySchedulePage() {
                               <div className="text-center text-red-600 font-bold text-lg py-4">Day off</div>
                             ) : (
                               <div className="text-sm text-gray-700 min-h-20 whitespace-pre-wrap wrap-break-word">
-                                {day.afternoonSchedule ? (
+                                {day.morningSchedule ? (
                                   <div className="">
-                                    {day.afternoonSchedule}
+                                    {day.morningSchedule}
                                   </div>
                                 ) : (
                                   <span className="text-gray-500 italic ">មិនមានទិន្នន័យ</span>
