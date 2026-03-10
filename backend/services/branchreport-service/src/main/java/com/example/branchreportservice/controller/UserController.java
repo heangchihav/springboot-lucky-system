@@ -1,5 +1,6 @@
 package com.example.branchreportservice.controller;
 
+import com.example.branchreportservice.service.shared.BranchReportServiceIdProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -22,15 +23,19 @@ public class UserController {
     @Autowired
     private RestTemplate restTemplate;
 
-    @Value("${gateway.service.url:http://gateway:8080}")
-    private String gatewayUrl;
+    @Autowired
+    private BranchReportServiceIdProvider serviceIdProvider;
+
+    @Value("${user.service.url:http://gateway:8080}")
+    private String userServiceUrl;
 
     @GetMapping
     public ResponseEntity<List<Map<String, Object>>> getBranchReportUsers() {
         logger.info("GET /api/branchreport/users - Fetching branch report service users");
         try {
             // Get branch report service ID
-            Long branchReportServiceId = getBranchReportServiceId();
+            Long branchReportServiceId = serviceIdProvider.getBranchReportServiceId();
+            logger.info("Branch report service ID: {}", branchReportServiceId);
             if (branchReportServiceId == null) {
                 logger.error("Branch report service ID not found");
                 return ResponseEntity.ok(new ArrayList<>());
@@ -39,7 +44,7 @@ public class UserController {
             logger.info("Fetching users for branch report service ID: {}", branchReportServiceId);
 
             // Get users assigned to branch report service from auth-server
-            String url = gatewayUrl + "/api/services/services/" + branchReportServiceId + "/users";
+            String url = userServiceUrl + "/api/services/services/" + branchReportServiceId + "/users";
             logger.info("Calling auth-server URL: {}", url);
 
             @SuppressWarnings("unchecked")
@@ -56,17 +61,6 @@ public class UserController {
         } catch (Exception e) {
             logger.error("Error fetching branch report service users", e);
             return ResponseEntity.ok(new ArrayList<>());
-        }
-    }
-
-    private Long getBranchReportServiceId() {
-        try {
-            // Use branchreport-service ID (now created in auth-server)
-            // This should match the service ID used in frontend user creation
-            return 5L; // Branch report service ID
-        } catch (Exception e) {
-            logger.error("Error getting branch report service ID", e);
-            return null;
         }
     }
 }

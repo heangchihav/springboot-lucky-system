@@ -207,13 +207,7 @@ export const MENU_SECTIONS: MenuSection[] = [
     label: "Branch Report Service",
     description: "Branch hierarchy and reporting management",
     items: [
-      {
-        id: "branchreport-area-branch",
-        label: "Area · Sub Area · Branch",
-        description: "Manage branch hierarchy structure",
-        path: "/branchreport-service/area-branch",
-        menuNumber: "1",
-      },
+
       {
         id: "branchreport-products",
         label: "Products",

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from "react";
 import { BranchreportServiceGuard } from "@/components/branchreport-service/BranchreportServiceGuard";
+import { apiFetch } from "@/services/httpClient";
 import { useToast } from "@/components/ui/Toast";
 import {
   userService,
@@ -12,7 +13,6 @@ import {
   AssignUserRequest
 } from "@/services/branchreport-service/userService";
 import {
-  regionService,
   Area,
   SubArea,
   Branch,
@@ -82,8 +82,11 @@ export default function BranchreportUsersPage() {
 
   const normalizedSearch = searchTerm.toLowerCase();
   const filteredUsers = users.filter((user) => {
-    const fullName = (user.fullName ?? "").toLowerCase();
-    const username = (user.username ?? "").toLowerCase();
+    // Handle undefined user or user properties
+    if (!user) return false;
+
+    const fullName = (user.fullName || "").toLowerCase();
+    const username = (user.username || "").toLowerCase();
     return (
       fullName.includes(normalizedSearch) || username.includes(normalizedSearch)
     );
@@ -95,7 +98,7 @@ export default function BranchreportUsersPage() {
       return subAreas; // Show all if no area selected
     }
     const activeAreaIds = editingUser ? editAreaIds : selectedAreaIds;
-    return subAreas.filter(subArea => activeAreaIds.includes(subArea.area_id));
+    return subAreas.filter(subArea => activeAreaIds.includes(subArea.areaId));
   }, [subAreas, selectedAreaIds, editAreaIds, editingUser]);
 
   const availableBranches = useMemo(() => {
@@ -104,11 +107,11 @@ export default function BranchreportUsersPage() {
 
     // If no sub-areas selected, show branches from all selected areas
     if (activeSubAreaIds.length === 0) {
-      return branches.filter(branch => activeAreaIds.includes(branch.area_id));
+      return branches.filter(branch => activeAreaIds.includes(branch.areaId));
     }
 
     // Show branches from selected sub-areas
-    return branches.filter(branch => activeSubAreaIds.includes(branch.sub_area_id));
+    return branches.filter(branch => activeSubAreaIds.includes(branch.subAreaId));
   }, [branches, selectedAreaIds, selectedSubAreaIds, editAreaIds, editSubAreaIds, editingUser]);
 
   // Fetch users on component mount
@@ -178,11 +181,11 @@ export default function BranchreportUsersPage() {
       dummyAssignments.push({
         id: 0,
         userId: "",
-        areaId: subArea.area_id,
+        areaId: subArea.areaId,
         subAreaId: subArea.id,
         branchId: undefined,
         active: true,
-        areaName: areas.find(a => a.id === subArea.area_id)?.name,
+        areaName: areas.find(a => a.id === subArea.areaId)?.name,
         subAreaName: subArea.name,
         branchName: undefined,
         assignedAt: new Date().toISOString(),
@@ -196,12 +199,12 @@ export default function BranchreportUsersPage() {
       dummyAssignments.push({
         id: 0,
         userId: "",
-        areaId: branch.area_id,
-        subAreaId: branch.sub_area_id,
+        areaId: branch.areaId,
+        subAreaId: branch.subAreaId,
         branchId: branch.id,
         active: true,
-        areaName: areas.find(a => a.id === branch.area_id)?.name,
-        subAreaName: subAreas.find(s => s.id === branch.sub_area_id)?.name,
+        areaName: areas.find(a => a.id === branch.areaId)?.name,
+        subAreaName: subAreas.find(s => s.id === branch.subAreaId)?.name,
         branchName: branch.name,
         assignedAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
@@ -217,7 +220,15 @@ export default function BranchreportUsersPage() {
       setLoading(true);
       // Fetch users assigned to branchreport service only
       const data = await userService.listBranchReportUsers();
-      setUsers(data);
+      // Filter out any undefined or invalid users and ensure active field exists
+      const validUsers = data
+        .filter(user => user && user.id && user.username)
+        .map(user => ({
+          ...user,
+          // Ensure active field exists - default to true if not present
+          active: user.active !== undefined ? user.active : (user.enabled !== undefined ? user.enabled : true)
+        }));
+      setUsers(validUsers);
       setError(null);
     } catch (err) {
       console.error("Failed to fetch users:", err);
@@ -251,50 +262,26 @@ export default function BranchreportUsersPage() {
     try {
       const currentUserId = getStoredUserId();
 
-      // Use the new hierarchy endpoint to get complete relationships
-      const hierarchyData = await regionService.getAreasWithHierarchy();
+      // Use branchreport-service endpoints to fetch hierarchy data from region-service
+      const [areasResponse, subAreasResponse, branchesResponse] = await Promise.all([
+        apiFetch("/api/branchreport/areas"),
+        apiFetch("/api/branchreport/sub-areas"),
+        apiFetch("/api/branchreport/branches")
+      ]);
 
-      // Extract flat lists for backward compatibility
-      const allAreas: Area[] = [];
-      const allSubAreas: SubArea[] = [];
-      const allBranches: Branch[] = [];
+      const areasResult = await areasResponse.json();
+      const subAreasResult = await subAreasResponse.json();
+      const branchesResult = await branchesResponse.json();
 
-      hierarchyData.forEach((area: AreaWithHierarchy) => {
-        allAreas.push({
-          id: area.id,
-          name: area.name,
-          description: area.description,
-          created_at: area.created_at,
-          updated_at: area.updated_at
-        });
+      const areasData = areasResult.success ? areasResult.data : [];
+      const subAreasData = subAreasResult.success ? subAreasResult.data : [];
+      const branchesData = branchesResult.success ? branchesResult.data : [];
 
-        area.sub_areas.forEach((subArea: SubAreaWithHierarchy) => {
-          allSubAreas.push({
-            id: subArea.id,
-            name: subArea.name,
-            description: subArea.description,
-            area_id: subArea.area_id,
-            created_at: subArea.created_at,
-            updated_at: subArea.updated_at
-          });
+      console.log("Hierarchy data loaded:", { areasData, subAreasData, branchesData });
 
-          subArea.branches.forEach((branch: BranchWithHierarchy) => {
-            allBranches.push({
-              id: branch.id,
-              name: branch.name,
-              description: branch.description,
-              area_id: branch.area_id,
-              sub_area_id: branch.sub_area_id,
-              created_at: branch.created_at,
-              updated_at: branch.updated_at
-            });
-          });
-        });
-      });
-
-      setAreas(allAreas);
-      setSubAreas(allSubAreas);
-      setBranches(allBranches);
+      setAreas(areasData);
+      setSubAreas(subAreasData);
+      setBranches(branchesData);
 
       if (currentUserId) {
         try {
@@ -350,11 +337,10 @@ export default function BranchreportUsersPage() {
       setIsSubmitting(true);
       const newUser = await userService.createUser({
         username: formData.username,
-        email: `${formData.username}@example.com`, // Generate default email
         fullName: formData.fullName,
         password: formData.password,
         phone: formData.phone || undefined,
-        serviceIds: currentUserServiceId ? [currentUserServiceId] : undefined,
+        serviceIds: [5], // Branch report service ID
       });
 
       // Check if newUser was created successfully
@@ -365,10 +351,10 @@ export default function BranchreportUsersPage() {
 
       console.log("Created user:", newUser);
 
-      // Create assignments for new user based on marketing-service pattern
+      // Create assignments for new user - Hierarchical access control
       const assignmentPromises: Promise<any>[] = [];
 
-      // Hierarchical assignment logic - following marketing-service pattern
+      // Hierarchical assignment logic based on user's requirements
       if (selectedBranchIds.length > 0) {
         // Specific branches selected - assign to these branches only
         selectedBranchIds.forEach(branchId => {
@@ -376,44 +362,47 @@ export default function BranchreportUsersPage() {
           assignmentPromises.push(userService.assignUserToHierarchy(assignRequest));
         });
       } else if (selectedSubAreaIds.length > 0) {
-        // Sub-areas selected - assign to ALL branches in these sub-areas
+        // Sub-areas selected - assign to the sub-area itself AND ALL branches in these sub-areas
         for (const subAreaId of selectedSubAreaIds) {
+          // First, assign to the sub-area itself
+          const subAreaAssignRequest: AssignUserRequest = { userId: newUser.id, subAreaId };
+          assignmentPromises.push(userService.assignUserToHierarchy(subAreaAssignRequest));
+
           // Get all branches in this sub-area
-          const subAreaBranches = branches.filter(branch => branch.sub_area_id === subAreaId);
+          const subAreaBranches = branches.filter(branch => branch.subAreaId === subAreaId);
           if (subAreaBranches.length > 0) {
+            // Assign to all branches in the sub-area
             subAreaBranches.forEach(branch => {
               const assignRequest: AssignUserRequest = { userId: newUser.id, branchId: branch.id };
               assignmentPromises.push(userService.assignUserToHierarchy(assignRequest));
             });
-          } else {
-            // If no branches in sub-area, assign to sub-area itself
-            const assignRequest: AssignUserRequest = { userId: newUser.id, subAreaId };
-            assignmentPromises.push(userService.assignUserToHierarchy(assignRequest));
           }
         }
       } else if (selectedAreaIds.length > 0) {
-        // Areas selected - assign to ALL sub-areas and ALL branches in these areas
+        // Areas selected - assign to the area itself AND ALL sub-areas and branches in these areas
         for (const areaId of selectedAreaIds) {
+          // First, assign to the area itself
+          const areaAssignRequest: AssignUserRequest = { userId: newUser.id, areaId };
+          assignmentPromises.push(userService.assignUserToHierarchy(areaAssignRequest));
+
           // Get all sub-areas in this area
-          const areaSubAreas = subAreas.filter(subArea => subArea.area_id === areaId);
-
+          const areaSubAreas = subAreas.filter(subArea => subArea.areaId === areaId);
           if (areaSubAreas.length > 0) {
-            // Assign to all sub-areas
-            areaSubAreas.forEach(subArea => {
-              const assignRequest: AssignUserRequest = { userId: newUser.id, subAreaId: subArea.id };
-              assignmentPromises.push(userService.assignUserToHierarchy(assignRequest));
-            });
+            // For each sub-area, assign to the sub-area itself AND all its branches
+            for (const subArea of areaSubAreas) {
+              // Assign to the sub-area itself
+              const subAreaAssignRequest: AssignUserRequest = { userId: newUser.id, subAreaId: subArea.id };
+              assignmentPromises.push(userService.assignUserToHierarchy(subAreaAssignRequest));
 
-            // Also assign to all branches in these sub-areas
-            const areaBranches = branches.filter(branch => branch.area_id === areaId);
-            areaBranches.forEach(branch => {
-              const assignRequest: AssignUserRequest = { userId: newUser.id, branchId: branch.id };
-              assignmentPromises.push(userService.assignUserToHierarchy(assignRequest));
-            });
-          } else {
-            // If no sub-areas in area, assign to area itself
-            const assignRequest: AssignUserRequest = { userId: newUser.id, areaId };
-            assignmentPromises.push(userService.assignUserToHierarchy(assignRequest));
+              // Assign to all branches in the sub-area
+              const subAreaBranches = branches.filter(branch => branch.subAreaId === subArea.id);
+              if (subAreaBranches.length > 0) {
+                subAreaBranches.forEach(branch => {
+                  const assignRequest: AssignUserRequest = { userId: newUser.id, branchId: branch.id };
+                  assignmentPromises.push(userService.assignUserToHierarchy(assignRequest));
+                });
+              }
+            }
           }
         }
       }
@@ -444,6 +433,11 @@ export default function BranchreportUsersPage() {
   };
 
   const loadUserAssignment = async (userId: string) => {
+    if (!userId) {
+      console.error("Invalid user ID provided to loadUserAssignment");
+      return;
+    }
+
     try {
       const assignments = await userService.getUserAssignments(userId);
       const activeAssignments = assignments.filter(a => a.active);
@@ -465,6 +459,8 @@ export default function BranchreportUsersPage() {
           setEditAreaIds(areaIds);
           setEditSubAreaIds([]);
           setEditBranchIds([]);
+          setEditSubAreaIds([]);
+          setEditBranchIds([]);
         } else if (subAreaIds.length > 0) {
           // Get parent area IDs for sub-areas
           const parentAreaIds = activeAssignments
@@ -475,15 +471,22 @@ export default function BranchreportUsersPage() {
           setEditSubAreaIds(subAreaIds);
           setEditBranchIds([]);
         } else if (branchIds.length > 0) {
-          // Get parent area and sub-area IDs for branches
-          const parentAreaIds = activeAssignments
-            .filter(a => a.assignmentType === "BRANCH" && a.areaId)
-            .map(a => a.areaId!)
+          // For branch assignments, derive parent area and sub-area IDs from branches data
+          const assignedBranches = branches.filter(branch => branchIds.includes(branch.id));
+          const parentAreaIds = assignedBranches
+            .map(branch => branch.areaId)
             .filter((id, index, arr) => arr.indexOf(id) === index); // unique
-          const parentSubAreaIds = activeAssignments
-            .filter(a => a.assignmentType === "BRANCH" && a.subAreaId)
-            .map(a => a.subAreaId!)
+          const parentSubAreaIds = assignedBranches
+            .map(branch => branch.subAreaId)
             .filter((id, index, arr) => arr.indexOf(id) === index); // unique
+
+          console.log("Branch assignments found:", {
+            branchIds,
+            parentAreaIds,
+            parentSubAreaIds,
+            assignedBranches: assignedBranches.map(b => ({ id: b.id, name: b.name, areaId: b.areaId, subAreaId: b.subAreaId }))
+          });
+
           setEditAreaIds(parentAreaIds);
           setEditSubAreaIds(parentSubAreaIds);
           setEditBranchIds(branchIds);
@@ -493,13 +496,15 @@ export default function BranchreportUsersPage() {
         setEditingUserCurrentAssignment(activeAssignments[0]);
       } else {
         setEditingUserCurrentAssignment(null);
+        // Clear all edit selections when no assignments
         setEditAreaIds([]);
         setEditSubAreaIds([]);
         setEditBranchIds([]);
       }
     } catch (error) {
-      console.error("Error loading user assignment:", error);
-      setEditingUserCurrentAssignment(null);
+      console.error("Error loading user assignments:", error);
+      showToast("Failed to load user assignments", "error");
+      // Clear selections on error
       setEditAreaIds([]);
       setEditSubAreaIds([]);
       setEditBranchIds([]);
@@ -507,10 +512,15 @@ export default function BranchreportUsersPage() {
   };
 
   const handleEditUser = async (user: UserInfo) => {
+    if (!user || !user.id) {
+      showToast("Invalid user data", "error");
+      return;
+    }
+
     setEditingUser(user);
     setEditFormData({
-      fullName: user.fullName,
-      username: user.username,
+      fullName: user.fullName || "",
+      username: user.username || "",
       phone: (user as any).phone || "",
     });
     await loadUserAssignment(user.id);
@@ -579,44 +589,45 @@ export default function BranchreportUsersPage() {
             assignmentPromises.push(userService.assignUserToHierarchy(assignRequest));
           });
         } else if (editSubAreaIds.length > 0) {
-          // Sub-areas selected - assign to ALL branches in these sub-areas
+          // Sub-areas selected - assign to the sub-area itself AND ALL branches in these sub-areas
           for (const subAreaId of editSubAreaIds) {
+            // First, assign to the sub-area itself
+            const subAreaAssignRequest: AssignUserRequest = { userId: editingUser.id, subAreaId };
+            assignmentPromises.push(userService.assignUserToHierarchy(subAreaAssignRequest));
+
             // Get all branches in this sub-area
-            const subAreaBranches = branches.filter(branch => branch.sub_area_id === subAreaId);
+            const subAreaBranches = branches.filter(branch => branch.subAreaId === subAreaId);
             if (subAreaBranches.length > 0) {
+              // Assign to all branches in the sub-area
               subAreaBranches.forEach(branch => {
                 const assignRequest: AssignUserRequest = { userId: editingUser.id, branchId: branch.id };
                 assignmentPromises.push(userService.assignUserToHierarchy(assignRequest));
               });
-            } else {
-              // If no branches in sub-area, assign to sub-area itself
-              const assignRequest: AssignUserRequest = { userId: editingUser.id, subAreaId };
-              assignmentPromises.push(userService.assignUserToHierarchy(assignRequest));
             }
           }
         } else if (editAreaIds.length > 0) {
-          // Areas selected - assign to ALL sub-areas and ALL branches in these areas
+          // Areas selected - assign to the area itself AND ALL sub-areas and ALL branches in these areas
           for (const areaId of editAreaIds) {
+            // First, assign to the area itself
+            const areaAssignRequest: AssignUserRequest = { userId: editingUser.id, areaId };
+            assignmentPromises.push(userService.assignUserToHierarchy(areaAssignRequest));
+
             // Get all sub-areas in this area
-            const areaSubAreas = subAreas.filter(subArea => subArea.area_id === areaId);
+            const areaSubAreas = subAreas.filter(subArea => subArea.areaId === areaId);
 
             if (areaSubAreas.length > 0) {
-              // Assign to all sub-areas
+              // Assign to all sub-areas themselves
               areaSubAreas.forEach(subArea => {
-                const assignRequest: AssignUserRequest = { userId: editingUser.id, subAreaId: subArea.id };
-                assignmentPromises.push(userService.assignUserToHierarchy(assignRequest));
+                const subAreaAssignRequest: AssignUserRequest = { userId: editingUser.id, subAreaId: subArea.id };
+                assignmentPromises.push(userService.assignUserToHierarchy(subAreaAssignRequest));
               });
 
               // Also assign to all branches in these sub-areas
-              const areaBranches = branches.filter(branch => branch.area_id === areaId);
+              const areaBranches = branches.filter(branch => branch.areaId === areaId);
               areaBranches.forEach(branch => {
                 const assignRequest: AssignUserRequest = { userId: editingUser.id, branchId: branch.id };
                 assignmentPromises.push(userService.assignUserToHierarchy(assignRequest));
               });
-            } else {
-              // If no sub-areas in area, assign to area itself
-              const assignRequest: AssignUserRequest = { userId: editingUser.id, areaId };
-              assignmentPromises.push(userService.assignUserToHierarchy(assignRequest));
             }
           }
         }
@@ -650,19 +661,10 @@ export default function BranchreportUsersPage() {
     }
   };
 
-  const handleDeleteUser = async (userId: string) => {
-    if (!confirm("Are you sure you want to delete this user?")) {
-      return;
-    }
-
-    try {
-      await userService.deleteUser(userId);
-      showToast("User deleted successfully", "success");
-      fetchUsers();
-    } catch (error) {
-      console.error("Failed to delete user:", error);
-      showToast("Failed to delete user", "error");
-    }
+  const newAssignmentIds = {
+    area: editAreaIds,
+    subArea: editSubAreaIds,
+    branch: editBranchIds
   };
 
   const handleCancelEdit = () => {
@@ -674,6 +676,34 @@ export default function BranchreportUsersPage() {
     setCurrentUserAssignments([]);
   };
 
+  const toggleUserStatus = async (userId: string) => {
+    const user = users.find(u => u?.id === userId);
+    if (!user) return;
+
+    // Get current active status, default to true if not set
+    const isActive = user.active !== undefined ? user.active : (user.enabled !== undefined ? user.enabled : true);
+    const action = isActive ? "deactivate" : "activate";
+    if (!confirm(`Are you sure you want to ${action} this user?`)) {
+      return;
+    }
+
+    try {
+      const updatedUser = isActive
+        ? await userService.deactivateUser(userId)
+        : await userService.activateUser(userId);
+
+      // Update the user in local state
+      setUsers(prevUsers =>
+        prevUsers.map(u => u?.id === userId ? { ...u, ...updatedUser } : u)
+      );
+
+      showToast(`User ${updatedUser.active ? "activated" : "deactivated"} successfully`, "success");
+    } catch (error) {
+      console.error(`Failed to ${action} user:`, error);
+      showToast(`Failed to ${action} user`, "error");
+    }
+  };
+
   const groupedBranches = useMemo(() => {
     const groups: { id: string; label: string; branches: Branch[] }[] = [];
 
@@ -681,7 +711,7 @@ export default function BranchreportUsersPage() {
       editSubAreaIds.forEach((subAreaId) => {
         const label =
           subAreas.find((sub) => sub.id === subAreaId)?.name || `Sub-Area ${subAreaId}`;
-        const relatedBranches = branches.filter((branch) => branch.sub_area_id === subAreaId);
+        const relatedBranches = branches.filter((branch) => branch.subAreaId === subAreaId);
         if (relatedBranches.length > 0) {
           groups.push({ id: `sub-${subAreaId}`, label, branches: relatedBranches });
         }
@@ -690,7 +720,7 @@ export default function BranchreportUsersPage() {
       editAreaIds.forEach((areaId) => {
         const label =
           areas.find((area) => area.id === areaId)?.name || `Area ${areaId}`;
-        const relatedBranches = branches.filter((branch) => branch.area_id === areaId);
+        const relatedBranches = branches.filter((branch) => branch.areaId === areaId);
         if (relatedBranches.length > 0) {
           groups.push({ id: `area-${areaId}`, label, branches: relatedBranches });
         }
@@ -798,6 +828,11 @@ export default function BranchreportUsersPage() {
                     <label className="block text-sm font-medium text-slate-200 mb-3">
                       Assign to Areas, Sub-Areas, or Branches
                     </label>
+                    <div className="text-xs text-slate-400 mb-3 space-y-1">
+                      <p>• <strong>Area selection:</strong> Access to area + ALL sub-areas + ALL branches in that area</p>
+                      <p>• <strong>Sub-area selection:</strong> Access to sub-area + ALL branches in that sub-area</p>
+                      <p>• <strong>Branch selection:</strong> Access to only that specific branch</p>
+                    </div>
                     <MultiSelectHierarchyDropdown
                       areas={areas}
                       subAreas={availableSubAreas}
@@ -888,20 +923,26 @@ export default function BranchreportUsersPage() {
                 <div className="space-y-3">
                   {filteredUsers.map((user) => (
                     <div
-                      key={user.id}
+                      key={user?.id || 'unknown'}
                       className="bg-slate-700 rounded-lg p-4 border border-slate-600"
                     >
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
                           <div className="flex items-center space-x-2">
-                            <h3 className="font-medium text-slate-100">{user.fullName}</h3>
+                            <h3 className="font-medium text-slate-100">{user?.fullName || 'Unknown'}</h3>
+                            <span className={`px-2 py-1 text-xs rounded-full ${(user?.active !== undefined ? user?.active : (user?.enabled !== undefined ? user?.enabled : true))
+                              ? 'bg-green-600 text-white'
+                              : 'bg-red-600 text-white'
+                              }`}>
+                              {(user?.active !== undefined ? user?.active : (user?.enabled !== undefined ? user?.enabled : true)) ? 'Active' : 'Inactive'}
+                            </span>
                           </div>
                           <div className="text-slate-400 text-sm mt-1">
-                            <div>Username: {user.username}</div>
-                            {(user as any).phone && <div>Phone: {(user as any).phone}</div>}
+                            <div>Username: {user?.username || 'Unknown'}</div>
+                            {(user as any)?.phone && <div>Phone: {(user as any).phone}</div>}
                           </div>
                           <div className="text-slate-500 text-xs mt-2">
-                            Created: {new Date(user.createdAt).toLocaleDateString()}
+                            Created: {user?.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'Unknown'}
                           </div>
                         </div>
                         <div className="flex space-x-2 ml-4">
@@ -912,10 +953,13 @@ export default function BranchreportUsersPage() {
                             Edit
                           </button>
                           <button
-                            onClick={() => handleDeleteUser(user.id)}
-                            className="px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700 transition-colors"
+                            onClick={() => toggleUserStatus(user.id)}
+                            className={`px-3 py-1 text-white text-sm rounded transition-colors ${(user?.active !== undefined ? user?.active : (user?.enabled !== undefined ? user?.enabled : true))
+                              ? "bg-orange-600 hover:bg-orange-700"
+                              : "bg-green-600 hover:bg-green-700"
+                              }`}
                           >
-                            Delete
+                            {(user?.active !== undefined ? user?.active : (user?.enabled !== undefined ? user?.enabled : true)) ? "Deactivate" : "Activate"}
                           </button>
                         </div>
                       </div>
@@ -924,9 +968,9 @@ export default function BranchreportUsersPage() {
                 </div>
               )
             }
-          </div >
-        </div >
-      </div >
-    </BranchreportServiceGuard >
+          </div>
+        </div>
+      </div>
+    </BranchreportServiceGuard>
   );
 }

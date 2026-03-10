@@ -5,16 +5,18 @@ export interface UserInfo {
   username: string;
   email: string;
   fullName: string;
+  active: boolean;
+  enabled: boolean;
   createdAt: string;
   updatedAt: string;
 }
 
 export interface CreateUserInfoPayload {
   username: string;
-  email: string;
   fullName: string;
   password?: string;
   phone?: string;
+  serviceIds?: number[];
 }
 
 export interface UpdateUserInfoPayload {
@@ -95,7 +97,7 @@ export const userService = {
       password: payload.password,
       fullName: payload.fullName,
       phone: payload.phone || null,
-      serviceIds: payload.serviceIds || [5] // Default to branchreport-service if not provided
+      serviceIds: payload.serviceIds && payload.serviceIds.length > 0 ? payload.serviceIds : undefined // Only send if provided
     };
 
     const currentUserId = getUserId();
@@ -186,5 +188,22 @@ export const userService = {
     await apiFetch(`/api/branchreport/users/user-assignments/${assignmentId}`, {
       method: "DELETE",
     });
+  },
+
+  // User activation/deactivation methods (soft delete)
+  async activateUser(id: string): Promise<UserInfo> {
+    const response = await apiFetch(`/api/users/${id}/activate`, {
+      method: "PUT",
+    });
+    const result = await response.json();
+    return result.data || result;
+  },
+
+  async deactivateUser(id: string): Promise<UserInfo> {
+    const response = await apiFetch(`/api/users/${id}/deactivate`, {
+      method: "PUT",
+    });
+    const result = await response.json();
+    return result.data || result;
   },
 };

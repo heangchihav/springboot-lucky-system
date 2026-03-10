@@ -1,92 +1,72 @@
-"use client";
-
 import React, { useMemo } from "react";
-import { Area, SubArea, Branch } from "@/services/region-service/regionService";
-import { BranchreportUserAssignment } from "@/services/branchreport-service/userService";
 
-// Common types
-type FilterValue = string | "all";
-
-// Base interfaces
-export interface HierarchyDropdownProps {
-  areas: Area[];
-  subAreas: SubArea[];
-  branches: Branch[];
-  currentUserAssignments: BranchreportUserAssignment[];
-  disabled?: boolean;
-  className?: string;
+export interface Area {
+  id: string;
+  name: string;
+  description?: string;
+  areaId?: string;
+  subAreaId?: string;
 }
 
-// Multi-select checkbox component props
-export interface MultiSelectHierarchyProps extends HierarchyDropdownProps {
-  selectedAreaIds: string[];
-  selectedSubAreaIds: string[];
-  selectedBranchIds: string[];
-  onAreaChange: (areaIds: string[]) => void;
-  onSubAreaChange: (subAreaIds: string[]) => void;
-  onBranchChange: (branchIds: string[]) => void;
-  showAreas?: boolean;
-  showSubAreas?: boolean;
-  showBranches?: boolean;
+export interface SubArea {
+  id: string;
+  name: string;
+  description?: string;
+  areaId: string;
+  subAreaId?: string;
 }
 
-// Single-select dropdown component props
-export interface SingleSelectHierarchyProps extends HierarchyDropdownProps {
-  selectedAreaId?: string;
-  selectedSubAreaId?: string | "all";
-  selectedBranchId?: string;
-  onAreaChange: (areaId?: string) => void;
-  onSubAreaChange: (subAreaId?: string | "all") => void;
-  onBranchChange: (branchId?: string) => void;
-  showAreas?: boolean;
-  showSubAreas?: boolean;
-  showBranches?: boolean;
-  allowAll?: boolean; // For "all" option in filters
+export interface Branch {
+  id: string;
+  name: string;
+  description?: string;
+  areaId: string;
+  subAreaId: string;
 }
 
-// Filter dropdown component props
-export interface FilterHierarchyProps extends HierarchyDropdownProps {
-  areaFilter: FilterValue;
-  subAreaFilter: FilterValue;
-  branchFilter: FilterValue;
-  onAreaFilterChange: (value: FilterValue) => void;
-  onSubAreaFilterChange: (value: FilterValue) => void;
-  onBranchFilterChange: (value: FilterValue) => void;
-  showAreas?: boolean;
-  showSubAreas?: boolean;
-  showBranches?: boolean;
+export interface BranchreportUserAssignment {
+  id: number;
+  userId: string;
+  areaId?: string;
+  areaName?: string;
+  subAreaId?: string;
+  subAreaName?: string;
+  branchId?: string;
+  branchName?: string;
+  active: boolean;
+  assignedAt: string;
+  updatedAt: string;
+  assignmentType: "AREA" | "SUB_AREA" | "BRANCH";
 }
 
-// Utility function to toggle selection
-export const toggleSelection = (prev: string[], value: string): string[] => {
-  return prev.includes(value)
-    ? prev.filter((id) => id !== value)
-    : [...prev, value];
+// Utility to toggle selection
+export const toggleSelection = (selected: string[], id: string): string[] => {
+  return selected.includes(id)
+    ? selected.filter((s) => s !== id)
+    : [...selected, id];
 };
 
 // Utility to filter by user assignments - shows all data for users without assignments
 export const filterByAssignments = {
   area: (areas: Area[], assignments: BranchreportUserAssignment[]) => {
-    // If no assignments, show all areas (admin user)
-    if (assignments.length === 0) return areas;
-    return areas.filter(area => assignments.some(a => a.areaId === area.id));
+    // If no assignments, or only dummy assignments (userId is empty), show all areas (admin user)
+    if (assignments.length === 0 || assignments.every(a => !a.userId)) return areas;
+    return areas.filter(area => assignments.some(a => a.areaId === area.id && a.userId));
   },
 
   subArea: (subAreas: SubArea[], assignments: BranchreportUserAssignment[]) => {
-    // If no assignments, show all sub-areas (admin user)
-    if (assignments.length === 0) return subAreas;
-    return subAreas.filter(subArea => assignments.some(a => a.subAreaId === subArea.id));
+    // If no assignments, or only dummy assignments (userId is empty), show all sub-areas (admin user)
+    if (assignments.length === 0 || assignments.every(a => !a.userId)) return subAreas;
+    return subAreas.filter(subArea => assignments.some(a => a.subAreaId === subArea.id && a.userId));
   },
 
   branch: (branches: Branch[], assignments: BranchreportUserAssignment[]) => {
-    // If no assignments, show all branches (admin user)
-    if (assignments.length === 0) return branches;
-    return branches.filter(branch => assignments.some(a => a.branchId === branch.id));
+    // If no assignments, or only dummy assignments (userId is empty), show all branches (admin user)
+    if (assignments.length === 0 || assignments.every(a => !a.userId)) return branches;
+    return branches.filter(branch => assignments.some(a => a.branchId === branch.id && a.userId));
   },
 };
 
-// Multi-select checkbox component
-// Simple single-select dropdown for area-branch page
 export interface SimpleHierarchyDropdownProps {
   type: "area" | "subarea" | "branch";
   value?: string;
@@ -95,117 +75,43 @@ export interface SimpleHierarchyDropdownProps {
   subAreas: SubArea[];
   branches: Branch[];
   placeholder?: string;
-  disabled?: boolean;
   className?: string;
 }
 
-// Simple filter dropdown for area-branch page
-export interface SimpleFilterHierarchyDropdownProps {
-  type: "area" | "subarea" | "branch";
-  value: FilterValue;
-  onChange: (value: FilterValue) => void;
-  areas: Area[];
-  subAreas: SubArea[];
-  branches: Branch[];
-  placeholder?: string;
-  className?: string;
-}
-
-// Option type for dropdown items
-type Option = {
-  value: string;
-  label: string;
-  parentArea?: string;
-  parentSubArea?: string;
-};
-
-// Single-select dropdown component
-export function HierarchyDropdown({
+export function SimpleHierarchyDropdown({
   type,
   value,
   onChange,
   areas,
   subAreas,
   branches,
-  placeholder = "Select option",
-  disabled = false,
+  placeholder = "Select...",
   className = "",
 }: SimpleHierarchyDropdownProps) {
-  const baseClassName = "w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50";
+  const baseClassName = "w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 text-slate-100 placeholder-slate-400";
 
-  const getOptions = (): Option[] => {
+  const getOptions = () => {
     switch (type) {
       case "area":
-        return areas.map((area: Area) => ({ value: area.id, label: area.name }));
+        return areas.map((area) => ({
+          value: area.id,
+          label: area.name,
+          parentArea: undefined,
+          parentSubArea: undefined
+        }));
       case "subarea":
-        return subAreas.map((subArea: SubArea) => ({
+        return subAreas.map((subArea) => ({
           value: subArea.id,
           label: subArea.name,
-          parentArea: areas.find((a: Area) => a.id === subArea.area_id)?.name
+          parentArea: areas.find((a) => a.id === subArea.areaId)?.name,
+          parentSubArea: undefined
         }));
       case "branch":
-        return branches.map((branch: Branch) => ({
+        return branches.map((branch) => ({
           value: branch.id,
           label: branch.name,
-          parentArea: areas.find((a: Area) => a.id === branch.area_id)?.name,
-          parentSubArea: subAreas.find((s: SubArea) => s.id === branch.sub_area_id)?.name
-        }));
-      default:
-        return [];
-    }
-  };
-
-  const options = getOptions();
-
-  return (
-    <select
-      value={value || ""}
-      onChange={(e) => onChange(e.target.value || undefined)}
-      disabled={disabled}
-      className={`${baseClassName} ${className}`}
-    >
-      <option value="">{placeholder}</option>
-      {options.map((option) => (
-        <option key={option.value} value={option.value}>
-          {option.label}
-          {option.parentArea && ` (${option.parentArea}`}
-          {option.parentSubArea && ` / ${option.parentSubArea}`}
-          {option.parentArea && ")"}
-        </option>
-      ))}
-    </select>
-  );
-}
-
-// Filter dropdown component
-export function FilterHierarchyDropdown({
-  type,
-  value,
-  onChange,
-  areas,
-  subAreas,
-  branches,
-  placeholder = "All options",
-  className = "",
-}: SimpleFilterHierarchyDropdownProps) {
-  const baseClassName = "w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500";
-
-  const getOptions = (): Option[] => {
-    switch (type) {
-      case "area":
-        return areas.map((area: Area) => ({ value: area.id, label: area.name }));
-      case "subarea":
-        return subAreas.map((subArea: SubArea) => ({
-          value: subArea.id,
-          label: subArea.name,
-          parentArea: areas.find((a: Area) => a.id === subArea.area_id)?.name
-        }));
-      case "branch":
-        return branches.map((branch: Branch) => ({
-          value: branch.id,
-          label: branch.name,
-          parentArea: areas.find((a: Area) => a.id === branch.area_id)?.name,
-          parentSubArea: subAreas.find((s: SubArea) => s.id === branch.sub_area_id)?.name
+          parentArea: areas.find((a) => a.id === branch.areaId)?.name,
+          parentSubArea: subAreas.find((s) => s.id === branch.subAreaId)?.name
         }));
       default:
         return [];
@@ -231,6 +137,24 @@ export function FilterHierarchyDropdown({
       ))}
     </select>
   );
+}
+
+export interface MultiSelectHierarchyProps {
+  areas: Area[];
+  subAreas: SubArea[];
+  branches: Branch[];
+  currentUserAssignments: BranchreportUserAssignment[];
+  selectedAreaIds: string[];
+  selectedSubAreaIds: string[];
+  selectedBranchIds: string[];
+  onAreaChange: (ids: string[]) => void;
+  onSubAreaChange: (ids: string[]) => void;
+  onBranchChange: (ids: string[]) => void;
+  showAreas?: boolean;
+  showSubAreas?: boolean;
+  showBranches?: boolean;
+  disabled?: boolean;
+  className?: string;
 }
 
 export function MultiSelectHierarchyDropdown({
@@ -267,16 +191,62 @@ export function MultiSelectHierarchyDropdown({
   const handleAreaToggle = (areaId: string) => {
     const newSelected = toggleSelection(selectedAreaIds, areaId);
     onAreaChange(newSelected);
+
+    // If deselecting area, also deselect all its sub-areas and branches
+    if (!newSelected.includes(areaId)) {
+      // Deselect all sub-areas in this area
+      const areaSubAreas = subAreas.filter(sa => sa.areaId === areaId);
+      const areaSubAreaIds = areaSubAreas.map(sa => sa.id);
+      const newSubAreaSelected = selectedSubAreaIds.filter(id => !areaSubAreaIds.includes(id));
+      onSubAreaChange(newSubAreaSelected);
+
+      // Deselect all branches in this area
+      const areaBranches = branches.filter(b => b.areaId === areaId);
+      const areaBranchIds = areaBranches.map(b => b.id);
+      const newBranchSelected = selectedBranchIds.filter(id => !areaBranchIds.includes(id));
+      onBranchChange(newBranchSelected);
+    }
   };
 
   const handleSubAreaToggle = (subAreaId: string) => {
     const newSelected = toggleSelection(selectedSubAreaIds, subAreaId);
     onSubAreaChange(newSelected);
+
+    // Auto-select parent area when sub-area is selected
+    const subArea = subAreas.find(sa => sa.id === subAreaId);
+    if (subArea && newSelected.includes(subAreaId) && !selectedAreaIds.includes(subArea.areaId)) {
+      const newAreaSelected = toggleSelection(selectedAreaIds, subArea.areaId);
+      onAreaChange(newAreaSelected);
+    }
+
+    // If deselecting sub-area, also deselect all its branches
+    if (!newSelected.includes(subAreaId)) {
+      const subAreaBranches = branches.filter(b => b.subAreaId === subAreaId);
+      const subAreaBranchIds = subAreaBranches.map(b => b.id);
+      const newBranchSelected = selectedBranchIds.filter(id => !subAreaBranchIds.includes(id));
+      onBranchChange(newBranchSelected);
+    }
   };
 
   const handleBranchToggle = (branchId: string) => {
     const newSelected = toggleSelection(selectedBranchIds, branchId);
     onBranchChange(newSelected);
+
+    // Auto-select parent sub-area and area when branch is selected
+    const branch = branches.find(b => b.id === branchId);
+    if (branch && newSelected.includes(branchId)) {
+      // Auto-select parent sub-area
+      if (branch.subAreaId && !selectedSubAreaIds.includes(branch.subAreaId)) {
+        const newSubAreaSelected = toggleSelection(selectedSubAreaIds, branch.subAreaId);
+        onSubAreaChange(newSubAreaSelected);
+
+        // Auto-select parent area (when sub-area is selected)
+        if (branch.areaId && !selectedAreaIds.includes(branch.areaId)) {
+          const newAreaSelected = toggleSelection(selectedAreaIds, branch.areaId);
+          onAreaChange(newAreaSelected);
+        }
+      }
+    }
   };
 
   return (
@@ -316,7 +286,7 @@ export function MultiSelectHierarchyDropdown({
                 />
                 <span className="text-sm text-slate-100">{subArea.name}</span>
                 <span className="text-xs text-slate-400">
-                  ({areas.find(a => a.id === subArea.area_id)?.name})
+                  ({areas.find(a => a.id === subArea.areaId)?.name})
                 </span>
               </label>
             ))}
@@ -339,8 +309,7 @@ export function MultiSelectHierarchyDropdown({
                 />
                 <span className="text-sm text-slate-100">{branch.name}</span>
                 <span className="text-xs text-slate-400">
-                  ({areas.find(a => a.id === branch.area_id)?.name} /
-                  {subAreas.find(s => s.id === branch.sub_area_id)?.name})
+                  ({areas.find(a => a.id === branch.areaId)?.name} / {subAreas.find(s => s.id === branch.subAreaId)?.name})
                 </span>
               </label>
             ))}
