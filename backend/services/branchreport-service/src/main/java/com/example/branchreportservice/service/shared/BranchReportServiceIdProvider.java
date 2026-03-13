@@ -16,7 +16,7 @@ public class BranchReportServiceIdProvider {
     @Value("${user.service.url:http://gateway:8080}")
     private String userServiceUrl;
 
-    @Value("${branchreport.service-code:branchreport-servcie}")
+    @Value("${branchreport.service-code:branchreport-service}")
     private String serviceCode;
 
     private Long cachedServiceId;

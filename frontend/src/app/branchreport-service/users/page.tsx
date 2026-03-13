@@ -340,7 +340,7 @@ export default function BranchreportUsersPage() {
         fullName: formData.fullName,
         password: formData.password,
         phone: formData.phone || undefined,
-        serviceIds: [5], // Branch report service ID
+        serviceIds: currentUserServiceId ? [currentUserServiceId] : [5], // Use dynamic service ID
       });
 
       // Check if newUser was created successfully
